@@ -6,8 +6,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QTimer
 
-from src.dnf_gui.core.package import Package, PackageStatus
-from src.dnf_gui.ui.widgets.package_card import PackageCard
+from dnf_gui.core.package import Package, PackageStatus
+from dnf_gui.ui.widgets.package_card import PackageCard
 
 
 class InstalledPage(QWidget):
@@ -29,13 +29,12 @@ class InstalledPage(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 0, 32, 24)
+        layout.setContentsMargins(16, 0, 16, 16)
         layout.setSpacing(16)
 
         # ── Header ──
         header = QLabel("Installed Packages")
         header.setObjectName("page_header")
-        header.setContentsMargins(0, 24, 0, 0)
         layout.addWidget(header)
 
         subheader = QLabel("Browse and manage all packages on your system")
@@ -53,7 +52,7 @@ class InstalledPage(QWidget):
 
         self._search_input = QLineEdit()
         self._search_input.setObjectName("search_input")
-        self._search_input.setPlaceholderText("🔍  Search installed packages...")
+        self._search_input.setPlaceholderText("Search installed packages...")
         self._search_input.textChanged.connect(self._on_search_changed)
         filter_bar.addWidget(self._search_input, 1)
 
@@ -62,7 +61,7 @@ class InstalledPage(QWidget):
         self._sort_combo.currentIndexChanged.connect(self._apply_filter)
         filter_bar.addWidget(self._sort_combo)
 
-        refresh_btn = QPushButton("🔄  Refresh")
+        refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("primary_button")
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_btn.clicked.connect(self.refresh_clicked.emit)
@@ -125,8 +124,8 @@ class InstalledPage(QWidget):
     def _render_list(self):
         """Render the filtered package list."""
         # Clear existing
-        while self._list_layout.count() > 1:
-            item = self._list_layout.takeAt(0)
+        while self._list_layout.count() > 2:
+            item = self._list_layout.takeAt(1)
             if item.widget():
                 item.widget().deleteLater()
 
@@ -136,7 +135,6 @@ class InstalledPage(QWidget):
         if not display_list:
             self._status_label.setText("No packages match your search")
             self._status_label.show()
-            self._list_layout.insertWidget(0, self._status_label)
         else:
             self._status_label.hide()
             for pkg in display_list:
@@ -161,7 +159,7 @@ class InstalledPage(QWidget):
     def set_loading(self, loading: bool):
         """Show/hide loading state."""
         if loading:
-            self._status_label.setText("⏳  Loading installed packages...")
+            self._status_label.setText("Loading installed packages...")
             self._status_label.show()
 
     def display_packages(self, packages: list[Package]):

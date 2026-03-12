@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from src.dnf_gui.core.package import Package, PackageStatus, UpdateInfo
-from src.dnf_gui.core.dnf_backend import DNFBackend
+from dnf_gui.core.package import Package, PackageStatus, UpdateInfo
+from dnf_gui.core.dnf_backend import DNFBackend
 
 
 class TestPackageModel(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestDNFBackend(unittest.TestCase):
     def setUp(self):
         self.backend = DNFBackend()
 
-    @patch("src.dnf_gui.core.dnf_backend.subprocess.run")
+    @patch("dnf_gui.core.dnf_backend.subprocess.run")
     def test_list_installed_parses_output(self, mock_run):
         """Test that list_installed correctly parses DNF output."""
         mock_run.return_value = MagicMock(
@@ -70,7 +70,7 @@ class TestDNFBackend(unittest.TestCase):
         self.assertEqual(packages[0].name, "firefox")
         self.assertEqual(packages[1].name, "bash")
 
-    @patch("src.dnf_gui.core.dnf_backend.subprocess.run")
+    @patch("dnf_gui.core.dnf_backend.subprocess.run")
     def test_list_installed_handles_error(self, mock_run):
         """Test that list_installed returns empty list on failure."""
         mock_run.return_value = MagicMock(returncode=1, stdout="")

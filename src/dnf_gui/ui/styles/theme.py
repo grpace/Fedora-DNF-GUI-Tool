@@ -1,60 +1,55 @@
-"""Modern dark theme stylesheet for the application.
+"""Clean, modern Vercel-style UI theme for the application.
 
-Inspired by KDE Breeze Dark with enhanced modern aesthetics.
-Uses a deep blue-gray palette with vibrant accent colors.
+Emphasizes minimal borders, grayscale palette, and stark contrasts,
+focusing entirely on content and typography instead of heavy shapes.
 """
-
 
 # ─── Color Palette ──────────────────────────────────────────────────
 COLORS = {
     # Backgrounds
-    "bg_primary":       "#0d1117",      # Main background (deep dark)
-    "bg_secondary":     "#161b22",      # Cards, sidebar
-    "bg_tertiary":      "#1c2333",      # Elevated surfaces
-    "bg_hover":         "#21262d",      # Hover state
-    "bg_selected":      "#1a3a5c",      # Selected/active item
-    "bg_input":         "#0d1117",      # Input field background
+    "bg_primary":       "#0f172a",      # Deep slate background
+    "bg_secondary":     "#1e293b",      # Slate 800 surfaces
+    "bg_tertiary":      "#334155",      # Slate 700
+    "bg_hover":         "#2dd4bf",      # Teal hover accent
+    "bg_selected":      "#14b8a6",      # Teal active accent
+    "bg_input":         "#0b1120",      # Very deep slate for inputs
+    "bg_card":          "#1e293b",      # Soft slate for cards
 
     # Borders
-    "border_primary":   "#30363d",      # Default borders
-    "border_secondary": "#21262d",      # Subtle borders
-    "border_focus":     "#58a6ff",      # Focus ring
+    "border_primary":   "#334155",      # Slate 700
+    "border_secondary": "#475569",      # Slate 600
+    "border_focus":     "#2dd4bf",      # Teal focus
     
     # Text
-    "text_primary":     "#e6edf3",      # Primary text
-    "text_secondary":   "#8b949e",      # Secondary/muted text
-    "text_tertiary":    "#6e7681",      # Disabled text
-    "text_link":        "#58a6ff",      # Links
+    "text_primary":     "#f8fafc",      # Slate 50
+    "text_secondary":   "#94a3b8",      # Slate 400
+    "text_tertiary":    "#64748b",      # Slate 500
+    "text_link":        "#2dd4bf",      # Teal 400
     
     # Accents
-    "accent_blue":      "#58a6ff",      # Primary accent
-    "accent_green":     "#3fb950",      # Success / install
-    "accent_red":       "#f85149",      # Danger / remove
-    "accent_orange":    "#d29922",      # Warning / updates
-    "accent_purple":    "#bc8cff",      # Info accent
-    
-    # Gradients (for sidebar active indicator)
-    "gradient_start":   "#58a6ff",
-    "gradient_end":     "#bc8cff",
+    "accent_blue":      "#38bdf8",      # Light blue
+    "accent_green":     "#10b981",      # Emerald
+    "accent_red":       "#ef4444",      # Red
+    "accent_orange":    "#f59e0b",      # Amber
+    "accent_purple":    "#8b5cf6",      # Violet
     
     # Scrollbar
-    "scrollbar_bg":     "#161b22",
-    "scrollbar_handle": "#30363d",
-    "scrollbar_hover":  "#484f58",
+    "scrollbar_bg":     "#0f172a",
+    "scrollbar_handle": "#334155",
+    "scrollbar_hover":  "#475569",
 }
 
 # ─── Font Settings ──────────────────────────────────────────────────
 FONTS = {
-    "family":       "'Inter', 'Segoe UI', 'Noto Sans', sans-serif",
-    "family_mono":  "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    "family":       "'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif",
+    "family_mono":  "'JetBrains Mono', 'Fira Code', 'Menlo', monospace",
     "size_xs":      "11px",
     "size_sm":      "12px",
-    "size_base":    "13px",
-    "size_lg":      "15px",
-    "size_xl":      "18px",
-    "size_2xl":     "24px",
+    "size_base":    "14px",
+    "size_lg":      "16px",
+    "size_xl":      "20px",
+    "size_2xl":     "28px",
 }
-
 
 def get_stylesheet() -> str:
     """Return the complete application QSS stylesheet."""
@@ -80,23 +75,18 @@ def get_stylesheet() -> str:
     /* ────────── Sidebar ────────── */
     
     #sidebar {{
-        background-color: {c['bg_secondary']};
+        background-color: {c['bg_primary']};
         border-right: 1px solid {c['border_primary']};
-        min-width: 220px;
-        max-width: 220px;
+        min-width: 250px;
+        max-width: 250px;
     }}
     
     #sidebar_title {{
         font-size: {f['size_xl']};
-        font-weight: 700;
+        font-weight: 800;
         color: {c['text_primary']};
-        padding: 20px 16px 8px 16px;
-    }}
-    
-    #sidebar_subtitle {{
-        font-size: {f['size_xs']};
-        color: {c['text_tertiary']};
-        padding: 0px 16px 16px 16px;
+        padding: 36px 24px 20px 24px;
+        letter-spacing: -0.5px;
     }}
     
     QPushButton#nav_button {{
@@ -104,22 +94,22 @@ def get_stylesheet() -> str:
         color: {c['text_secondary']};
         border: none;
         border-radius: 8px;
-        padding: 10px 16px;
+        padding: 12px 20px;
         text-align: left;
         font-size: {f['size_base']};
         font-weight: 500;
-        margin: 2px 8px;
+        margin: 4px 16px;
     }}
     
     QPushButton#nav_button:hover {{
-        background-color: {c['bg_hover']};
+        background-color: {c['bg_secondary']};
         color: {c['text_primary']};
     }}
     
     QPushButton#nav_button[active="true"] {{
         background-color: {c['bg_selected']};
-        color: {c['accent_blue']};
-        font-weight: 600;
+        color: #ffffff;
+        font-weight: 700;
     }}
     
     /* ────────── Content Area ────────── */
@@ -129,123 +119,136 @@ def get_stylesheet() -> str:
     }}
     
     #page_header {{
-        font-size: {f['size_2xl']};
-        font-weight: 700;
+        font-size: 32px;
+        font-weight: 800;
         color: {c['text_primary']};
-        padding: 24px 32px 8px 32px;
+        margin: 0px;
+        padding: 36px 0px 8px 0px;
+        letter-spacing: -0.5px;
     }}
     
     #page_subheader {{
-        font-size: {f['size_sm']};
+        font-size: {f['size_lg']};
         color: {c['text_secondary']};
-        padding: 0px 32px 16px 32px;
+        margin: 0px;
+        padding: 0px 0px 32px 0px;
     }}
     
     /* ────────── Cards ────────── */
     
     QFrame#card {{
-        background-color: {c['bg_secondary']};
+        background-color: {c['bg_card']};
         border: 1px solid {c['border_primary']};
         border-radius: 12px;
-        padding: 16px;
+        padding: 20px;
     }}
     
     QFrame#card:hover {{
-        border-color: {c['border_focus']};
-        background-color: {c['bg_tertiary']};
+        border-color: {c['border_secondary']};
+        background-color: #212e42;
     }}
     
     /* ────────── Stats Card ────────── */
     
     QFrame#stats_card {{
-        background-color: {c['bg_secondary']};
+        background-color: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {c['bg_card']}, stop:1 {c['bg_tertiary']});
         border: 1px solid {c['border_primary']};
         border-radius: 12px;
-        padding: 20px;
+        padding: 24px;
         min-height: 80px;
     }}
     
     QLabel#stats_number {{
-        font-size: {f['size_2xl']};
-        font-weight: 700;
-        color: {c['accent_blue']};
+        font-size: 36px;
+        font-weight: 800;
+        color: {c['bg_selected']};
+        letter-spacing: -1px;
     }}
     
     QLabel#stats_label {{
-        font-size: {f['size_sm']};
-        color: {c['text_secondary']};
+        font-size: {f['size_base']};
+        color: {c['text_primary']};
+        font-weight: 600;
     }}
     
     /* ────────── Buttons ────────── */
     
     QPushButton#primary_button {{
-        background-color: {c['accent_blue']};
+        background-color: {c['bg_selected']};
         color: #ffffff;
         border: none;
         border-radius: 8px;
         padding: 10px 20px;
+        min-height: 36px;
         font-size: {f['size_base']};
-        font-weight: 600;
+        font-weight: 700;
         min-width: 120px;
     }}
     
     QPushButton#primary_button:hover {{
-        background-color: #79c0ff;
+        background-color: {c['bg_hover']};
     }}
     
     QPushButton#primary_button:pressed {{
-        background-color: #388bfd;
+        background-color: #0d9488;
     }}
     
     QPushButton#primary_button:disabled {{
-        background-color: {c['bg_hover']};
+        background-color: {c['bg_tertiary']};
         color: {c['text_tertiary']};
     }}
     
     QPushButton#danger_button {{
         background-color: transparent;
         color: {c['accent_red']};
-        border: 1px solid {c['accent_red']};
+        border: 1px solid {c['border_primary']};
         border-radius: 8px;
-        padding: 8px 16px;
-        font-size: {f['size_sm']};
+        padding: 8px 20px;
+        min-height: 36px;
+        font-size: {f['size_base']};
         font-weight: 600;
     }}
     
     QPushButton#danger_button:hover {{
-        background-color: {c['accent_red']};
-        color: #ffffff;
+        border-color: {c['accent_red']};
+        background-color: rgba(239, 68, 68, 0.1);
+    }}
+
+    QPushButton#danger_button:pressed {{
+        background-color: rgba(239, 68, 68, 0.2);
     }}
     
     QPushButton#success_button {{
         background-color: transparent;
         color: {c['accent_green']};
-        border: 1px solid {c['accent_green']};
+        border: 1px solid {c['border_primary']};
         border-radius: 8px;
-        padding: 8px 16px;
-        font-size: {f['size_sm']};
+        padding: 8px 20px;
+        min-height: 36px;
+        font-size: {f['size_base']};
         font-weight: 600;
     }}
     
     QPushButton#success_button:hover {{
-        background-color: {c['accent_green']};
-        color: #ffffff;
+        border-color: {c['accent_green']};
+        background-color: rgba(16, 185, 129, 0.1);
     }}
     
     /* ────────── Search Input ────────── */
     
     QLineEdit#search_input {{
-        background-color: {c['bg_input']};
+        background-color: {c['bg_primary']};
         color: {c['text_primary']};
         border: 1px solid {c['border_primary']};
-        border-radius: 8px;
-        padding: 10px 16px;
+        border-radius: 6px;
+        padding: 6px 16px;
+        min-height: 24px;
         font-size: {f['size_base']};
-        selection-background-color: {c['accent_blue']};
+        selection-background-color: {c['text_secondary']};
     }}
     
     QLineEdit#search_input:focus {{
-        border-color: {c['accent_blue']};
+        border-color: {c['border_focus']};
     }}
     
     QLineEdit#search_input::placeholder {{
@@ -267,14 +270,14 @@ def get_stylesheet() -> str:
     
     QScrollBar:vertical {{
         background-color: {c['scrollbar_bg']};
-        width: 10px;
-        border-radius: 5px;
+        width: 8px;
+        border-radius: 4px;
         margin: 0;
     }}
     
     QScrollBar::handle:vertical {{
         background-color: {c['scrollbar_handle']};
-        border-radius: 5px;
+        border-radius: 4px;
         min-height: 30px;
     }}
     
@@ -289,13 +292,13 @@ def get_stylesheet() -> str:
     
     QScrollBar:horizontal {{
         background-color: {c['scrollbar_bg']};
-        height: 10px;
-        border-radius: 5px;
+        height: 8px;
+        border-radius: 4px;
     }}
     
     QScrollBar::handle:horizontal {{
         background-color: {c['scrollbar_handle']};
-        border-radius: 5px;
+        border-radius: 4px;
         min-width: 30px;
     }}
     
@@ -312,13 +315,13 @@ def get_stylesheet() -> str:
     
     QPlainTextEdit#terminal {{
         background-color: {c['bg_primary']};
-        color: {c['accent_green']};
+        color: {c['text_primary']};
         border: 1px solid {c['border_primary']};
-        border-radius: 8px;
-        padding: 12px;
+        border-radius: 6px;
+        padding: 16px;
         font-family: {f['family_mono']};
         font-size: {f['size_sm']};
-        selection-background-color: {c['bg_selected']};
+        selection-background-color: {c['border_primary']};
     }}
     
     /* ────────── Status Bar ────────── */
@@ -328,31 +331,31 @@ def get_stylesheet() -> str:
         color: {c['text_secondary']};
         border-top: 1px solid {c['border_primary']};
         font-size: {f['size_xs']};
-        padding: 4px 12px;
+        padding: 4px 16px;
     }}
     
     /* ────────── Progress Bar ────────── */
     
     QProgressBar {{
-        background-color: {c['bg_hover']};
+        background-color: {c['border_secondary']};
         border: none;
-        border-radius: 4px;
-        height: 6px;
+        border-radius: 2px;
+        height: 4px;
         text-align: center;
     }}
     
     QProgressBar::chunk {{
-        background-color: {c['accent_blue']};
-        border-radius: 4px;
+        background-color: {c['text_primary']};
+        border-radius: 2px;
     }}
     
     /* ────────── Tooltips ────────── */
     
     QToolTip {{
-        background-color: {c['bg_tertiary']};
+        background-color: {c['bg_primary']};
         color: {c['text_primary']};
         border: 1px solid {c['border_primary']};
-        border-radius: 6px;
+        border-radius: 4px;
         padding: 6px 10px;
         font-size: {f['size_sm']};
     }}
@@ -360,17 +363,18 @@ def get_stylesheet() -> str:
     /* ────────── Combo Box ────────── */
     
     QComboBox {{
-        background-color: {c['bg_input']};
+        background-color: {c['bg_primary']};
         color: {c['text_primary']};
         border: 1px solid {c['border_primary']};
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-size: {f['size_sm']};
+        border-radius: 6px;
+        padding: 6px 12px;
+        min-height: 24px;
+        font-size: {f['size_base']};
         min-width: 140px;
     }}
     
     QComboBox:hover {{
-        border-color: {c['accent_blue']};
+        border-color: {c['text_secondary']};
     }}
     
     QComboBox::drop-down {{
@@ -379,11 +383,11 @@ def get_stylesheet() -> str:
     }}
     
     QComboBox QAbstractItemView {{
-        background-color: {c['bg_secondary']};
+        background-color: {c['bg_primary']};
         color: {c['text_primary']};
         border: 1px solid {c['border_primary']};
-        border-radius: 8px;
-        selection-background-color: {c['bg_selected']};
+        border-radius: 6px;
+        selection-background-color: {c['bg_secondary']};
         padding: 4px;
     }}
     
@@ -400,8 +404,9 @@ def get_stylesheet() -> str:
         border: none;
         border-bottom: 2px solid transparent;
         padding: 8px 16px;
-        font-size: {f['size_sm']};
+        font-size: {f['size_base']};
         font-weight: 500;
+        margin-right: 8px;
     }}
     
     QTabBar::tab:hover {{
@@ -409,37 +414,18 @@ def get_stylesheet() -> str:
     }}
     
     QTabBar::tab:selected {{
-        color: {c['accent_blue']};
-        border-bottom: 2px solid {c['accent_blue']};
+        color: {c['text_primary']};
+        border-bottom: 2px solid {c['text_primary']};
         font-weight: 600;
     }}
     
     /* ────────── Separator ────────── */
     
     QFrame#separator {{
-        background-color: {c['border_primary']};
-        max-height: 1px;
-        margin: 8px 16px;
-    }}
-    
-    /* ────────── Badge Labels ────────── */
-    
-    QLabel#badge_update {{
-        background-color: {c['accent_orange']};
-        color: #ffffff;
-        border-radius: 10px;
-        padding: 2px 8px;
-        font-size: {f['size_xs']};
-        font-weight: 700;
-    }}
-    
-    QLabel#badge_installed {{
-        background-color: {c['accent_green']};
-        color: #ffffff;
-        border-radius: 10px;
-        padding: 2px 8px;
-        font-size: {f['size_xs']};
-        font-weight: 700;
+        background-color: transparent;
+        max-height: 0px;
+        margin: 0px;
+        border: none;
     }}
     
     /* ────────── Loading Indicator ────────── */

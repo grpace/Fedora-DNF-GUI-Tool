@@ -6,8 +6,8 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
-from src.dnf_gui.ui.main_window import MainWindow
-from src.dnf_gui.ui.styles.theme import get_stylesheet
+from dnf_gui.ui.main_window import MainWindow
+from dnf_gui.ui.styles.theme import get_stylesheet
 
 
 def main():
@@ -21,7 +21,9 @@ def main():
     app.setApplicationName("DNF Package Manager")
     app.setOrganizationName("Greg.Tech")
     app.setOrganizationDomain("greg.tech")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion("1.1.0")
+    if hasattr(app, "setDesktopFileName"):
+        app.setDesktopFileName("dnf-gui.desktop")
 
     # Set default font
     font = QFont("Inter", 10)

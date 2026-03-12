@@ -12,6 +12,14 @@ class AppStatusBar(QStatusBar):
         self._permanent_label = QLabel("")
         self._permanent_label.setStyleSheet("color: #6e7681; font-size: 11px;")
         self.addPermanentWidget(self._permanent_label)
+        self.messageChanged.connect(self._on_message_changed)
+        self.hide()
+
+    def _on_message_changed(self, message: str):
+        if not message:
+            self.hide()
+        else:
+            self.show()
 
     def show_message(self, message: str, duration_ms: int = 5000):
         """Show a temporary status message."""

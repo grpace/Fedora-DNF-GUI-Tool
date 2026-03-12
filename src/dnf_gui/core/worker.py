@@ -3,8 +3,8 @@
 import subprocess
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from src.dnf_gui.core.dnf_backend import DNFBackend
-from src.dnf_gui.core.package import Package, UpdateInfo
+from dnf_gui.core.dnf_backend import DNFBackend
+from dnf_gui.core.package import Package, UpdateInfo
 
 
 class PackageListWorker(QThread):
@@ -112,6 +112,7 @@ class CommandWorker(QThread):
 
             self._process = subprocess.Popen(
                 self._command,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -127,6 +128,8 @@ class CommandWorker(QThread):
             self.output_line.emit("")
             if exit_code == 0:
                 self.output_line.emit("✓ Operation completed successfully.")
+            elif exit_code == -15 or exit_code == 143:
+                self.output_line.emit("⚠ Operation was cancelled by user.")
             else:
                 self.output_line.emit(f"✗ Operation finished with exit code {exit_code}")
 
@@ -137,7 +140,150 @@ class CommandWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+    def write_input(self, text: str):
+        """Write user input to the running process standard input."""
+        if self._process and self._process.stdin and self._process.poll() is None:
+            try:
+                self._process.stdin.write(text + "\n")
+                self._process.stdin.flush()
+            except Exception:
+                pass
+
     def cancel(self):
         """Attempt to terminate the running process."""
         if self._process and self._process.poll() is None:
             self._process.terminate()
+
+
+class SystemInfoWorker(QThread):
+    """Worker thread to collect system information."""
+
+    finished = pyqtSignal(object)  # SystemInfo
+    error = pyqtSignal(str)
+
+    def run(self):
+        try:
+            from dnf_gui.core.system_info import get_system_info
+            info = get_system_info()
+            self.finished.emit(info)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class FlatpakListWorker(QThread):
+    """Worker thread to list installed Flatpak apps."""
+
+    finished = pyqtSignal(list)  # list[FlatpakApp]
+    error = pyqtSignal(str)
+
+    def __init__(self, flatpak_backend, parent=None):
+        super().__init__(parent)
+        self._backend = flatpak_backend
+
+    def run(self):
+        try:
+            apps = self._backend.list_installed()
+            self.finished.emit(apps)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class FlatpakSearchWorker(QThread):
+    """Worker thread to search Flatpak repos."""
+
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, flatpak_backend, query: str, parent=None):
+        super().__init__(parent)
+        self._backend = flatpak_backend
+        self._query = query
+
+    def run(self):
+        try:
+            apps = self._backend.search(self._query)
+            self.finished.emit(apps)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class HistoryWorker(QThread):
+    """Worker thread to fetch DNF transaction history."""
+
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, backend: DNFBackend, parent=None):
+        super().__init__(parent)
+        self._backend = backend
+
+    def run(self):
+        try:
+            history = self._backend.history()
+            self.finished.emit(history)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class RepoListWorker(QThread):
+    """Worker thread to list repositories."""
+
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, backend: DNFBackend, show_all: bool = True, parent=None):
+        super().__init__(parent)
+        self._backend = backend
+        self._show_all = show_all
+
+    def run(self):
+        try:
+            repos = self._backend.list_repos(self._show_all)
+            self.finished.emit(repos)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class GroupListWorker(QThread):
+    """Worker thread to list package groups."""
+
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, backend: DNFBackend, parent=None):
+        super().__init__(parent)
+        self._backend = backend
+
+    def run(self):
+        try:
+            groups = self._backend.list_groups()
+            self.finished.emit(groups)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class ToolkitCheckWorker(QThread):
+    """Worker to check if quick tools and repositories are already installed/enabled."""
+
+    finished = pyqtSignal(dict)  # dict mapped tool_id -> bool
+    error = pyqtSignal(str)
+
+    def run(self):
+        status = {}
+        try:
+            # 1. Check repos
+            repos = subprocess.check_output(['dnf', 'repolist', '--enabled'], text=True)
+            status['rpmfusion_free'] = 'rpmfusion-free' in repos
+            status['rpmfusion_nonfree'] = 'rpmfusion-nonfree' in repos
+        except Exception:
+            pass
+
+        try:
+            # 2. Check flatpak remotes
+            remotes = subprocess.check_output(['flatpak', 'remotes'], text=True)
+            status['add_flathub'] = 'flathub' in remotes
+        except Exception:
+            pass
+
+        self.finished.emit(status)
+

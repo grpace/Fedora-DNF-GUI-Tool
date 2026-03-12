@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fedora-dnf-gui"
-version = "1.0.0"
+version = "1.1.0"
 description = "A modern GUI package manager for Fedora Linux"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -34,15 +34,16 @@ Repository = "https://github.com/gregtech/fedora-dnf-gui"
 Issues = "https://github.com/gregtech/fedora-dnf-gui/issues"
 
 [project.scripts]
-fedora-dnf-gui = "src.dnf_gui.app:main"
+fedora-dnf-gui = "dnf_gui.app:main"
 
 [project.gui-scripts]
-fedora-dnf-gui-desktop = "src.dnf_gui.app:main"
+fedora-dnf-gui-desktop = "dnf_gui.app:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+where = ["src"]
+include = ["dnf_gui*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src"]
+

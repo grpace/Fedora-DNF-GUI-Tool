@@ -1,4 +1,4 @@
-"""Navigation sidebar with animated active state."""
+"""Navigation sidebar with animated active state — expanded with all feature pages."""
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy
@@ -9,8 +9,8 @@ from PyQt6.QtCore import pyqtSignal, Qt
 class SidebarButton(QPushButton):
     """A sidebar navigation button with icon and active state."""
 
-    def __init__(self, icon: str, text: str, parent=None):
-        super().__init__(f"  {icon}   {text}", parent)
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
         self.setObjectName("nav_button")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setCheckable(True)
@@ -20,7 +20,6 @@ class SidebarButton(QPushButton):
         """Set the active/selected state."""
         self.setProperty("active", active)
         self.setChecked(active)
-        # Force style recalculation
         self.style().unpolish(self)
         self.style().polish(self)
 
@@ -46,9 +45,7 @@ class Sidebar(QWidget):
         title.setObjectName("sidebar_title")
         layout.addWidget(title)
 
-        subtitle = QLabel("by Greg.Tech")
-        subtitle.setObjectName("sidebar_subtitle")
-        layout.addWidget(subtitle)
+        # No subtitle
 
         # ── Separator ──
         sep = QFrame()
@@ -56,19 +53,50 @@ class Sidebar(QWidget):
         sep.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(sep)
 
-        # ── Navigation ──
-        nav_items = [
-            ("🔄", "Updates"),
-            ("📦", "Installed"),
-            ("🔍", "Find Software"),
-            ("💻", "Terminal"),
+        # ── Navigation — grouped by category ──
+
+        # Package Management section label
+        section1 = QLabel("PACKAGE MANAGEMENT")
+        section1.setStyleSheet("""
+            color: #64748b; font-size: 11px; font-weight: 700;
+            letter-spacing: 1px; padding: 16px 16px 8px 16px;
+        """)
+        layout.addWidget(section1)
+
+        pm_items = [
+            ("Updates", "Updates"),
+            ("Installed", "Installed"),
+            ("Flatpak", "Flatpak"),
         ]
 
-        for i, (icon, text) in enumerate(nav_items):
-            btn = SidebarButton(icon, text)
-            btn.clicked.connect(lambda checked, idx=i: self._on_button_clicked(idx))
+        for _, text in pm_items:
+            btn = SidebarButton(text)
+            btn.clicked.connect(lambda checked, idx=len(self._buttons): self._on_button_clicked(idx))
             self._buttons.append(btn)
             layout.addWidget(btn)
+
+        # System section label
+        section2 = QLabel("SYSTEM")
+        section2.setStyleSheet("""
+            color: #64748b; font-size: 11px; font-weight: 700;
+            letter-spacing: 1px; padding: 16px 16px 8px 16px;
+        """)
+        layout.addWidget(section2)
+
+        system_items = [
+            ("System Info", "System Info"),
+            ("Quick Tools", "Quick Tools"),
+            ("Repositories", "Repositories"),
+            ("History", "History"),
+            ("Terminal", "Terminal"),
+        ]
+
+        for _, text in system_items:
+            btn = SidebarButton(text)
+            btn.clicked.connect(lambda checked, idx=len(self._buttons): self._on_button_clicked(idx))
+            self._buttons.append(btn)
+            layout.addWidget(btn)
+
 
         layout.addStretch(1)
 
@@ -78,23 +106,11 @@ class Sidebar(QWidget):
         sep2.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(sep2)
 
-        # Version info
-        version_label = QLabel("  v1.0.0")
+        version_label = QLabel("v1.1.0 — Greg.Tech")
         version_label.setStyleSheet("""
-            color: #6e7681;
-            font-size: 11px;
-            padding: 8px 16px;
+            color: #64748b; font-size: 12px; padding: 16px;
         """)
         layout.addWidget(version_label)
-
-        # Website link
-        link_label = QLabel('  <a href="https://greg.tech" style="color: #58a6ff; text-decoration: none;">greg.tech</a>')
-        link_label.setOpenExternalLinks(True)
-        link_label.setStyleSheet("""
-            font-size: 11px;
-            padding: 0px 16px 16px 16px;
-        """)
-        layout.addWidget(link_label)
 
         # Set first button active
         if self._buttons:
@@ -109,9 +125,9 @@ class Sidebar(QWidget):
     def set_update_badge(self, count: int):
         """Update the Updates button with a count badge."""
         if count > 0:
-            self._buttons[0].setText(f"  🔄   Updates ({count})")
+            self._buttons[0].setText(f"Updates ({count})")
         else:
-            self._buttons[0].setText("  🔄   Updates")
+            self._buttons[0].setText("Updates")
 
     def set_active_page(self, index: int):
         """Programmatically set the active page."""

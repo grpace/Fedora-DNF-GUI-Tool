@@ -2,11 +2,12 @@
 Type=Application
 Name=DNF Package Manager
 GenericName=Package Manager
-Comment=Modern GUI package manager for Fedora Linux
-Exec=python3 -m src.dnf_gui
+Comment=Modern GUI package manager for Fedora Linux — by Greg.Tech
+Exec=/usr/local/bin/dnf-gui
 Icon=dnf-gui
 Terminal=false
-Categories=System;PackageManager;
-Keywords=dnf;package;manager;update;install;remove;fedora;
+Categories=System;PackageManager;Settings;
+Keywords=dnf;package;manager;update;install;remove;fedora;flatpak;
 StartupNotify=true
 StartupWMClass=dnf-package-manager
+X-GNOME-UsesNotifications=true

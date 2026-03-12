@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
-from src.dnf_gui.core.package import Package, PackageStatus
+from dnf_gui.core.package import Package, PackageStatus
 
 
 class PackageCard(QFrame):
@@ -26,17 +26,6 @@ class PackageCard(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(12)
-
-        # ── Package icon placeholder ──
-        icon_label = QLabel("📦")
-        icon_label.setFixedSize(40, 40)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet("""
-            font-size: 22px;
-            background-color: #1c2333;
-            border-radius: 8px;
-        """)
-        layout.addWidget(icon_label)
 
         # ── Package info ──
         info_layout = QVBoxLayout()

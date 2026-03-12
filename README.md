@@ -77,7 +77,7 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 
 **Easiest way** — download and install:
 
-1. **[Download the RPM](https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/latest)** — click `DNF-Package-Manager-X.Y.Z.rpm` on the Releases page
+1. **[Download the RPM](https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/latest)** — click `DNF-Package-Manager-vX.Y.Z.rpm` on the Releases page
 2. Double-click the downloaded file to open in Software, or run:
    ```bash
    sudo dnf install ~/Downloads/dnf-gui-*.noarch.rpm

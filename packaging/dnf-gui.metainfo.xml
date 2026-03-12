@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+  <id>dnf-gui.desktop</id>
+  <name>DNF Package Manager</name>
+  <summary>Modern GUI package manager for Fedora Linux</summary>
+  <description>
+    <p>A Discovery alternative that uses real DNF and Flatpak commands for reliable, terminal-grade updates.</p>
+    <p>Features: system updates, installed packages browser, Flatpak manager with Flathub search, system info dashboard, quick tools (RPM Fusion, codecs, dev tools, VS Code, fwupd), repository manager, transaction history with undo, and auto-update.</p>
+  </description>
+  <developer_name>Greg.Tech</developer_name>
+  <url type="homepage">https://greg.tech</url>
+  <url type="bugtracker">https://github.com/grpace/Fedora-DNF-GUI-Tool/issues</url>
+  <project_license>GPL-3.0-or-later</project_license>
+  <metadata_license>FSFAP</metadata_license>
+  <icon type="local">/usr/share/icons/hicolor/scalable/apps/dnf-gui.svg</icon>
+</component>

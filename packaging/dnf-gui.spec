@@ -8,6 +8,7 @@ Release:        1%{?dist}
 Summary:        Modern GUI package manager for Fedora Linux
 License:        GPL-3.0-or-later
 URL:            https://greg.tech
+Vendor:         Greg.Tech <https://greg.tech>
 Source0:        %{app_name}-%{version}.tar.gz
 BuildArch:      noarch
 
@@ -63,6 +64,10 @@ EOF
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 cp assets/icons/app_icon.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{app_name}.svg
 
+# AppStream metadata (author, description for Discover/Software)
+mkdir -p %{buildroot}%{_metainfodir}
+cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metainfo.xml
+
 %files
 %license LICENSE
 %doc README.md CHANGELOG.md RELEASING.md
@@ -70,6 +75,7 @@ cp assets/icons/app_icon.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 %{_bindir}/%{app_name}
 %{_datadir}/applications/%{app_name}.desktop
 %{_datadir}/icons/hicolor/scalable/apps/%{app_name}.svg
+%{_metainfodir}/%{app_name}.metainfo.xml
 
 %post
 /usr/bin/update-desktop-database %{_datadir}/applications &>/dev/null || :

@@ -39,7 +39,7 @@ Update the version number in these files:
 - [ ] Push tag: `git push origin vX.Y.Z`
 - [ ] Create GitHub release with:
   - Release notes from CHANGELOG
-  - Attach `dist/DNF-Package-Manager-X.Y.Z.rpm` (user-friendly filename)
+  - Attach `dist/DNF-Package-Manager-vX.Y.Z.rpm` (user-friendly filename)
   - Attach source tarball if desired
 
 ## Post-Release

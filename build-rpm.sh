@@ -25,7 +25,7 @@ mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 tar czf ~/rpmbuild/SOURCES/${APP_NAME}-${VERSION}.tar.gz \
     --transform "s,^,${APP_NAME}-${VERSION}/," \
     -C "$SCRIPT_DIR" \
-    src/ assets/ install.sh pyproject.toml requirements.txt LICENSE README.md CHANGELOG.md RELEASING.md
+    src/ assets/ packaging/ install.sh pyproject.toml requirements.txt LICENSE README.md CHANGELOG.md RELEASING.md
 
 cp "$SPEC_FILE" ~/rpmbuild/SPECS/
 rpmbuild -bb ~/rpmbuild/SPECS/dnf-gui.spec
@@ -34,7 +34,7 @@ rpmbuild -bb ~/rpmbuild/SPECS/dnf-gui.spec
 BUILT_RPM=$(ls ~/rpmbuild/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm 2>/dev/null | head -1)
 if [ -n "$BUILT_RPM" ]; then
     mkdir -p "${SCRIPT_DIR}/dist"
-    RELEASE_RPM="${SCRIPT_DIR}/dist/${RELEASE_NAME}-${VERSION}.rpm"
+    RELEASE_RPM="${SCRIPT_DIR}/dist/${RELEASE_NAME}-v${VERSION}.rpm"
     cp "$BUILT_RPM" "$RELEASE_RPM"
     echo ""
     echo "✅ RPM built:"

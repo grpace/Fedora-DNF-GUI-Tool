@@ -4,6 +4,17 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy
 )
 from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QMouseEvent
+
+
+class ClickableLabel(QLabel):
+    """QLabel that emits clicked signal on mouse press."""
+
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event: QMouseEvent):
+        super().mousePressEvent(event)
+        self.clicked.emit()
 
 
 class SidebarButton(QPushButton):
@@ -108,12 +119,12 @@ class Sidebar(QWidget):
         layout.addWidget(sep2)
 
         from dnf_gui import __version__
-        self._version_label = QLabel(f"v{__version__} — Greg.Tech")
+        self._version_label = ClickableLabel(f"v{__version__} — Greg.Tech")
         self._version_label.setStyleSheet("""
             color: #64748b; font-size: 12px; padding: 16px;
         """)
         self._version_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._version_label.mousePressEvent = lambda e: self.update_clicked.emit()
+        self._version_label.clicked.connect(self.update_clicked.emit)
         layout.addWidget(self._version_label)
 
         # Set first button active
@@ -122,9 +133,13 @@ class Sidebar(QWidget):
 
     def _on_button_clicked(self, index: int):
         """Handle button click — update active state and emit signal."""
-        for i, btn in enumerate(self._buttons):
-            btn.set_active(i == index)
-        self.page_changed.emit(index)
+        try:
+            for i, btn in enumerate(self._buttons):
+                btn.set_active(i == index)
+            self.page_changed.emit(index)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def set_update_badge(self, count: int):
         """Update the Updates button with a count badge."""

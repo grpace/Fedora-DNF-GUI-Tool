@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
         self._flatpak_backend = FlatpakBackend()
         self._current_worker = None
         self._command_worker = None
+        self._app_update_worker = None  # Must keep ref to avoid QThread GC crash
         self._pending_update_info = None  # App update available
 
         self._setup_window()
@@ -192,30 +193,37 @@ class MainWindow(QMainWindow):
 
     def _on_page_changed(self, index: int):
         """Handle sidebar page change, auto-load data on first visit."""
-        self._stack.setCurrentIndex(index)
-        # Automatically refresh content for the active tab (e.g. Check for Updates)
-        self._refresh_current()
+        try:
+            self._stack.setCurrentIndex(index)
+            self._refresh_current()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def _switch_page(self, index: int):
         self._sidebar.set_active_page(index)
         self._on_page_changed(index)
 
     def _refresh_current(self):
-        index = self._stack.currentIndex()
-        if index == PAGE_UPDATES:
-            self._check_updates()
-        elif index == PAGE_INSTALLED:
-            self._load_installed()
-        elif index == PAGE_FLATPAK:
-            self._load_flatpaks()
-        elif index == PAGE_SYSINFO:
-            self._load_sysinfo()
-        elif index == PAGE_TOOLKIT:
-            self._load_toolkit_status()
-        elif index == PAGE_REPOS:
-            self._load_repos()
-        elif index == PAGE_HISTORY:
-            self._load_history()
+        try:
+            index = self._stack.currentIndex()
+            if index == PAGE_UPDATES:
+                self._check_updates()
+            elif index == PAGE_INSTALLED:
+                self._load_installed()
+            elif index == PAGE_FLATPAK:
+                self._load_flatpaks()
+            elif index == PAGE_SYSINFO:
+                self._load_sysinfo()
+            elif index == PAGE_TOOLKIT:
+                self._load_toolkit_status()
+            elif index == PAGE_REPOS:
+                self._load_repos()
+            elif index == PAGE_HISTORY:
+                self._load_history()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     # ═══════════════════════════════════════════════════════════════
     #  DNF Package Operations
@@ -225,23 +233,30 @@ class MainWindow(QMainWindow):
         self._updates_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
-        worker = UpdateCheckWorker(self._backend)
+        worker = UpdateCheckWorker(self._backend, parent=self)
         worker.finished.connect(self._on_updates_checked)
         worker.error.connect(self._on_worker_error)
         worker.start()
         self._current_worker = worker
 
     def _on_updates_checked(self, info):
-        self._progress_bar.stop()
-        self._updates_page.set_loading(False)
-        self._updates_page.display_updates(info)
-        self._sidebar.set_update_badge(info.total_updates)
+        try:
+            self._progress_bar.stop()
+            self._updates_page.set_loading(False)
+            self._updates_page.display_updates(info)
+            self._sidebar.set_update_badge(info.total_updates)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._progress_bar.stop()
+            self._updates_page.set_loading(False)
+            QMessageBox.warning(self, "Error", f"Failed to load updates: {e}")
 
     def _load_installed(self):
         self._installed_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
-        worker = PackageListWorker(self._backend)
+        worker = PackageListWorker(self._backend, parent=self)
         worker.finished.connect(self._on_installed_loaded)
         worker.error.connect(self._on_worker_error)
         worker.start()
@@ -316,7 +331,7 @@ class MainWindow(QMainWindow):
         self._flatpak_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
-        worker = FlatpakListWorker(self._flatpak_backend)
+        worker = FlatpakListWorker(self._flatpak_backend, parent=self)
         worker.finished.connect(self._on_flatpaks_loaded)
         worker.error.connect(self._on_worker_error)
         worker.start()
@@ -330,7 +345,7 @@ class MainWindow(QMainWindow):
         self._flatpak_page.set_search_loading(True)
         self._progress_bar.start_indeterminate()
 
-        worker = FlatpakSearchWorker(self._flatpak_backend, query)
+        worker = FlatpakSearchWorker(self._flatpak_backend, query, parent=self)
         worker.finished.connect(self._on_flatpak_search_done)
         worker.error.connect(self._on_worker_error)
         worker.start()
@@ -413,7 +428,7 @@ class MainWindow(QMainWindow):
         self._sysinfo_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
-        worker = SystemInfoWorker()
+        worker = SystemInfoWorker(parent=self)
         worker.finished.connect(self._on_sysinfo_loaded)
         worker.error.connect(self._on_worker_error)
         worker.start()
@@ -577,7 +592,7 @@ class MainWindow(QMainWindow):
         self._repo_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
-        worker = RepoListWorker(self._backend, show_all=True)
+        worker = RepoListWorker(self._backend, show_all=True, parent=self)
         worker.finished.connect(self._on_repos_loaded)
         worker.error.connect(self._on_worker_error)
         worker.start()
@@ -641,7 +656,7 @@ class MainWindow(QMainWindow):
         self._history_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
-        worker = HistoryWorker(self._backend)
+        worker = HistoryWorker(self._backend, parent=self)
         worker.finished.connect(self._on_history_loaded)
         worker.error.connect(self._on_worker_error)
         worker.start()
@@ -681,53 +696,70 @@ class MainWindow(QMainWindow):
     def _check_app_update(self):
         """Check GitHub for app updates (runs in background)."""
         from dnf_gui import __version__
-        worker = AppUpdateWorker(__version__)
+        worker = AppUpdateWorker(__version__, parent=self)
         worker.finished.connect(self._on_app_update_checked)
         worker.start()
+        self._app_update_worker = worker  # Keep ref to prevent QThread GC crash
 
     def _on_app_update_checked(self, update_info):
         """Handle app update check result."""
-        if update_info is None:
-            return
-        self._pending_update_info = update_info
-        self._sidebar.set_update_available(update_info.latest_version)
-        self._show_update_dialog(update_info)
+        try:
+            # Defer worker destruction to avoid QThread GC crash in slot callback
+            if self._app_update_worker:
+                self._app_update_worker.deleteLater()
+                self._app_update_worker = None
+            if update_info is None:
+                return
+            self._pending_update_info = update_info
+            self._sidebar.set_update_available(update_info.latest_version)
+            self._show_update_dialog(update_info)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def _on_update_clicked(self):
         """Show update dialog when user clicks version/update area."""
-        if self._pending_update_info:
-            self._show_update_dialog(self._pending_update_info)
+        try:
+            if self._pending_update_info:
+                self._show_update_dialog(self._pending_update_info)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def _show_update_dialog(self, update_info):
         """Show dialog with update available and options."""
-        from dnf_gui import __version__
-        msg = (
-            f"DNF Package Manager <b>v{update_info.latest_version}</b> is available.\n\n"
-            f"You have v{__version__}.\n\n"
-            "Choose how to update:"
-        )
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Update Available")
-        layout = QVBoxLayout(dialog)
-        lbl = QLabel(msg)
-        lbl.setTextFormat(Qt.TextFormat.RichText)
-        layout.addWidget(lbl)
-        layout.addSpacing(12)
+        try:
+            from dnf_gui import __version__
+            msg = (
+                f"DNF Package Manager <b>v{update_info.latest_version}</b> is available.\n\n"
+                f"You have v{__version__}.\n\n"
+                "Choose how to update:"
+            )
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Update Available")
+            layout = QVBoxLayout(dialog)
+            lbl = QLabel(msg)
+            lbl.setTextFormat(Qt.TextFormat.RichText)
+            layout.addWidget(lbl)
+            layout.addSpacing(12)
 
-        btn_open = QPushButton("Open Releases Page")
-        btn_open.clicked.connect(lambda: self._open_releases(update_info.release_url, dialog))
-        layout.addWidget(btn_open)
+            btn_open = QPushButton("Open Releases Page")
+            btn_open.clicked.connect(lambda: self._open_releases(update_info.release_url, dialog))
+            layout.addWidget(btn_open)
 
-        if update_info.download_url:
-            btn_install = QPushButton("Download & Install")
-            btn_install.clicked.connect(lambda: self._install_app_update(update_info, dialog))
-            layout.addWidget(btn_install)
+            if update_info.download_url:
+                btn_install = QPushButton("Download & Install")
+                btn_install.clicked.connect(lambda: self._install_app_update(update_info, dialog))
+                layout.addWidget(btn_install)
 
-        btn_later = QPushButton("Later")
-        btn_later.clicked.connect(dialog.accept)
-        layout.addWidget(btn_later)
+            btn_later = QPushButton("Later")
+            btn_later.clicked.connect(dialog.accept)
+            layout.addWidget(btn_later)
 
-        dialog.exec()
+            dialog.exec()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def _open_releases(self, url: str, dialog: QDialog):
         """Open releases page in browser."""
@@ -744,7 +776,7 @@ class MainWindow(QMainWindow):
         self._terminal_page.append_line("  Installing DNF Package Manager update")
         self._terminal_page.append_line("─" * 60 + "\n")
 
-        download_worker = AppUpdateDownloadWorker(update_info.download_url)
+        download_worker = AppUpdateDownloadWorker(update_info.download_url, parent=self)
         download_worker.finished.connect(
             lambda path: self._on_update_downloaded(path, update_info)
         )
@@ -785,7 +817,7 @@ class MainWindow(QMainWindow):
         self._terminal_page.append_line(f"  {operation}")
         self._terminal_page.append_line(f"{'─' * 60}\n")
 
-        worker = CommandWorker(cmd)
+        worker = CommandWorker(cmd, parent=self)
         worker.output_line.connect(self._terminal_page.append_line)
         worker.finished.connect(lambda code: self._on_command_done(code, operation))
         worker.error.connect(self._on_command_error)

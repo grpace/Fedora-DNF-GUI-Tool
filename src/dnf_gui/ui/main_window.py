@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
         self._backend = DNFBackend()
         self._flatpak_backend = FlatpakBackend()
         self._current_worker = None
+        self._history_loading = False  # prevent concurrent history refreshes
         self._command_worker = None
         self._app_update_worker = None  # Must keep ref to avoid QThread GC crash
         self._pending_update_info = None  # App update available
@@ -653,6 +654,12 @@ class MainWindow(QMainWindow):
     # ═══════════════════════════════════════════════════════════════
 
     def _load_history(self):
+        # If a history load is already in progress, ignore additional requests
+        if self._history_loading:
+            return
+
+        self._history_loading = True
+
         # Disconnect previous worker to avoid re-entrancy and stale results
         # when user clicks Refresh multiple times quickly
         if self._current_worker is not None:
@@ -672,11 +679,13 @@ class MainWindow(QMainWindow):
         self._current_worker = worker
 
     def _on_history_loaded(self, history):
+        self._history_loading = False
         self._progress_bar.stop()
         self._history_page.set_loading(False)
         self._history_page.display_history(history)
 
     def _on_history_error(self, error: str):
+        self._history_loading = False
         self._history_page.set_loading(False)
         self._on_worker_error(error)
 

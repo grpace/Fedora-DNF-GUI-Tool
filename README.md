@@ -5,7 +5,7 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Fedora%20Linux-informational.svg)
-![Version](https://img.shields.io/badge/version-1.0.0-orange.svg)
+![Version](https://img.shields.io/badge/version-1.0.1-orange.svg)
 
 ## ✨ Features
 

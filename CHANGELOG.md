@@ -5,6 +5,12 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-03-12
+
+### Fixed
+
+- Prevent crash on Transaction History page when clicking Refresh multiple times in quick succession by disallowing concurrent history loads
+
 ## [1.0.0] - 2026-03-12
 
 ### Added
@@ -21,4 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[1.0.1]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.0.1
 [1.0.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.0.0

@@ -784,8 +784,42 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
 
     def _open_releases(self, url: str, dialog: QDialog):
-        """Open releases page in browser."""
-        QDesktopServices.openUrl(QUrl(url))
+        """Open releases page in browser, with fallback if it fails."""
+        if not url:
+            QMessageBox.warning(
+                self,
+                "Open Releases Page",
+                "Could not determine the releases URL.\n\n"
+                "You can open the project's Releases page manually:\n"
+                "https://github.com/grpace/Fedora-DNF-GUI-Tool/releases",
+            )
+            return
+
+        qurl = QUrl(url)
+        if not qurl.isValid():
+            QMessageBox.warning(
+                self,
+                "Open Releases Page",
+                f"Release URL is invalid:\n\n{url}\n\n"
+                "You can open the project's Releases page manually:\n"
+                "https://github.com/grpace/Fedora-DNF-GUI-Tool/releases",
+            )
+            return
+
+        opened = QDesktopServices.openUrl(qurl)
+        if not opened:
+            # Give the user a clickable link they can copy/open manually
+            QMessageBox.information(
+                self,
+                "Open Releases Page",
+                (
+                    "<p>The system was unable to open your web browser automatically.</p>"
+                    f"<p>You can open the releases page manually at:<br>"
+                    f'<a href="{url}">{url}</a></p>'
+                ),
+            )
+            return
+
         dialog.accept()
 
     def _install_app_update(self, update_info, dialog: QDialog):

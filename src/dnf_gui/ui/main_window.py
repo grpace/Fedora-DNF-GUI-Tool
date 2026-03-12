@@ -653,12 +653,21 @@ class MainWindow(QMainWindow):
     # ═══════════════════════════════════════════════════════════════
 
     def _load_history(self):
+        # Disconnect previous worker to avoid re-entrancy and stale results
+        # when user clicks Refresh multiple times quickly
+        if self._current_worker is not None:
+            try:
+                self._current_worker.finished.disconnect()
+                self._current_worker.error.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+
         self._history_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
         worker = HistoryWorker(self._backend, parent=self)
         worker.finished.connect(self._on_history_loaded)
-        worker.error.connect(self._on_worker_error)
+        worker.error.connect(self._on_history_error)
         worker.start()
         self._current_worker = worker
 
@@ -666,6 +675,10 @@ class MainWindow(QMainWindow):
         self._progress_bar.stop()
         self._history_page.set_loading(False)
         self._history_page.display_history(history)
+
+    def _on_history_error(self, error: str):
+        self._history_page.set_loading(False)
+        self._on_worker_error(error)
 
     def _history_undo(self, txn_id: str):
         try:

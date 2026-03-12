@@ -114,12 +114,12 @@ class HistoryPage(QWidget):
         header_row.addWidget(header)
         header_row.addStretch()
 
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.setObjectName("primary_button")
-        refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        refresh_btn.setStyleSheet("QPushButton { margin-top: 24px; }")
-        refresh_btn.clicked.connect(self.refresh_clicked.emit)
-        header_row.addWidget(refresh_btn)
+        self._refresh_btn = QPushButton("Refresh")
+        self._refresh_btn.setObjectName("primary_button")
+        self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._refresh_btn.setStyleSheet("QPushButton { margin-top: 24px; }")
+        self._refresh_btn.clicked.connect(self.refresh_clicked.emit)
+        header_row.addWidget(self._refresh_btn)
         layout.addLayout(header_row)
 
         subheader = QLabel("View and undo recent DNF package operations")
@@ -193,6 +193,9 @@ class HistoryPage(QWidget):
         if loading:
             self._status_label.setText("Checking history...")
             self._status_label.show()
+            self._refresh_btn.setEnabled(False)
+        else:
+            self._refresh_btn.setEnabled(True)
 
     def display_history(self, transactions: list[dict]):
         # Clear

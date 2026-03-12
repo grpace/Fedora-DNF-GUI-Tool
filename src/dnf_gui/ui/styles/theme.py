@@ -117,6 +117,10 @@ def get_stylesheet() -> str:
     #content_area {{
         background-color: {c['bg_primary']};
     }}
+
+    #progress_bar_slot {{
+        background-color: {c['bg_primary']};
+    }}
     
     #page_header {{
         font-size: 32px;
@@ -322,16 +326,6 @@ def get_stylesheet() -> str:
         font-family: {f['family_mono']};
         font-size: {f['size_sm']};
         selection-background-color: {c['border_primary']};
-    }}
-    
-    /* ────────── Status Bar ────────── */
-    
-    QStatusBar {{
-        background-color: {c['bg_secondary']};
-        color: {c['text_secondary']};
-        border-top: 1px solid {c['border_primary']};
-        font-size: {f['size_xs']};
-        padding: 4px 16px;
     }}
     
     /* ────────── Progress Bar ────────── */

@@ -64,16 +64,21 @@ class SystemInfoPage(QWidget):
         self._os_grid.setColumnMinimumWidth(0, 150)
 
         self._os_fields = {}
+        self._os_optional_rows = {}  # key -> (lbl, val) for conditional hide
         os_items = [
-            ("Distribution", "fedora_version"),
-            ("Hostname", "hostname"),
-            ("Kernel", "kernel"),
-            ("Desktop", "desktop_env"),
-            ("Display Server", "display_server"),
-            ("Shell", "shell"),
-            ("Uptime", "uptime"),
+            ("Distribution", "fedora_version", False),
+            ("Hostname", "hostname", False),
+            ("Architecture", "architecture", False),
+            ("Kernel", "kernel", False),
+            ("Desktop", "desktop_env", False),
+            ("Display Server", "display_server", False),
+            ("Shell", "shell", False),
+            ("Uptime", "uptime", False),
+            ("Boot Mode", "boot_mode", True),
+            ("SELinux", "selinux_status", True),
+            ("Virtualization", "virtualization", True),
         ]
-        for row, (label, key) in enumerate(os_items):
+        for row, (label, key, optional) in enumerate(os_items):
             lbl = QLabel(label)
             lbl.setStyleSheet("color: #A1A1AA; font-size: 13px; font-weight: 500;")
             val = QLabel("—")
@@ -82,6 +87,8 @@ class SystemInfoPage(QWidget):
             self._os_grid.addWidget(lbl, row, 0)
             self._os_grid.addWidget(val, row, 1)
             self._os_fields[key] = val
+            if optional:
+                self._os_optional_rows[key] = (lbl, val)
 
         os_layout.addLayout(self._os_grid)
         self._content_layout.addWidget(os_card)
@@ -192,6 +199,80 @@ class SystemInfoPage(QWidget):
         resource_row.addWidget(disk_card)
         self._content_layout.addLayout(resource_row)
 
+        # ── Conditional Row: Swap, Battery, Environment (same style as CPU/GPU, RAM/Disk) ──
+        cond_row_widget = QWidget()
+        cond_row = QHBoxLayout(cond_row_widget)
+        cond_row.setSpacing(16)
+        cond_row.setContentsMargins(0, 0, 0, 0)
+
+        swap_card = QFrame()
+        swap_card.setObjectName("card")
+        swap_card.hide()
+        swap_layout = QVBoxLayout(swap_card)
+        swap_title = QLabel("Swap")
+        swap_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        swap_layout.addWidget(swap_title)
+        self._swap_bar = QProgressBar()
+        self._swap_bar.setFixedHeight(8)
+        self._swap_bar.setTextVisible(False)
+        self._swap_bar.setStyleSheet("""
+            QProgressBar { background-color: #222222; border: none; border-radius: 4px; }
+            QProgressBar::chunk { background-color: #EDEDED; border-radius: 4px; }
+        """)
+        swap_layout.addWidget(self._swap_bar)
+        self._swap_label = QLabel("— / —")
+        self._swap_label.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        swap_layout.addWidget(self._swap_label)
+        swap_layout.addStretch()
+        self._swap_card = swap_card
+        cond_row.addWidget(swap_card, 1)
+
+        battery_card = QFrame()
+        battery_card.setObjectName("card")
+        battery_card.hide()
+        battery_layout = QVBoxLayout(battery_card)
+        battery_title = QLabel("Battery")
+        battery_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        battery_layout.addWidget(battery_title)
+        self._battery_label = QLabel("—")
+        self._battery_label.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        self._battery_label.setWordWrap(True)
+        battery_layout.addWidget(self._battery_label)
+        battery_layout.addStretch()
+        self._battery_card = battery_card
+        cond_row.addWidget(battery_card, 1)
+
+        env_card = QFrame()
+        env_card.setObjectName("card")
+        env_layout = QVBoxLayout(env_card)
+        env_title = QLabel("Environment")
+        env_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        env_layout.addWidget(env_title)
+        self._env_grid = QGridLayout()
+        self._env_grid.setSpacing(8)
+        self._env_grid.setColumnMinimumWidth(0, 100)
+        self._env_widgets = {}  # key -> (lbl, val) for conditional show
+        for row, (label, key) in enumerate([
+            ("Audio", "audio_server"),
+            ("CPU Temp", "cpu_temp"),
+            ("IP Address", "primary_ip"),
+        ]):
+            lbl = QLabel(label)
+            lbl.setStyleSheet("color: #A1A1AA; font-size: 13px; font-weight: 500;")
+            val = QLabel("—")
+            val.setStyleSheet("color: #EDEDED; font-size: 13px;")
+            val.setWordWrap(True)
+            self._env_grid.addWidget(lbl, row, 0)
+            self._env_grid.addWidget(val, row, 1)
+            self._env_widgets[key] = (lbl, val)
+        env_layout.addLayout(self._env_grid)
+        env_layout.addStretch()
+        self._env_card = env_card
+        cond_row.addWidget(env_card, 1)
+
+        self._cond_row_widget = cond_row_widget
+        self._content_layout.addWidget(cond_row_widget)
+
         # ── Package Stats Row ──
         pkg_row = QHBoxLayout()
         pkg_row.setSpacing(16)
@@ -231,15 +312,25 @@ class SystemInfoPage(QWidget):
         return card
 
     def set_loading(self, loading: bool):
-        """No-op: loading is indicated by progress bar and status bar only."""
+        """No-op: loading is indicated by progress bar only."""
         pass
 
     def display_info(self, info):
         """Display system information from a SystemInfo object."""
         # OS fields
         for key, widget in self._os_fields.items():
-            val = getattr(info, key, "—")
-            widget.setText(str(val) if val else "—")
+            val = getattr(info, key, None)
+            if key in self._os_optional_rows:
+                lbl, val_w = self._os_optional_rows[key]
+                if val is None or val == "":
+                    lbl.hide()
+                    val_w.hide()
+                else:
+                    lbl.show()
+                    val_w.show()
+                    val_w.setText(str(val))
+            else:
+                widget.setText(str(val) if val else "—")
 
         # CPU
         self._cpu_model.setText(info.cpu_model or "Unknown")
@@ -257,6 +348,47 @@ class SystemInfoPage(QWidget):
         self._disk_bar.setValue(int(info.disk_percent))
         self._disk_label.setText(f"{info.disk_used} / {info.disk_total}")
         self._disk_free_label.setText(f"{info.disk_free} free ({info.disk_percent:.1f}% used)")
+
+        # Swap (conditional)
+        swap_visible = bool(info.swap_total)
+        if swap_visible:
+            self._swap_card.show()
+            self._swap_bar.setValue(int(info.swap_percent))
+            self._swap_label.setText(f"{info.swap_used} / {info.swap_total} ({info.swap_percent:.1f}% used)")
+        else:
+            self._swap_card.hide()
+
+        # Battery (conditional: laptops only)
+        battery_visible = info.battery_percent is not None or info.battery_status
+        if battery_visible:
+            self._battery_card.show()
+            parts = []
+            if info.battery_percent is not None:
+                parts.append(f"{info.battery_percent}%")
+            if info.battery_status:
+                parts.append(info.battery_status)
+            if info.battery_time and info.battery_time != "—":
+                parts.append(f"{info.battery_time} remaining")
+            self._battery_label.setText(" · ".join(parts))
+        else:
+            self._battery_card.hide()
+
+        # Environment (conditional: show card only if any field has data)
+        env_has_any = False
+        for key, (lbl, val_w) in self._env_widgets.items():
+            val = getattr(info, key, None)
+            if val:
+                lbl.show()
+                val_w.show()
+                val_w.setText(str(val))
+                env_has_any = True
+            else:
+                lbl.hide()
+                val_w.hide()
+        self._env_card.setVisible(env_has_any)
+
+        # Hide entire conditional row when nothing to show
+        self._cond_row_widget.setVisible(swap_visible or battery_visible or env_has_any)
 
         # Package counts
         self._rpm_count.setText(str(info.package_count))

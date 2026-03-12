@@ -28,6 +28,7 @@ class Sidebar(QWidget):
     """Navigation sidebar with page buttons and app info."""
 
     page_changed = pyqtSignal(int)  # page index
+    update_clicked = pyqtSignal()  # when version/update area is clicked
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -106,11 +107,14 @@ class Sidebar(QWidget):
         sep2.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(sep2)
 
-        version_label = QLabel("v1.1.0 — Greg.Tech")
-        version_label.setStyleSheet("""
+        from dnf_gui import __version__
+        self._version_label = QLabel(f"v{__version__} — Greg.Tech")
+        self._version_label.setStyleSheet("""
             color: #64748b; font-size: 12px; padding: 16px;
         """)
-        layout.addWidget(version_label)
+        self._version_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._version_label.mousePressEvent = lambda e: self.update_clicked.emit()
+        layout.addWidget(self._version_label)
 
         # Set first button active
         if self._buttons:
@@ -133,3 +137,10 @@ class Sidebar(QWidget):
         """Programmatically set the active page."""
         for i, btn in enumerate(self._buttons):
             btn.set_active(i == index)
+
+    def set_update_available(self, latest_version: str):
+        """Show that an update is available in the version label."""
+        self._version_label.setText(f"Update available: v{latest_version} →")
+        self._version_label.setStyleSheet("""
+            color: #22c55e; font-size: 12px; padding: 16px;
+        """)

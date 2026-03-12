@@ -1,6 +1,10 @@
 """Background worker threads for non-blocking DNF operations."""
 
+import os
 import subprocess
+import tempfile
+import urllib.request
+import urllib.parse
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from dnf_gui.core.dnf_backend import DNFBackend
@@ -258,6 +262,60 @@ class GroupListWorker(QThread):
         try:
             groups = self._backend.list_groups()
             self.finished.emit(groups)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class AppUpdateWorker(QThread):
+    """Worker thread to check for app updates from GitHub releases."""
+
+    finished = pyqtSignal(object)  # UpdateInfo or None
+    error = pyqtSignal(str)
+
+    def __init__(self, current_version: str, parent=None):
+        super().__init__(parent)
+        self._current_version = current_version
+
+    def run(self):
+        try:
+            from dnf_gui.core.updater import check_for_update
+            info = check_for_update(self._current_version)
+            self.finished.emit(info)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class AppUpdateDownloadWorker(QThread):
+    """Worker thread to download an RPM file from URL."""
+
+    finished = pyqtSignal(str)  # path to downloaded file
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+
+    def __init__(self, url: str, parent=None):
+        super().__init__(parent)
+        self._url = url
+
+    def run(self):
+        try:
+            from dnf_gui.core.updater import _is_safe_download_url
+            if not _is_safe_download_url(self._url):
+                self.error.emit("Invalid or untrusted download URL")
+                return
+            self.progress.emit("Downloading update...")
+            req = urllib.request.Request(
+                self._url,
+                headers={"User-Agent": "dnf-gui"},
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = resp.read()
+            # Extract filename from URL or use default
+            url_path = urllib.parse.urlparse(self._url).path
+            filename = os.path.basename(url_path) if url_path else "dnf-gui-update.noarch.rpm"
+            path = os.path.join(tempfile.gettempdir(), filename)
+            with open(path, "wb") as f:
+                f.write(data)
+            self.finished.emit(path)
         except Exception as e:
             self.error.emit(str(e))
 

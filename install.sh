@@ -45,6 +45,16 @@ check_root() {
     fi
 }
 
+check_project_root() {
+    if [ ! -d "src/dnf_gui" ]; then
+        echo -e "${RED}Error: Run this script from the project root directory${NC}"
+        echo ""
+        echo "  cd fedora-dnf-gui"
+        echo "  sudo ./install.sh"
+        exit 1
+    fi
+}
+
 check_fedora() {
     if [ ! -f /etc/fedora-release ]; then
         echo -e "${YELLOW}Warning: This doesn't appear to be a Fedora system.${NC}"
@@ -163,6 +173,7 @@ post_install() {
 do_install() {
     print_header
     check_root
+    check_project_root
     check_fedora
 
     echo -e "${GREEN}Installing ${APP_DISPLAY_NAME}...${NC}"

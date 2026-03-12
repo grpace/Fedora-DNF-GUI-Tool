@@ -1,8 +1,12 @@
 """DNF backend — handles all interaction with the DNF package manager via subprocess."""
 
+import re
 import subprocess
 import shutil
 from typing import Optional
+
+# COPR format: user/project or @group/project (alphanumeric, dots, hyphens)
+_COPR_PATTERN = re.compile(r"^[@]?[\w][\w.-]*/[\w.-]+$")
 
 from dnf_gui.core.package import Package, PackageStatus, UpdateInfo
 
@@ -109,6 +113,9 @@ class DNFBackend:
             parts = line.split(None, 1)
             if len(parts) >= 2:
                 repo_id = parts[0]
+                # Skip header line (e.g. "repo id  repo name  status")
+                if repo_id.lower() == "repo":
+                    continue
                 repo_name = parts[1] if len(parts) > 1 else repo_id
                 repos.append({
                     "id": repo_id,
@@ -127,7 +134,13 @@ class DNFBackend:
 
     def build_add_copr_command(self, copr_repo: str) -> list[str]:
         """Build command to enable a COPR repository."""
-        return ["pkexec", self._dnf_path, "copr", "enable", "-y", copr_repo]
+        cleaned = (copr_repo or "").strip()
+        if not cleaned or not _COPR_PATTERN.match(cleaned):
+            raise ValueError(
+                "Invalid COPR format. Use user/project or @group/project "
+                "(e.g. user/my-project)"
+            )
+        return ["pkexec", self._dnf_path, "copr", "enable", "-y", cleaned]
 
     def build_remove_copr_command(self, copr_repo: str) -> list[str]:
         """Build command to remove a COPR repository."""
@@ -176,12 +189,18 @@ class DNFBackend:
 
     def history_info(self, transaction_id: str) -> str:
         """Get detailed info about a specific transaction."""
-        result = self._run([self._dnf_path, "history", "info", transaction_id])
+        tid = (transaction_id or "").strip()
+        if not tid or not tid.isdigit():
+            return "Invalid transaction ID"
+        result = self._run([self._dnf_path, "history", "info", tid])
         return result or "No information available"
 
     def build_history_undo_command(self, transaction_id: str) -> list[str]:
         """Build command to undo a transaction."""
-        return ["pkexec", self._dnf_path, "history", "undo", "-y", transaction_id]
+        tid = (transaction_id or "").strip()
+        if not tid or not tid.isdigit():
+            raise ValueError("Invalid transaction ID")
+        return ["pkexec", self._dnf_path, "history", "undo", "-y", tid]
 
     # ─── Group Operations ───────────────────────────────────────────
 

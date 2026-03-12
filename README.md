@@ -5,19 +5,18 @@ A modern, user-friendly graphical package manager for Fedora KDE — built to re
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Fedora%20Linux-informational.svg)
-![Version](https://img.shields.io/badge/version-1.1.0-orange.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-orange.svg)
 
 ## ✨ Features
 
 ### 📦 Package Management
 - **🔄 System Updates** — Check for and apply system updates with a single click
-- **📦 Installed Packages** — Browse, search, and manage all installed RPM packages
-- **🔍 Package Search** — Search the entire DNF repository for new software
+- **📦 Installed Packages** — Browse, search, and filter all installed RPM packages
 - **🗑️ Clean Uninstall** — Remove packages with proper dependency cleanup
 
 ### 📱 Flatpak Manager
-- **Browse installed Flatpak apps** with filter and search
-- **Search Flathub** for new apps directly from the GUI
+- **Browse installed Flatpak apps** with filter
+- **Search Flathub** for new apps — search the entire Flathub catalog from the GUI
 - **Install/Remove/Update** Flatpak applications
 - **Clean up** unused runtimes and repair installations
 
@@ -50,11 +49,15 @@ A modern, user-friendly graphical package manager for Fedora KDE — built to re
 - **Status indicator** — Idle / Running / Success / Error
 - **Auto-scroll** and clear functionality
 
+### 🔄 Auto-Update
+- **Check for updates** on startup from GitHub releases
+- **One-click install** — Download and install new versions from within the app
+
 ## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+1..9` | Switch between pages |
+| `Ctrl+1..8` | Switch between pages |
 | `Ctrl+R` | Refresh current page |
 | `Ctrl+F` | Focus search input |
 
@@ -62,53 +65,49 @@ A modern, user-friendly graphical package manager for Fedora KDE — built to re
 
 - Fedora Linux 40+ (tested on Fedora 43 KDE)
 - Python 3.12+
-- PyQt6
+- PyQt6 ≥ 6.6.0
 - DNF package manager
+- polkit (for privileged operations)
 - Flatpak (optional, for Flatpak features)
+- fwupd (optional, for firmware updates in Quick Tools)
 
 ## 🛠️ Installation
 
-### Quick Install (Recommended)
+### Download RPM (Recommended)
+
+**Easiest way** — download and install:
+
+1. **[Download the RPM](https://github.com/gregtech/fedora-dnf-gui/releases/latest)** — click `DNF-Package-Manager-X.Y.Z.rpm` on the Releases page
+2. Double-click the downloaded file to open in Software, or run:
+   ```bash
+   sudo dnf install ~/Downloads/dnf-gui-*.noarch.rpm
+   ```
+
+Dependencies (PyQt6, polkit) are installed automatically. Updates via `dnf update dnf-gui`.
+
+### Install from Source
 
 ```bash
-# Clone and install — one command!
 git clone https://github.com/gregtech/fedora-dnf-gui.git
 cd fedora-dnf-gui
 sudo ./install.sh
 ```
 
-That's it! The installer will:
-- ✅ Install PyQt6 from Fedora's repos (no pip needed)
-- ✅ Install the app to `/opt/dnf-gui`
-- ✅ Create a `dnf-gui` command in your PATH
-- ✅ Add a desktop entry to your KDE app menu
-
-### Using Make
-
-```bash
-make deps          # Install system dependencies
-sudo make install  # Install system-wide
-sudo make uninstall # Uninstall cleanly
-```
+The installer will install PyQt6, copy the app to `/opt/dnf-gui`, create the `dnf-gui` command, and add a desktop entry.
 
 ### Development Mode (No Install Needed)
 
 ```bash
-# Just run directly from the project
-make run
-
-# Or manually:
+git clone https://github.com/gregtech/fedora-dnf-gui.git
+cd fedora-dnf-gui
 PYTHONPATH=src python3 -m dnf_gui
 ```
 
-### Build an RPM
+### Build an RPM (Maintainers)
 
 ```bash
-# Build a proper Fedora RPM package
-make rpm
-
-# Install the built RPM
-sudo dnf install ~/rpmbuild/RPMS/noarch/dnf-gui-1.1.0-1.*.noarch.rpm
+./build-rpm.sh
+sudo dnf install ~/rpmbuild/RPMS/noarch/dnf-gui-*.noarch.rpm
 ```
 
 ## 🚀 Usage
@@ -133,15 +132,15 @@ src/dnf_gui/
 │   ├── flatpak_backend.py  # Flatpak subprocess interface
 │   ├── package.py          # Package data models
 │   ├── system_info.py      # System info collector (/proc, lspci)
-│   └── worker.py           # QThread workers (12 worker types)
+│   ├── updater.py          # App update checker (GitHub releases)
+│   └── worker.py           # QThread workers (14 worker types)
 ├── ui/
 │   ├── main_window.py      # Main window orchestrator
-│   ├── sidebar.py          # Navigation sidebar (9 pages)
+│   ├── sidebar.py          # Navigation sidebar (8 pages)
 │   ├── pages/
 │   │   ├── updates_page.py       # System updates
-│   │   ├── installed_page.py     # Installed packages
-│   │   ├── search_page.py        # Repository search
-│   │   ├── flatpak_page.py       # Flatpak manager
+│   │   ├── installed_page.py     # Installed packages (with search/filter)
+│   │   ├── flatpak_page.py       # Flatpak manager (installed + Flathub search)
 │   │   ├── system_info_page.py   # System dashboard
 │   │   ├── toolkit_page.py       # Quick tools
 │   │   ├── repo_manager_page.py  # Repository manager
@@ -149,8 +148,7 @@ src/dnf_gui/
 │   │   └── terminal_page.py      # Live terminal output
 │   ├── widgets/
 │   │   ├── package_card.py       # Package display card
-│   │   ├── progress_bar.py       # Animated progress bar
-│   │   └── status_bar.py         # Status messages
+│   │   └── progress_bar.py       # Animated progress bar
 │   └── styles/
 │       └── theme.py              # Dark theme QSS
 └── utils/
@@ -174,6 +172,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+**Maintainers:** See [RELEASING.md](RELEASING.md) for the release checklist.
+
+## 📋 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## 📄 License
 

@@ -3,7 +3,7 @@
 %global install_dir /opt/%{app_name}
 
 Name:           %{app_name}
-Version:        1.1.0
+Version:        1.0.0
 Release:        1%{?dist}
 Summary:        Modern GUI package manager for Fedora Linux
 License:        GPL-3.0-or-later
@@ -65,7 +65,7 @@ cp assets/icons/app_icon.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 
 %files
 %license LICENSE
-%doc README.md
+%doc README.md CHANGELOG.md RELEASING.md
 %{install_dir}/
 %{_bindir}/%{app_name}
 %{_datadir}/applications/%{app_name}.desktop
@@ -80,17 +80,14 @@ cp assets/icons/app_icon.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
 
 %changelog
-* Wed Mar 12 2026 Greg.Tech <hello@greg.tech> - 1.1.0-1
-- Added Flatpak Manager page
-- Added System Info dashboard
-- Added Quick Tools with 20+ one-click actions
-- Added Repository Manager with COPR support
-- Added Transaction History with undo capability
-- Expanded DNF backend with 40+ command builders
-- Updated sidebar with categorized navigation
-
 * Wed Mar 12 2026 Greg.Tech <hello@greg.tech> - 1.0.0-1
 - Initial release
 - DNF package management (install, remove, update, search)
+- Flatpak Manager with Flathub search
+- System Info dashboard
+- Quick Tools (RPM Fusion, codecs, dev tools, VS Code, fwupd, popular apps)
+- Repository Manager with COPR support
+- Transaction History with undo
+- Auto-update checker
 - Live terminal output
 - Dark theme UI

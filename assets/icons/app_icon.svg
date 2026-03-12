@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#58a6ff"/>
+      <stop offset="100%" style="stop-color:#bc8cff"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#3fb950"/>
+      <stop offset="100%" style="stop-color:#58a6ff"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#bg)" opacity="0.15"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="url(#bg)" stroke-width="3"/>
+  <!-- Package box -->
+  <rect x="30" y="44" width="68" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="2"/>
+  <line x1="30" y1="62" x2="98" y2="62" stroke="#30363d" stroke-width="2"/>
+  <line x1="64" y1="44" x2="64" y2="62" stroke="#30363d" stroke-width="2"/>
+  <!-- Up arrow -->
+  <path d="M64 78 L64 35" stroke="url(#arrow)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M52 45 L64 30 L76 45" fill="none" stroke="url(#arrow)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

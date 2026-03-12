@@ -110,6 +110,16 @@ PYTHONPATH=src python3 -m dnf_gui
 sudo dnf install ~/rpmbuild/RPMS/noarch/dnf-gui-*.noarch.rpm
 ```
 
+## 🗑️ Uninstall
+
+To uninstall the Fedora DNF GUI Tool from your system, use the terminal:
+
+```bash
+sudo dnf remove dnf-gui
+```
+
+This will remove the application and its desktop entry. Any dependencies installed solely for this app may also be removed depending on your DNF configuration.
+
 ## 🚀 Usage
 
 ```bash

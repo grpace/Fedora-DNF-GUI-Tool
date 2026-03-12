@@ -155,7 +155,8 @@ class Sidebar(QWidget):
 
     def set_update_available(self, latest_version: str):
         """Show that an update is available in the version label."""
-        self._version_label.setText(f"Update available: v{latest_version} →")
+        self._version_label.setText(f"New version v{latest_version} available — Click to update")
+        self._version_label.setToolTip(f"Open the GitHub releases page for v{latest_version}")
         self._version_label.setStyleSheet("""
             color: #22c55e; font-size: 12px; padding: 16px;
         """)

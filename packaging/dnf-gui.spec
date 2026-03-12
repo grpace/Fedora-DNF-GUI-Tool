@@ -80,10 +80,12 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 %post
 /usr/bin/update-desktop-database %{_datadir}/applications &>/dev/null || :
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
+/usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %postun
 /usr/bin/update-desktop-database %{_datadir}/applications &>/dev/null || :
 /usr/bin/gtk-update-icon-cache %{_datadir}/icons/hicolor &>/dev/null || :
+/usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
 * Wed Mar 12 2026 Greg.Tech <hello@greg.tech> - 1.0.0-1

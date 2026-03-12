@@ -1,6 +1,6 @@
 # 🚀 Fedora DNF GUI Tool
 
-A modern, user-friendly graphical package manager for Fedora KDE — built to replace the Discovery app with something faster, cleaner, and more powerful.
+A modern, user-friendly graphical package manager for Fedora KDE — a Discovery alternative that uses real DNF and Flatpak commands under the hood for reliable, terminal-grade updates.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-brightgreen.svg)
@@ -77,7 +77,7 @@ A modern, user-friendly graphical package manager for Fedora KDE — built to re
 
 **Easiest way** — download and install:
 
-1. **[Download the RPM](https://github.com/gregtech/fedora-dnf-gui/releases/latest)** — click `DNF-Package-Manager-X.Y.Z.rpm` on the Releases page
+1. **[Download the RPM](https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/latest)** — click `DNF-Package-Manager-X.Y.Z.rpm` on the Releases page
 2. Double-click the downloaded file to open in Software, or run:
    ```bash
    sudo dnf install ~/Downloads/dnf-gui-*.noarch.rpm
@@ -88,8 +88,8 @@ Dependencies (PyQt6, polkit) are installed automatically. Updates via `dnf updat
 ### Install from Source
 
 ```bash
-git clone https://github.com/gregtech/fedora-dnf-gui.git
-cd fedora-dnf-gui
+git clone https://github.com/grpace/Fedora-DNF-GUI-Tool.git
+cd Fedora-DNF-GUI-Tool
 sudo ./install.sh
 ```
 
@@ -98,8 +98,8 @@ The installer will install PyQt6, copy the app to `/opt/dnf-gui`, create the `dn
 ### Development Mode (No Install Needed)
 
 ```bash
-git clone https://github.com/gregtech/fedora-dnf-gui.git
-cd fedora-dnf-gui
+git clone https://github.com/grpace/Fedora-DNF-GUI-Tool.git
+cd Fedora-DNF-GUI-Tool
 PYTHONPATH=src python3 -m dnf_gui
 ```
 
@@ -189,4 +189,4 @@ This project is licensed under the GPL-3.0 License — see the [LICENSE](LICENSE
 
 ---
 
-*Built with ❤️ for the Fedora community*
+*Built ❤️ in Chicago*

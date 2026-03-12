@@ -49,7 +49,7 @@ check_project_root() {
     if [ ! -d "src/dnf_gui" ]; then
         echo -e "${RED}Error: Run this script from the project root directory${NC}"
         echo ""
-        echo "  cd fedora-dnf-gui"
+        echo "  cd Fedora-DNF-GUI-Tool"
         echo "  sudo ./install.sh"
         exit 1
     fi

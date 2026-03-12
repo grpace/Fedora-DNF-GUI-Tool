@@ -30,8 +30,8 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://greg.tech"
-Repository = "https://github.com/gregtech/fedora-dnf-gui"
-Issues = "https://github.com/gregtech/fedora-dnf-gui/issues"
+Repository = "https://github.com/grpace/Fedora-DNF-GUI-Tool"
+Issues = "https://github.com/grpace/Fedora-DNF-GUI-Tool/issues"
 
 [project.scripts]
 fedora-dnf-gui = "dnf_gui.app:main"

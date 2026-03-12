@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
 
-GITHUB_API_URL = "https://api.github.com/repos/gregtech/fedora-dnf-gui/releases/latest"
-RELEASES_PAGE_URL = "https://github.com/gregtech/fedora-dnf-gui/releases"
+GITHUB_API_URL = "https://api.github.com/repos/grpace/Fedora-DNF-GUI-Tool/releases/latest"
+RELEASES_PAGE_URL = "https://github.com/grpace/Fedora-DNF-GUI-Tool/releases"
 
 # Allowed hosts for update downloads (GitHub CDN domains)
 _ALLOWED_DOWNLOAD_HOSTS = (

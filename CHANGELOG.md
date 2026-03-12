@@ -21,4 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[1.0.0]: https://github.com/gregtech/fedora-dnf-gui/releases/tag/v1.0.0
+[1.0.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.0.0

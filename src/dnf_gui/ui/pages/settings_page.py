@@ -130,7 +130,7 @@ class SettingsPage(QWidget):
         self._discover_banner = banner
 
         # One contextual action: use this app, or restore when active.
-        self._btn_takeover = _make_button("Use This App Instead", "success_button")
+        self._btn_takeover = _make_button("Use This App Instead", "primary_button")
         self._btn_takeover.setToolTip(
             "Stop Discover's automatic checks for your user. Safe and reversible, no password needed.")
         self._btn_takeover.clicked.connect(self.discover_takeover_requested.emit)
@@ -195,6 +195,7 @@ class SettingsPage(QWidget):
         # ── Reminders ──
         content.addWidget(_Section("Update Reminders"))
         rem_card = _Card()
+        rem_card._layout.setSpacing(12)
         self._rem_enabled = QCheckBox("Remind Me About Pending Updates")
         self._rem_security_only = QCheckBox("Security Updates Only (Quiet Otherwise)")
         self._rem_flatpak = QCheckBox("Include Flatpak Updates in Reminders")
@@ -204,6 +205,7 @@ class SettingsPage(QWidget):
         interval_row = QHBoxLayout()
         interval_row.addWidget(QLabel("Check Every:"))
         self._interval_combo = QComboBox()
+        self._interval_combo.setFixedWidth(200)
         self._interval_combo.addItem("12 Hours", 12)
         self._interval_combo.addItem("Daily", 24)
         self._interval_combo.addItem("Every 3 Days", 72)
@@ -248,6 +250,7 @@ class SettingsPage(QWidget):
         scope_row = QHBoxLayout()
         scope_row.addWidget(QLabel("Scope:"))
         self._pw_scope_combo = QComboBox()
+        self._pw_scope_combo.setFixedWidth(260)
         self._pw_scope_combo.addItem("Updates Only (Recommended)", "updates")
         self._pw_scope_combo.addItem("All DNF Operations", "full")
         scope_row.addWidget(self._pw_scope_combo)
@@ -255,7 +258,7 @@ class SettingsPage(QWidget):
         pw_card._layout.addLayout(scope_row)
         self._btn_pw_refresh = _make_button("Refresh", "ghost_button")
         self._btn_pw_refresh.clicked.connect(self.passwordless_refresh_requested.emit)
-        self._btn_pw_enable = _make_button("Enable Passwordless")
+        self._btn_pw_enable = _make_button("Enable Passwordless", "primary_button")
         self._btn_pw_enable.clicked.connect(
             lambda: self.passwordless_enable_requested.emit(
                 self._pw_scope_combo.currentData()))

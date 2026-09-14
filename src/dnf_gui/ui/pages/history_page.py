@@ -46,9 +46,6 @@ class HistoryCard(QFrame):
         action = self._txn.get("action", "")
         if action:
             details.append(action)
-        altered = self._txn.get("altered", "")
-        if altered:
-            details.append(f"{altered} packages altered")
 
         if details:
             detail_label = QLabel(" · ".join(details))
@@ -57,13 +54,33 @@ class HistoryCard(QFrame):
 
         layout.addLayout(info_layout, 1)
 
-        # Actions
+        # Altered count column — dedicated fixed-width column aligned right
+        altered_raw = str(self._txn.get("altered", "")).strip()
+        if altered_raw:
+            if altered_raw.isdigit():
+                count = int(altered_raw)
+                altered_text = f"{count} package altered" if count == 1 else f"{count} packages altered"
+            elif "altered" in altered_raw:
+                altered_text = altered_raw
+            else:
+                altered_text = f"{altered_raw} altered"
+        else:
+            altered_text = ""
+
+        altered_label = QLabel(altered_text)
+        altered_label.setObjectName("card_detail")
+        altered_label.setFixedWidth(160)
+        altered_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(altered_label)
+
+        # Actions (consistent button sizes)
         action_layout = QHBoxLayout()
         action_layout.setSpacing(8)
 
         info_btn = QPushButton("Details")
         info_btn.setObjectName("ghost_button")
         info_btn.setProperty("compact", True)
+        info_btn.setFixedWidth(72)
         info_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         info_btn.clicked.connect(lambda: self.info_clicked.emit(self._txn.get("id", "")))
         action_layout.addWidget(info_btn)
@@ -71,6 +88,7 @@ class HistoryCard(QFrame):
         undo_btn = QPushButton("Undo")
         undo_btn.setObjectName("danger_button")
         undo_btn.setProperty("compact", True)
+        undo_btn.setFixedWidth(72)
         undo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         undo_btn.clicked.connect(lambda: self.undo_clicked.emit(self._txn.get("id", "")))
         action_layout.addWidget(undo_btn)

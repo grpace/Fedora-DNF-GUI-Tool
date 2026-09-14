@@ -175,15 +175,18 @@ class Sidebar(QWidget):
 
         # Title + Subtitle Column
         title_col = QVBoxLayout()
-        title_col.setSpacing(1)
+        title_col.setSpacing(2)
         title_col.setContentsMargins(0, 0, 0, 0)
+        title_col.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         title = QLabel("DNF Manager")
         title.setObjectName("sidebar_title")
+        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         title_col.addWidget(title)
 
         subtitle = QLabel("Fedora KDE")
         subtitle.setObjectName("sidebar_subtitle")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignLeft)
         title_col.addWidget(subtitle)
 
         brand_layout.addLayout(title_col, 1)

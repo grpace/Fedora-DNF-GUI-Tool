@@ -188,25 +188,40 @@ class DNFBackend:
         result = self._run([self._dnf_path, "repolist", flag, "-q"])
         if result is None:
             return []
-        
+
         repos = []
         for line in result.strip().split("\n"):
-            if not line.strip():
+            line = line.strip()
+            if not line:
                 continue
-            parts = line.split(None, 1)
+            parts = line.split()
             if len(parts) >= 2:
                 repo_id = parts[0]
                 # Skip header line (e.g. "repo id  repo name  status")
-                if repo_id.lower() == "repo":
+                if repo_id.lower() in ("repo", "id"):
                     continue
-                repo_name = parts[1] if len(parts) > 1 else repo_id
+
+                last = parts[-1].lower()
+                if last in ("enabled", "disabled"):
+                    is_enabled = (last == "enabled")
+                    after_id = line[len(repo_id):].strip()
+                    if after_id.lower().endswith(last):
+                        repo_name = after_id[:-len(last)].strip()
+                    else:
+                        repo_name = " ".join(parts[1:-1])
+                else:
+                    is_enabled = not repo_id.startswith("!")
+                    repo_name = line[len(repo_id):].strip()
+
+                if not repo_name:
+                    repo_name = repo_id
+
                 repos.append({
                     "id": repo_id,
                     "name": repo_name,
-                    "enabled": not show_all or not repo_id.startswith("!"),
+                    "enabled": is_enabled,
                 })
         return repos
-
     def build_enable_repo_command(self, repo_id: str) -> list[str]:
         """Build command to enable a repository."""
         return ["pkexec", self._dnf_path, "config-manager", "setopt", f"{repo_id}.enabled=1"]
@@ -240,7 +255,7 @@ class DNFBackend:
         def _format_date(date_str: str) -> str:
             from datetime import datetime
             try:
-                for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+                for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
                     try:
                         dt = datetime.strptime(date_str, fmt)
                         return dt.strftime("%Y-%m-%d %I:%M %p")
@@ -250,26 +265,54 @@ class DNFBackend:
             except Exception:
                 return date_str
 
+        import re
+        date_re = re.compile(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?)")
+
         transactions = []
         for line in result.strip().split("\n"):
             line = line.strip()
             if not line or line.startswith("ID") or line.startswith("=") or line.startswith("-"):
                 continue
-            # History format varies between dnf4/dnf5 but generally:
-            # ID | Command line | Date and time | Action(s) | Altered
-            parts = line.split("|") if "|" in line else line.split(None, 4)
-            if len(parts) >= 3:
-                txn = {
-                    "id": parts[0].strip(),
-                    "command": parts[1].strip() if len(parts) > 1 else "",
-                    "date": _format_date(parts[2].strip()) if len(parts) > 2 else "",
-                    "action": parts[3].strip() if len(parts) > 3 else "",
-                    "altered": parts[4].strip() if len(parts) > 4 else "",
-                }
-                transactions.append(txn)
+
+            if "|" in line:
+                parts = line.split("|")
+                if len(parts) >= 3:
+                    txn = {
+                        "id": parts[0].strip(),
+                        "command": parts[1].strip() if len(parts) > 1 else "System / PackageKit",
+                        "date": _format_date(parts[2].strip()) if len(parts) > 2 else "",
+                        "action": parts[3].strip() if len(parts) > 3 else "",
+                        "altered": parts[4].strip() if len(parts) > 4 else "",
+                    }
+                    if not txn["command"]:
+                        txn["command"] = "System / PackageKit"
+                    transactions.append(txn)
+            else:
+                m = date_re.search(line)
+                if m:
+                    date_str = m.group(1)
+                    before_date = line[:m.start()].strip()
+                    after_date = line[m.end():].strip()
+
+                    parts_before = before_date.split(None, 1)
+                    tid = parts_before[0]
+                    cmd = parts_before[1].strip() if len(parts_before) > 1 else "System / PackageKit"
+                    if not cmd:
+                        cmd = "System / PackageKit"
+
+                    parts_after = after_date.split()
+                    altered = parts_after[-1] if parts_after else ""
+                    action = " ".join(parts_after[:-1]) if len(parts_after) > 1 else ""
+
+                    transactions.append({
+                        "id": tid,
+                        "command": cmd,
+                        "date": _format_date(date_str),
+                        "action": action,
+                        "altered": altered,
+                    })
 
         return transactions[-limit:]
-
     def history_info(self, transaction_id: str) -> str:
         """Get detailed info about a specific transaction."""
         tid = (transaction_id or "").strip()

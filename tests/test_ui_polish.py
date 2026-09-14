@@ -241,5 +241,95 @@ class TestSettingsPolish(unittest.TestCase):
             self.assertNotIn("—", page._pw_status.text())
 
 
+
+
+class TestAlignmentAndPolish(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _ensure_app()
+
+    def test_repolist_parsing_status(self):
+        from dnf_gui.core.dnf_backend import DNFBackend
+        from unittest.mock import patch
+        sample_output = "\n".join([
+            "repo id                                            repo name                                                  status",
+            "brave-browser                                      Brave Browser                                              enabled",
+            "copr:copr.fedorainfracloud.org:avengemedia:dms     Copr repo for dms owned by avengemedia                     disabled",
+            "fedora                                             Fedora 43 - x86_64                                         enabled",
+        ])
+        b = DNFBackend()
+        with patch.object(b, "_run", return_value=sample_output):
+            repos = b.list_repos(show_all=True)
+            self.assertEqual(len(repos), 3)
+            self.assertEqual(repos[0]["id"], "brave-browser")
+            self.assertEqual(repos[0]["name"], "Brave Browser")
+            self.assertTrue(repos[0]["enabled"])
+            self.assertEqual(repos[1]["id"], "copr:copr.fedorainfracloud.org:avengemedia:dms")
+            self.assertEqual(repos[1]["name"], "Copr repo for dms owned by avengemedia")
+            self.assertFalse(repos[1]["enabled"])
+
+    def test_history_parsing_packagekit(self):
+        from dnf_gui.core.dnf_backend import DNFBackend
+        from unittest.mock import patch
+        sample_output = "\n".join([
+            "    ID Command line                         Date and time       Action(s) Altered",
+            "   242 /usr/bin/dnf5 upgrade -y --refresh   2026-09-09 13:03:56               126",
+            "   238                                      2026-09-05 05:51:10                 2",
+        ])
+        b = DNFBackend()
+        with patch.object(b, "_run", return_value=sample_output):
+            txns = b.history()
+            self.assertEqual(len(txns), 2)
+            self.assertEqual(txns[0]["id"], "242")
+            self.assertEqual(txns[0]["altered"], "126")
+            self.assertEqual(txns[1]["id"], "238")
+            self.assertEqual(txns[1]["command"], "System / PackageKit")
+            self.assertEqual(txns[1]["altered"], "2")
+
+    def test_toolkit_buttons_uniform_width(self):
+        from dnf_gui.ui.pages.toolkit_page import ToolkitPage, ToolCard
+        from PyQt6.QtWidgets import QPushButton
+        page = ToolkitPage()
+        page.show()
+        self.addCleanup(page.close)
+        self.addCleanup(page.deleteLater)
+        cards = page.findChildren(ToolCard)
+        self.assertGreater(len(cards), 0)
+        for card in cards:
+            btn = card.findChild(QPushButton)
+            self.assertIsNotNone(btn)
+            self.assertEqual(btn.width(), 100)
+
+    def test_history_card_altered_alignment(self):
+        from dnf_gui.ui.pages.history_page import HistoryCard
+        from PyQt6.QtWidgets import QLabel
+        from PyQt6.QtCore import Qt
+        card = HistoryCard({"id": "242", "command": "upgrade", "date": "2026-09-09", "altered": "12"})
+        card.show()
+        self.addCleanup(card.close)
+        self.addCleanup(card.deleteLater)
+        labels = card.findChildren(QLabel, "card_detail")
+        altered_label = next((lbl for lbl in labels if "12 packages altered" in lbl.text()), None)
+        self.assertIsNotNone(altered_label)
+        self.assertEqual(altered_label.width(), 160)
+        self.assertTrue(altered_label.alignment() & Qt.AlignmentFlag.AlignRight)
+
+    def test_sidebar_brand_alignment(self):
+        from dnf_gui.ui.sidebar import Sidebar
+        from PyQt6.QtWidgets import QLabel
+        from PyQt6.QtCore import QPoint
+        sb = Sidebar()
+        sb.show()
+        self.addCleanup(sb.close)
+        self.addCleanup(sb.deleteLater)
+        t = sb.findChild(QLabel, "sidebar_title")
+        sub = sb.findChild(QLabel, "sidebar_subtitle")
+        self.assertIsNotNone(t)
+        self.assertIsNotNone(sub)
+        tx = t.mapTo(sb, QPoint(0, 0)).x()
+        subx = sub.mapTo(sb, QPoint(0, 0)).x()
+        self.assertEqual(tx, subx)
+
+
 if __name__ == "__main__":
     unittest.main()

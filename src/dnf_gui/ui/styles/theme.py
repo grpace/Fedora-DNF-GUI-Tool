@@ -225,15 +225,17 @@ def get_stylesheet(mode: str | None = None) -> str:
         font-size: {f['size_lg']};
         font-weight: 700;
         color: {c['text']};
+        margin: 0px;
         padding: 0px;
-        letter-spacing: -0.2px;
+        border: none;
     }}
     #sidebar_subtitle {{
         font-size: {f['size_xs']};
         color: {c['accent']};
         font-weight: 600;
-        padding: 2px 0px 0px 0px;
-        letter-spacing: 0.4px;
+        margin: 0px;
+        padding: 0px;
+        border: none;
     }}
     #nav_section {{
         color: {c['text_faint']};
@@ -772,6 +774,34 @@ def get_stylesheet(mode: str | None = None) -> str:
     QLabel#term_dot_run  {{ color: {c['accent']}; }}
     QLabel#term_dot_ok   {{ color: {c['green']}; }}
     QLabel#term_dot_err  {{ color: {c['danger']}; }}
+
+    /* ── Settings Status Banners ── */
+    QFrame#status_info, QFrame#status_ok, QFrame#status_warn {{
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin: 2px 0px 4px 0px;
+    }}
+    QFrame#status_info {{
+        background-color: {c['bg_input']};
+        border: 1px solid {c['border_soft']};
+    }}
+    QFrame#status_ok {{
+        background-color: {c['bg_input']};
+        border: 1px solid {c['badge_ok_text']};
+    }}
+    QFrame#status_warn {{
+        background-color: {c['badge_update_bg']};
+        border: 1px solid {c['badge_update_bg']};
+    }}
+    QLabel#status_title {{
+        font-size: {f['size_base']};
+        font-weight: 600;
+        color: {c['text']};
+    }}
+    QLabel#status_detail {{
+        font-size: {f['size_sm']};
+        color: {c['text_dim']};
+    }}
 
     /* ── Typography Helpers ── */
     QLabel#section_label {{

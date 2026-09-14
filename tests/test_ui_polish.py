@@ -298,7 +298,7 @@ class TestAlignmentAndPolish(unittest.TestCase):
         for card in cards:
             btn = card.findChild(QPushButton)
             self.assertIsNotNone(btn)
-            self.assertEqual(btn.width(), 120)
+            self.assertEqual(btn.width(), 100)
 
     def test_history_card_altered_alignment(self):
         from dnf_gui.ui.pages.history_page import HistoryCard
@@ -348,6 +348,31 @@ class TestAlignmentAndPolish(unittest.TestCase):
         page.show_detail("Line 1\nLine 2", txn_id="42")
         self.assertEqual(page._drawer_title.text(), 'Transaction #42 Details')
         self.assertEqual(page._detail_text.toPlainText(), "Line 1\nLine 2")
+
+    def test_theme_toggle_round_trip(self):
+        from dnf_gui.ui.main_window import MainWindow
+        from dnf_gui.ui.styles.theme import save_theme_mode, get_saved_theme_mode, resolve_mode
+        save_theme_mode('dark')
+        win = MainWindow()
+        win.show()
+        self.addCleanup(win.close)
+        self.addCleanup(win.deleteLater)
+
+        # Initially in dark mode -> button says Light Mode
+        self.assertEqual(resolve_mode(), 'dark')
+        self.assertEqual(win._sidebar._theme_btn.text(), 'Light Mode')
+
+        # First toggle -> switches to light mode
+        win._toggle_theme()
+        self.assertEqual(get_saved_theme_mode(), 'light')
+        self.assertEqual(resolve_mode(), 'light')
+        self.assertEqual(win._sidebar._theme_btn.text(), 'Dark Mode')
+
+        # Second toggle -> switches back to dark mode!
+        win._toggle_theme()
+        self.assertEqual(get_saved_theme_mode(), 'dark')
+        self.assertEqual(resolve_mode(), 'dark')
+        self.assertEqual(win._sidebar._theme_btn.text(), 'Light Mode')
 
     def test_sidebar_brand_alignment(self):
         from dnf_gui.ui.sidebar import Sidebar

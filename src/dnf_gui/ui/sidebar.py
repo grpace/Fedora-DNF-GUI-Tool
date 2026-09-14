@@ -299,12 +299,12 @@ class Sidebar(QWidget):
     def refresh_theme_button(self, mode: str):
         """Update the footer toggle label and vector icon after a theme change."""
         from dnf_gui.ui.icons import make_icon
-        from dnf_gui.ui.styles.theme import get_palette
-        pal = get_palette(mode)
         target_text = "Light Mode" if mode == "dark" else "Dark Mode"
         icon_kind = "sun" if mode == "dark" else "moon"
+        # Golden amber sun in dark mode, royal indigo moon in light mode
+        icon_color = "#f59e0b" if mode == "dark" else "#4f46e5"
         self._theme_btn.setText(target_text)
-        self._theme_btn.setIcon(make_icon(icon_kind, pal["btn_neutral_text"], 16))
+        self._theme_btn.setIcon(make_icon(icon_kind, icon_color, 16))
 
     def apply_theme(self, mode: str):
         """Apply icon/text colors for a theme mode (called on toggle)."""

@@ -287,10 +287,12 @@ def _draw(p: QPainter, kind: str, s: float, color: QColor):
         p.drawLine(QPointF(cx - r * 0.95, cy + r * 0.08), QPointF(cx - r * 0.58, cy + r * 0.08))
 
     elif kind == "sun":
-        # Clean sun with center disc and 8 balanced radial rays
-        r = s * 0.20
+        # Clean sun with filled center disc and 8 balanced radial rays
+        r = s * 0.18
+        p.setBrush(color)
         p.drawEllipse(QPointF(cx, cy), r, r)
-        ray_in = s * 0.30
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        ray_in = s * 0.28
         ray_out = s * 0.42
         diag_in = ray_in * 0.7071
         diag_out = ray_out * 0.7071
@@ -306,21 +308,23 @@ def _draw(p: QPainter, kind: str, s: float, color: QColor):
         p.drawLine(QPointF(cx + diag_in, cy + diag_in), QPointF(cx + diag_out, cy + diag_out))
 
     elif kind == "moon":
-        # Crescent moon
+        # Crescent moon with solid fill
         path = QPainterPath()
-        path.moveTo(cx + s * 0.08, cy - s * 0.36)
+        path.moveTo(cx + s * 0.10, cy - s * 0.38)
         path.cubicTo(
-            cx - s * 0.36, cy - s * 0.28,
-            cx - s * 0.36, cy + s * 0.28,
-            cx + s * 0.08, cy + s * 0.36
+            cx - s * 0.38, cy - s * 0.28,
+            cx - s * 0.38, cy + s * 0.28,
+            cx + s * 0.10, cy + s * 0.38
         )
         path.cubicTo(
-            cx - s * 0.14, cy + s * 0.20,
-            cx - s * 0.14, cy - s * 0.20,
-            cx + s * 0.08, cy - s * 0.36
+            cx - s * 0.15, cy + s * 0.22,
+            cx - s * 0.15, cy - s * 0.22,
+            cx + s * 0.10, cy - s * 0.38
         )
         path.closeSubpath()
+        p.setBrush(color)
         p.drawPath(path)
+        p.setBrush(Qt.BrushStyle.NoBrush)
 
     else:
         # Graceful fallback: clean rounded rectangle with center bullet

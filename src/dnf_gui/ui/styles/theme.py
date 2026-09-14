@@ -209,19 +209,22 @@ def detect_system_theme() -> str:
     return "dark"
 
 
-def resolve_mode(mode: str | None = None) -> str:
-    """Resolve theme mode: 'auto' -> detect, 'light'/'dark' -> as is."""
-    if mode in ("light", "dark"):
-        return mode
-    return detect_system_theme()
-
-
 def get_saved_theme_mode() -> str:
     try:
         s = QSettings(_ORG, _APP)
         return s.value("theme/mode", "auto")
     except Exception:
         return "auto"
+
+
+def resolve_mode(mode: str | None = None) -> str:
+    """Resolve theme mode: 'auto' or None -> saved/system detect, 'light'/'dark' -> as is."""
+    if mode in ("light", "dark"):
+        return mode
+    saved = get_saved_theme_mode()
+    if saved in ("light", "dark"):
+        return saved
+    return detect_system_theme()
 
 
 def save_theme_mode(mode: str) -> None:
@@ -595,7 +598,6 @@ def get_stylesheet(mode: str | None = None) -> str:
         min-height: 32px;
         font-size: {f['size_base']};
         font-weight: 600;
-        min-width: 72px;
     }}
     QPushButton#ghost_button:hover {{
         background-color: {c['btn_neutral_hover_bg']};

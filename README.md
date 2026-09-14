@@ -49,8 +49,9 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 ### ⚙️ Settings
 - **Discover takeover** — Stop Discover's double updates: per-user notifier
   takeover (no root, reversible) or system-wide PackageKit hardening
-- **Update reminders** — Background security reminders with configurable
-  interval, plus an optional login check (`dnf-gui --check`)
+- **Update reminders** — Background update reminders with configurable
+  schedule, automatic login autostart check (`dnf-gui --check`), and
+  independent Flatpak update notifications
 - **Passwordless updates (opt-in)** — Make `dnf upgrade` passwordless via a
   validated per-user sudoers rule; installs and removals still ask
 
@@ -105,7 +106,7 @@ PackageKit hardening) and to enable background security reminders
 1. **[Download the RPM](https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/latest)** — click `DNF-Package-Manager-vX.Y.Z.rpm` on the Releases page
 2. Double-click the downloaded file to open in Software, or run:
    ```bash
-   sudo dnf install ~/Downloads/dnf-gui-*.noarch.rpm
+   sudo dnf install ~/Downloads/DNF-Package-Manager-*.rpm
    ```
 
 Dependencies (PyQt6, polkit) are installed automatically. Updates via `dnf update dnf-gui`.
@@ -194,9 +195,9 @@ src/dnf_gui/
 │   │   ├── package_card.py       # Package display card (Details + double-click)
 │   │   ├── package_details.py    # Package details dialog
 │   │   └── progress_bar.py       # Animated progress bar
-│   └── styles/
-│       └── theme.py              # KDE Plasma 6 Breeze theme (Dark & Light, WCAG AA)
-│   ├── icons.py              # Crisp scalable vector icon engine (theme-reactive)
+│   ├── styles/
+│   │   └── theme.py              # KDE Plasma 6 Breeze theme (Dark & Light, WCAG AA)
+│   └── icons.py                  # Crisp scalable vector icon engine (theme-reactive)
 └── utils/
     └── helpers.py                # Utility functions
 ```

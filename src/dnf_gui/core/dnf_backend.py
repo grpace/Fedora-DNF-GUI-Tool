@@ -58,7 +58,7 @@ class DNFBackend:
         info.total_updates = len(packages)
         
         from datetime import datetime
-        info.last_checked = datetime.now().strftime("%Y-%m-%d %I:%M %p")
+        info.last_checked = datetime.now().strftime("%Y-%m-%d")
         
         return info
 

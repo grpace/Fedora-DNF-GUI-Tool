@@ -186,12 +186,13 @@ src/dnf_gui/
 │   │   ├── terminal_page.py      # Live terminal output
 │   │   └── settings_page.py      # Discover, reminders, password prompts
 │   ├── widgets/
-│   │   ├── page_header.py        # Shared title/subtitle header (own sidebar-side inset)
+│   │   ├── page_header.py        # Shared hero header with balanced grid alignment
 │   │   ├── package_card.py       # Package display card (Details + double-click)
 │   │   ├── package_details.py    # Package details dialog
 │   │   └── progress_bar.py       # Animated progress bar
 │   └── styles/
-│       └── theme.py              # Dark theme QSS
+│       └── theme.py              # KDE Plasma 6 Breeze theme (Dark & Light, WCAG AA)
+│   ├── icons.py              # Crisp scalable vector icon engine (theme-reactive)
 └── utils/
     └── helpers.py                # Utility functions
 ```

@@ -43,7 +43,7 @@ class UpdatesPage(QWidget):
 
         body = QWidget()
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setContentsMargins(20, 0, 20, 20)
         body_layout.setSpacing(14)
         layout.addWidget(body, 1)
 
@@ -68,7 +68,7 @@ class UpdatesPage(QWidget):
         action_bar.setSpacing(8)
 
         self._check_btn = QPushButton("Check for Updates")
-        self._check_btn.setObjectName("primary_button")
+        self._check_btn.setObjectName("ghost_button")
         self._check_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._check_btn.clicked.connect(self.check_updates_clicked.emit)
         action_bar.addWidget(self._check_btn)
@@ -213,6 +213,11 @@ class UpdatesPage(QWidget):
             if item.widget() and item.widget() != self._empty_label:
                 item.widget().deleteLater()
 
+        if info and info.last_checked:
+            raw = str(info.last_checked).strip()
+            val = raw.split(" ")[0] if (" " in raw and "-" in raw) else raw
+            self._last_check_card._val_label.setText(val)
+
         if not info or not info.packages:
             self._empty_label.setText("Your system is completely up to date!")
             self._empty_label.show()
@@ -261,7 +266,9 @@ class UpdatesPage(QWidget):
         self._flatpak_card._val_label.setText(str(fp_count))
 
         if dnf_info and dnf_info.last_checked:
-            self._last_check_card._val_label.setText(dnf_info.last_checked)
+            raw = str(dnf_info.last_checked).strip()
+            val = raw.split(" ")[0] if (" " in raw and "-" in raw) else raw
+            self._last_check_card._val_label.setText(val)
         else:
             self._last_check_card._val_label.setText("Just now")
 

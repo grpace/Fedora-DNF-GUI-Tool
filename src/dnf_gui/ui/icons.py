@@ -286,8 +286,45 @@ def _draw(p: QPainter, kind: str, s: float, color: QColor):
         p.drawLine(QPointF(cx - r * 0.95, cy + r * 0.42), QPointF(cx - r * 0.95, cy + r * 0.08))
         p.drawLine(QPointF(cx - r * 0.95, cy + r * 0.08), QPointF(cx - r * 0.58, cy + r * 0.08))
 
+    elif kind == "sun":
+        # Clean sun with center disc and 8 balanced radial rays
+        r = s * 0.20
+        p.drawEllipse(QPointF(cx, cy), r, r)
+        ray_in = s * 0.30
+        ray_out = s * 0.42
+        diag_in = ray_in * 0.7071
+        diag_out = ray_out * 0.7071
+        # Cardinal rays
+        p.drawLine(QPointF(cx, cy - ray_in), QPointF(cx, cy - ray_out))
+        p.drawLine(QPointF(cx, cy + ray_in), QPointF(cx, cy + ray_out))
+        p.drawLine(QPointF(cx - ray_in, cy), QPointF(cx - ray_out, cy))
+        p.drawLine(QPointF(cx + ray_in, cy), QPointF(cx + ray_out, cy))
+        # Diagonal rays
+        p.drawLine(QPointF(cx - diag_in, cy - diag_in), QPointF(cx - diag_out, cy - diag_out))
+        p.drawLine(QPointF(cx + diag_in, cy - diag_in), QPointF(cx + diag_out, cy - diag_out))
+        p.drawLine(QPointF(cx - diag_in, cy + diag_in), QPointF(cx - diag_out, cy + diag_out))
+        p.drawLine(QPointF(cx + diag_in, cy + diag_in), QPointF(cx + diag_out, cy + diag_out))
+
+    elif kind == "moon":
+        # Crescent moon
+        path = QPainterPath()
+        path.moveTo(cx + s * 0.08, cy - s * 0.36)
+        path.cubicTo(
+            cx - s * 0.36, cy - s * 0.28,
+            cx - s * 0.36, cy + s * 0.28,
+            cx + s * 0.08, cy + s * 0.36
+        )
+        path.cubicTo(
+            cx - s * 0.14, cy + s * 0.20,
+            cx - s * 0.14, cy - s * 0.20,
+            cx + s * 0.08, cy - s * 0.36
+        )
+        path.closeSubpath()
+        p.drawPath(path)
+
     else:
         # Graceful fallback: clean rounded rectangle with center bullet
         p.drawRoundedRect(QRectF(s * 0.2, s * 0.2, s * 0.6, s * 0.6), s * 0.1, s * 0.1)
         p.setBrush(color)
         p.drawEllipse(QPointF(cx, cy), s * 0.08, s * 0.08)
+

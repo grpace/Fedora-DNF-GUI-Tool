@@ -102,7 +102,7 @@ class RepoManagerPage(QWidget):
         # ── Body ──
         body = QWidget()
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setContentsMargins(20, 0, 20, 20)
         body_layout.setSpacing(20)
         layout.addWidget(body, 1)
 

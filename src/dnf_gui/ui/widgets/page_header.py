@@ -17,8 +17,8 @@ class PageHeader(QWidget):
                  kicker: str = "", parent=None):
         super().__init__(parent)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 16, 16, 12)
-        outer.setSpacing(4)
+        outer.setContentsMargins(20, 20, 20, 16)
+        outer.setSpacing(6)
 
         if kicker:
             kick = QLabel(kicker.upper())

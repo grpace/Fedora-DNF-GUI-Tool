@@ -302,7 +302,8 @@ def get_stylesheet(mode: str | None = None) -> str:
         color: {c['btn_neutral_text']};
         border: 1px solid {c['btn_neutral_border']};
         border-radius: 8px;
-        padding: 6px 12px;
+        padding: 7px 12px;
+        text-align: center;
         font-size: {f['size_sm']};
         font-weight: 600;
         margin: 4px 12px 6px 12px;
@@ -643,7 +644,8 @@ def get_stylesheet(mode: str | None = None) -> str:
         color: {c['text']};
         border: 1px solid {c['border']};
         border-radius: 8px;
-        padding: 6px 12px;
+        padding: 7px 12px;
+        text-align: center;
         min-width: 140px;
         font-size: {f['size_sm']};
     }}

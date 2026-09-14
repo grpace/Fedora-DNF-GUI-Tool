@@ -224,7 +224,7 @@ class Sidebar(QWidget):
         current = resolve_mode(saved if saved != "auto" else None)
 
         self._theme_btn = QPushButton(
-            "☀️  Light mode" if current == "dark" else "🌙  Dark mode")
+            "Light Mode" if current == "dark" else "Dark Mode")
         self._theme_btn.setObjectName("theme_toggle")
         self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._theme_btn.setToolTip("Toggle light / dark theme")
@@ -294,8 +294,14 @@ class Sidebar(QWidget):
             f"Open the GitHub releases page for v{latest_version}")
 
     def refresh_theme_button(self, mode: str):
-        """Update the footer toggle label after a theme change."""
-        self._theme_btn.setText("☀️  Light mode" if mode == "dark" else "🌙  Dark mode")
+        """Update the footer toggle label and vector icon after a theme change."""
+        from dnf_gui.ui.icons import make_icon
+        from dnf_gui.ui.styles.theme import get_palette
+        pal = get_palette(mode)
+        target_text = "Light Mode" if mode == "dark" else "Dark Mode"
+        icon_kind = "sun" if mode == "dark" else "moon"
+        self._theme_btn.setText(target_text)
+        self._theme_btn.setIcon(make_icon(icon_kind, pal["btn_neutral_text"], 16))
 
     def apply_theme(self, mode: str):
         """Apply icon/text colors for a theme mode (called on toggle)."""

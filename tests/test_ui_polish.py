@@ -114,7 +114,7 @@ class TestRebootDismiss(unittest.TestCase):
         _ensure_app()
 
     def test_page_header_inset(self):
-        """Headings sit at 8px (near the sidebar); body content at 16px."""
+        """Headings sit at 20px (aligned with body content)."""
         from PyQt6.QtWidgets import QLabel
         from PyQt6.QtCore import QPoint
         from dnf_gui.ui.pages.updates_page import UpdatesPage
@@ -129,7 +129,7 @@ class TestRebootDismiss(unittest.TestCase):
             title = page.findChild(QLabel, "page_header")
             self.assertIsNotNone(title, cls.__name__)
             title_x = title.mapTo(page, QPoint(0, 0)).x()
-            self.assertEqual(title_x, 8, cls.__name__)
+            self.assertEqual(title_x, 20, cls.__name__)
 
     def test_page_header_action_variant(self):
         from dnf_gui.ui.pages.history_page import HistoryPage

@@ -22,16 +22,22 @@ VERSION=$(grep -E '^Version:' "$SPEC_FILE" | awk '{print $2}')
 echo "Building ${APP_NAME} v${VERSION}..."
 mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
+# Remove stale artifacts for this version to avoid packaging an outdated build
+rm -f ~/rpmbuild/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm
+rm -f ~/rpmbuild/SOURCES/${APP_NAME}-${VERSION}.tar.gz
+
 tar czf ~/rpmbuild/SOURCES/${APP_NAME}-${VERSION}.tar.gz \
     --transform "s,^,${APP_NAME}-${VERSION}/," \
+    --exclude='__pycache__' \
+    --exclude='*.pyc' \
     -C "$SCRIPT_DIR" \
     src/ assets/ packaging/ install.sh pyproject.toml requirements.txt LICENSE README.md CHANGELOG.md RELEASING.md
 
 cp "$SPEC_FILE" ~/rpmbuild/SPECS/
 rpmbuild -bb ~/rpmbuild/SPECS/dnf-gui.spec
 
-# Find the built RPM (handles .fc43, .fc40, etc.)
-BUILT_RPM=$(ls ~/rpmbuild/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm 2>/dev/null | head -1)
+# Find the newly built RPM (handles .fc44, .fc43, etc.)
+BUILT_RPM=$(ls -t ~/rpmbuild/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm 2>/dev/null | head -1)
 if [ -n "$BUILT_RPM" ]; then
     mkdir -p "${SCRIPT_DIR}/dist"
     RELEASE_RPM="${SCRIPT_DIR}/dist/${RELEASE_NAME}-v${VERSION}.rpm"

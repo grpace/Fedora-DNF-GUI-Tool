@@ -21,8 +21,8 @@ Recommends:     fwupd
 %description
 A modern, user-friendly graphical package manager for Fedora KDE.
 Provides DNF package management, Flatpak support, system information,
-quick tools, repository management, and transaction history with a
-beautiful dark-themed interface.
+quick tools, repository management, and transaction history with
+customizable light and dark themes.
 
 Built by Greg.Tech — https://greg.tech
 
@@ -93,6 +93,7 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 - Upgrade previews (package count + download size) and reboot-required banner
 - Package details dialog (Details button / double-click, all pages)
 - New Settings page: Discover takeover, update reminders with login check, opt-in passwordless updates
+- Light and dark theme support with adaptive vector icons and UI polish across all pages
 - Working Ctrl+F search focus; sidebar grows to 9 pages (Ctrl+1..9)
 
 * Thu Mar 12 2026 Greg.Tech <hello@greg.tech> - 1.0.1-1

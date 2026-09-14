@@ -14,7 +14,7 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 - **⚡ Update Everything** — DNF upgrade and Flatpak update back-to-back in a single terminal session
 - **🛡️ Security Only** — Install just security advisories (`dnf upgrade --security`)
 - **📏 Upgrade previews** — Package count and download size in every upgrade confirmation
-- **↻ Reboot banner** — Tells you when a kernel/core-library update needs a reboot, with one-click reboot
+- **↺ Reboot banner** — Tells you when a kernel/core-library update needs a reboot, with one-click reboot
 - **🔍 Package details** — Details button (or double-click) on any card for version, repo, size, license
 - **📦 Installed Packages** — Browse, search, and filter all installed RPM packages
 - **🗑️ Clean Uninstall** — Remove packages with proper dependency cleanup
@@ -36,7 +36,7 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 - **Firmware Updates** — Check and apply BIOS/UEFI updates via fwupdmgr
 - **System Maintenance** — Clean cache, rebuild metadata, distro-sync
 
-### 🗂️ Repository Manager
+### 📁 Repository Manager
 - **View all repositories** — Enabled and disabled, with status indicators
 - **Enable/Disable repos** with one click
 - **Add COPR** — Community repositories via input dialog
@@ -53,6 +53,10 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
   interval, plus an optional login check (`dnf-gui --check`)
 - **Passwordless updates (opt-in)** — Make `dnf upgrade` passwordless via a
   validated per-user sudoers rule; installs and removals still ask
+
+### 🎨 Theme & Appearance
+- **Light & Dark Themes** — Seamless switching between modern dark mode and clean light mode
+- **Adaptive Vector Icons** — Dynamic stroke icons that automatically harmonize with the active theme
 
 ### 💻 Live Terminal
 - **Real-time output** streaming from all package operations

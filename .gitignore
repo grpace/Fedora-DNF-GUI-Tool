@@ -15,6 +15,7 @@ venv/
 .venv/
 env/
 .env/
+uv.lock
 
 # IDE
 .vscode/

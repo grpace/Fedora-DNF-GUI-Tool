@@ -2,9 +2,11 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QGridLayout
+    QScrollArea, QFrame,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
+
+from dnf_gui.ui.icons import paint_icon
 
 
 class ToolCard(QFrame):
@@ -23,13 +25,15 @@ class ToolCard(QFrame):
     def _setup_ui(self, icon, title, description, color, button_text, danger):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(14)
+        layout.setSpacing(16)
 
-        # Icon
-        icon_label = QLabel(icon)
-        icon_label.setFixedSize(48, 48)
+        # Icon container with vector painted glyph
+        icon_label = QLabel()
+        icon_label.setFixedSize(36, 36)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_label.setObjectName("tool_icon")
+        pix = paint_icon(self._tool_id, color, 24)
+        icon_label.setPixmap(pix)
         layout.addWidget(icon_label)
 
         # Text
@@ -48,12 +52,10 @@ class ToolCard(QFrame):
         layout.addLayout(text_layout, 1)
 
         self._btn = QPushButton(button_text)
-        # Uniform button language: icons carry the per-tool color,
-        # buttons stay consistent (teal primary, red outline if destructive).
         if danger:
             self._btn.setObjectName("danger_button")
         else:
-            self._btn.setObjectName("primary_button")
+            self._btn.setObjectName("ghost_button")
         self._btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn.clicked.connect(lambda: self.clicked.emit(self._tool_id))
         layout.addWidget(self._btn)
@@ -81,15 +83,15 @@ class ToolkitPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Header (own left inset, closer to the sidebar) ──
+        # ── Header ──
         layout.addWidget(PageHeader(
-            "Quick Tools", "One-click tools and common post-install tasks for Fedora KDE"))
+            "Quick Tools", "Common Maintenance Tasks and System Utilities"))
 
         # ── Body ──
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(16, 0, 16, 16)
-        body_layout.setSpacing(20)
+        body_layout.setSpacing(16)
         layout.addWidget(body, 1)
 
         # ── Scrollable Content ──
@@ -100,12 +102,12 @@ class ToolkitPage(QWidget):
         scroll_content = QWidget()
         content = QVBoxLayout(scroll_content)
         content.setContentsMargins(0, 0, 16, 0)
-        content.setSpacing(20)
+        content.setSpacing(12)
 
         # ─── Section: Repositories ───
         content.addWidget(self._section_label("Repositories & Sources"))
 
-        self._repos_empty_label = QLabel("You already have all tools in this section installed or enabled.")
+        self._repos_empty_label = QLabel("All repository tools in this section are currently active.")
         self._repos_empty_label.setObjectName("hint")
         self._repos_empty_label.hide()
         content.addWidget(self._repos_empty_label)
@@ -113,13 +115,13 @@ class ToolkitPage(QWidget):
         tools_repos = [
             ("rpmfusion_free", "RF", "RPM Fusion (Free)",
              "Enable the RPM Fusion Free repository for open-source packages not shipped by Fedora",
-             "#3fb950", "Enable"),
+             "#2ecc71", "Enable"),
             ("rpmfusion_nonfree", "RN", "RPM Fusion (Non-Free)",
              "Enable the RPM Fusion Non-Free repository for proprietary drivers and codecs",
-             "#d29922", "Enable"),
+             "#f67400", "Enable"),
             ("add_flathub", "FH", "Add Flathub Repository",
-             "Add the Flathub remote to Flatpak for access to thousands of apps",
-             "#bc8cff", "Add"),
+             "Add the Flathub remote to Flatpak for access to thousands of applications",
+             "#9b59b6", "Add"),
         ]
 
         for args in tools_repos:
@@ -133,20 +135,20 @@ class ToolkitPage(QWidget):
 
         tools_system = [
             ("firmware_check", "FW", "Check Firmware Updates",
-             "Use fwupdmgr to check for available firmware and BIOS/UEFI updates",
-             "#58a6ff", "Check"),
+             "Check for available system firmware and BIOS/UEFI updates using fwupd",
+             "#3daee9", "Check"),
             ("firmware_update", "UP", "Apply Firmware Updates",
-             "Download and install available firmware updates (may require reboot)",
-             "#d29922", "Update"),
+             "Download and install available device firmware updates (may require restart)",
+             "#f67400", "Update"),
             ("clean_cache", "CLN", "Clean DNF Cache",
-             "Remove cached package files, metadata, and temporary data to free up space",
-             "#f85149", "Clean"),
+             "Remove cached package metadata, packages, and temporary storage files",
+             "#e05252", "Clean"),
             ("rebuild_cache", "BLD", "Rebuild Metadata Cache",
-             "Rebuild DNF repository metadata cache for faster operations",
-             "#58a6ff", "Rebuild"),
+             "Rebuild DNF repository metadata index for faster and more reliable search",
+             "#3daee9", "Rebuild"),
             ("distro_sync", "SNC", "Distribution Sync",
-             "Synchronize installed packages with the latest versions from repos (dnf distro-sync)",
-             "#bc8cff", "Sync"),
+             "Synchronize all installed packages with the latest distribution repositories",
+             "#9b59b6", "Sync"),
         ]
 
         for args in tools_system:
@@ -159,21 +161,29 @@ class ToolkitPage(QWidget):
         scroll.setWidget(scroll_content)
         body_layout.addWidget(scroll, 1)
 
+    def _section_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setObjectName("section_label")
+        return lbl
+
+    def mark_installed(self, tool_id: str):
+        """Mark a tool as installed/configured (hides it)."""
+        if tool_id in self._cards:
+            self._cards[tool_id].set_installed(True)
+        self._check_section_emptiness()
+
+    def _check_section_emptiness(self):
+        """Show message if all repository tools are installed."""
+        repo_tools = ["rpmfusion_free", "rpmfusion_nonfree", "add_flathub"]
+        all_hidden = all(
+            tool_id in self._cards and self._cards[tool_id].isHidden()
+            for tool_id in repo_tools
+        )
+        self._repos_empty_label.setVisible(all_hidden)
+
     def update_card_statuses(self, statuses: dict):
         """Update the UI based on whether tools are installed."""
         for tool_id, is_installed in statuses.items():
             if tool_id in self._cards:
                 self._cards[tool_id].set_installed(is_installed)
-
-        # Check if all repos are hidden
-        repos_hidden = all(
-            self._cards[t_id].isHidden() 
-            for t_id in ["rpmfusion_free", "rpmfusion_nonfree", "add_flathub"]
-            if t_id in self._cards
-        )
-        self._repos_empty_label.setVisible(repos_hidden)
-
-    def _section_label(self, text: str) -> QLabel:
-        label = QLabel(text)
-        label.setObjectName("section_label")
-        return label
+        self._check_section_emptiness()

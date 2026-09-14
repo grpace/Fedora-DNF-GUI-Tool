@@ -1,7 +1,7 @@
-"""Reusable package card — theme-driven, no inline styles."""
+"""Package card widget — displays a package with status badge and actions."""
 
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
+    QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -9,53 +9,55 @@ from dnf_gui.core.package import Package, PackageStatus
 
 
 class PackageCard(QFrame):
-    """A card widget that displays package information with action buttons."""
+    """Card representing a single package with actions."""
 
-    install_clicked = pyqtSignal(str)    # package name
-    remove_clicked = pyqtSignal(str)     # package name
-    info_clicked = pyqtSignal(str)       # package name
+    action_clicked = pyqtSignal(str, str)  # action, package_name
+    details_clicked = pyqtSignal(str)      # package_name
+    info_clicked = pyqtSignal(str)         # package_name
+    install_clicked = pyqtSignal(str)      # package_name
+    remove_clicked = pyqtSignal(str)       # package_name
 
     def __init__(self, package: Package, parent=None):
         super().__init__(parent)
         self._package = package
         self.setObjectName("card")
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setup_ui()
-
-    def mouseDoubleClickEvent(self, event):
-        super().mouseDoubleClickEvent(event)
-        self.info_clicked.emit(self._package.name)
 
     def _setup_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
         # ── Package info ──
         info_layout = QVBoxLayout()
-        info_layout.setSpacing(4)
+        info_layout.setSpacing(2)
 
-        name_row = QHBoxLayout()
-        name_row.setSpacing(8)
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
 
-        name_label = QLabel(self._package.name)
+        name_label = QLabel(self._package.display_name)
         name_label.setObjectName("card_title")
-        name_row.addWidget(name_label)
+        title_row.addWidget(name_label)
 
-        if self._package.status == PackageStatus.INSTALLED:
-            badge = QLabel("Installed")
-            badge.setObjectName("badge_installed")
-            name_row.addWidget(badge)
-        elif self._package.status == PackageStatus.UPDATE_AVAILABLE:
-            badge = QLabel("Update")
+        # Status badge
+        badge = QLabel()
+        if self._package.status == PackageStatus.UPDATE_AVAILABLE:
+            badge.setText("Update Available")
             badge.setObjectName("badge_update")
-            name_row.addWidget(badge)
+        elif self._package.status == PackageStatus.INSTALLED:
+            badge.setText("Installed")
+            badge.setObjectName("badge_installed")
+        else:
+            badge.setText("Available")
+            badge.setObjectName("badge_muted")
+        title_row.addWidget(badge)
+        title_row.addStretch()
 
-        name_row.addStretch()
-        info_layout.addLayout(name_row)
+        info_layout.addLayout(title_row)
 
+        # Version & Architecture details
         detail_parts = []
-        if self._package.version:
+        if self._package.full_version:
             detail_parts.append(self._package.full_version)
         if self._package.arch:
             detail_parts.append(self._package.arch)
@@ -100,7 +102,7 @@ class PackageCard(QFrame):
             action_layout.addWidget(remove_btn)
         elif self._package.status == PackageStatus.AVAILABLE:
             install_btn = QPushButton("Install")
-            install_btn.setObjectName("success_button")
+            install_btn.setObjectName("primary_button")
             install_btn.setProperty("compact", True)
             install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             install_btn.clicked.connect(
@@ -109,7 +111,7 @@ class PackageCard(QFrame):
             action_layout.addWidget(install_btn)
         elif self._package.status == PackageStatus.UPDATE_AVAILABLE:
             update_btn = QPushButton("Update")
-            update_btn.setObjectName("warning_button")
+            update_btn.setObjectName("primary_button")
             update_btn.setProperty("compact", True)
             update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             update_btn.clicked.connect(

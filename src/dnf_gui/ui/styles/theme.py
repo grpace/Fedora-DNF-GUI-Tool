@@ -1,106 +1,130 @@
-"""Breeze-inspired adaptive theme for Fedora KDE.
+"""Theme system — KDE Plasma 6 Breeze aesthetic for Fedora Linux.
 
-Lightweight by design:
-- flat surfaces, no gradients, no per-widget inline stylesheets
-- one QSS source of truth; pages use objectName only
-- follows KDE light/dark via ``mode`` ("auto" | "dark" | "light")
-
-Public API is backward compatible:
-    get_stylesheet() -> str            # auto-detect, dark fallback
-    get_stylesheet(mode) -> str        # explicit "dark" / "light" / "auto"
-    detect_color_scheme() -> str       # "dark" or "light"
-    resolve_mode(mode) -> str
-    get_saved_theme_mode() / save_theme_mode()
+Design principles:
+- Native KDE Breeze design tokens (elevated cards, crisp contrast, 8px radius)
+- Pure QSS styling with no inline styles on widgets
+- High-contrast, highly readable buttons in both Light Mode and Dark Mode
+- Uncluttered button hierarchy: single primary action + clean neutral secondary buttons
+- Vector icons painted via dnf_gui.ui.icons
 """
 
-from __future__ import annotations
-
 import os
-
 from PyQt6.QtCore import QSettings
 
-_ORG = "Greg.Tech"
-_APP = "DNF Package Manager"
+_ORG = "GregTech"
+_APP = "FedoraDNFGUI"
 
-# ─── Palettes (Breeze-adjacent, tuned for contrast) ───────────────────
+# ── Palette Definitions ──
+
 _DARK = {
-    "bg_app": "#1b1e26",       # window
-    "bg_sidebar": "#16181f",   # nav rail
-    "bg_card": "#232733",      # cards
-    "bg_card_hover": "#292e3c",
-    "bg_input": "#14161d",
-    "bg_banner": "#232733",
-    "border": "#343a4a",
-    "border_soft": "#2a2f3d",
-    "border_focus": "#3daee9",  # Breeze blue
-    "text": "#fcfcfc",
-    "text_dim": "#aeb4c2",
-    "text_faint": "#7b8294",
-    "accent": "#3daee9",       # Breeze blue
-    "accent_hover": "#52bcec",
-    "accent_pressed": "#2d9bcb",
-    "on_bright": "#10181d",    # text on bright fills (buttons, badges)
-    "green": "#27ae60",
-    "green_hover": "#32c16f",
-    "badge_ok_text": "#3ddc84",
+    # Canvas & Elevation
+    "bg_app": "#16181e",           # Clean dark slate canvas
+    "bg_sidebar": "#121418",       # Deeper navigation rail
+    "bg_card": "#1e222a",          # Elevated card surface
+    "bg_card_hover": "#252b36",    # Interactive card hover
+    "bg_card_active": "#2b3240",   # Selected card surface
+    "bg_card_disabled": "#191c22",
+    "bg_input": "#181b22",         # Recessed input field
+    "bg_banner": "#1e222a",
+    # Borders
+    "border": "#313846",           # Visible clean container border
+    "border_soft": "#252b36",      # Subtle separator border
+    "border_focus": "#3daee9",     # Plasma Breeze Cyan focus ring
+    # Typography
+    "text": "#f0f3f8",             # Crisp high-contrast foreground
+    "text_dim": "#a2abbb",         # Readable secondary text
+    "text_faint": "#6b7688",       # Faint metadata / subtle captions
+    # Semantic Colors (KDE Plasma 6)
+    "accent": "#3daee9",           # Breeze Cyan
+    "accent_hover": "#55bbee",
+    "accent_pressed": "#2899d4",
+    "on_bright": "#ffffff",
+    "on_accent": "#0d131a",        # Deep contrast text for bright cyan fill
+    "green": "#27ae60",            # Emerald success
+    "green_hover": "#2ecc71",
+    "badge_ok_text": "#4ade80",
     "badge_update_bg": "#f67400",
-    "badge_update_text": "#231303",
-    "danger": "#f87171",
-    "red": "#da4453",
-    "amber": "#f67400",
-    "amber_bg": "#3a2c10",
-    "violet": "#9b59b6",
+    "badge_update_text": "#ffffff",
+    "danger": "#e05252",           # Plasma crimson
+    "red": "#e05252",
+    "amber": "#f67400",            # Plasma amber
+    "amber_bg": "#2a1c0d",
+    "violet": "#9b59b6",           # Plasma purple
+    # Buttons Neutral / Secondary
+    "btn_neutral_bg": "#222630",
+    "btn_neutral_border": "#363d4e",
+    "btn_neutral_text": "#e2e8f0",
+    "btn_neutral_hover_bg": "#2a3140",
+    "btn_neutral_hover_border": "#3daee9",
+    "btn_neutral_hover_text": "#ffffff",
+    # Scrollbars & Terminal
     "scroll_bg": "transparent",
-    "scroll_handle": "#3a4152",
-    "scroll_hover": "#4a5266",
-    "terminal_bg": "#101218",
+    "scroll_handle": "#384152",
+    "scroll_hover": "#4b566b",
+    "terminal_bg": "#0d0f14",      # Obsidian terminal
 }
 
 _LIGHT = {
-    "bg_app": "#f2f3f5",
-    "bg_sidebar": "#e9ebef",
-    "bg_card": "#ffffff",
-    "bg_card_hover": "#f6f7f9",
-    "bg_input": "#ffffff",
+    # Canvas & Elevation
+    "bg_app": "#f4f6fa",           # Breeze Light clean canvas
+    "bg_sidebar": "#e9edf3",       # Distinct sidebar rail
+    "bg_card": "#ffffff",          # Pure white card surface
+    "bg_card_hover": "#f7f9fc",    # Subtle card hover
+    "bg_card_active": "#eef2f8",   # Selected card surface
+    "bg_card_disabled": "#f4f6fa",
+    "bg_input": "#ffffff",         # Clean input field
     "bg_banner": "#ffffff",
-    "border": "#d3d7de",
-    "border_soft": "#e2e5ea",
-    "border_focus": "#1a6fb5",
-    "text": "#232627",
-    "text_dim": "#5d6772",
-    "text_faint": "#8b95a1",
-    "accent": "#175f9b",
-    "accent_hover": "#1f80cf",
-    "accent_pressed": "#155a8a",
-    "on_bright": "#ffffff",    # text on bright fills (buttons, badges)
-    "green": "#177233",
-    "green_hover": "#27a745",
-    "badge_ok_text": "#137333",
-    "badge_update_bg": "#8a5a00",
+    # Borders
+    "border": "#c8d0dc",           # Well-defined light border
+    "border_soft": "#e0e5ee",      # Subtle interior separator
+    "border_focus": "#1d72b8",     # Breeze Royal Blue focus
+    # Typography
+    "text": "#1a1f28",             # Deep charcoal/black text (high contrast)
+    "text_dim": "#485363",         # Clear secondary text
+    "text_faint": "#6e7b8c",       # Readable caption
+    # Semantic Colors (KDE Plasma 6 Light)
+    "accent": "#1d72b8",           # Breeze Royal Blue (high contrast against white)
+    "accent_hover": "#175c94",
+    "accent_pressed": "#114670",
+    "on_bright": "#ffffff",
+    "on_accent": "#ffffff",        # White text on royal blue
+    "green": "#1e824c",            # Forest green (readable on light backgrounds)
+    "green_hover": "#17673c",
+    "badge_ok_text": "#15633a",
+    "badge_update_bg": "#c85a00",
     "badge_update_text": "#ffffff",
-    "danger": "#c0392b",
+    "danger": "#c0392b",           # Rich red
     "red": "#c0392b",
-    "amber": "#7a5200",
-    "amber_bg": "#fef3d8",
-    "violet": "#7d3c98",
+    "amber": "#c85a00",            # Deep amber
+    "amber_bg": "#fff3e0",
+    "violet": "#7b1fa2",
+    # Buttons Neutral / Secondary
+    "btn_neutral_bg": "#ffffff",
+    "btn_neutral_border": "#c8d0dc",
+    "btn_neutral_text": "#1a1f28",
+    "btn_neutral_hover_bg": "#f0f4f9",
+    "btn_neutral_hover_border": "#1d72b8",
+    "btn_neutral_hover_text": "#1d72b8",
+    # Scrollbars & Terminal
     "scroll_bg": "transparent",
-    "scroll_handle": "#c4c9d2",
-    "scroll_hover": "#a8afbb",
-    "terminal_bg": "#232627",
+    "scroll_handle": "#c2c9d4",
+    "scroll_hover": "#a2abb8",
+    "terminal_bg": "#14171d",
 }
 
 FONTS = {
     "family": "'Noto Sans', 'Inter', 'Segoe UI', sans-serif",
-    "family_mono": "'JetBrains Mono', 'Hack', 'Menlo', monospace",
+    "family_mono": "'JetBrains Mono', 'Fira Code', 'Hack', monospace",
     "size_xs": "11px",
     "size_sm": "12px",
-    "size_base": "14px",
+    "size_base": "13px",
+    "size_md": "14px",
     "size_lg": "16px",
     "size_xl": "20px",
-    "size_2xl": "26px",
+    "size_2xl": "24px",
 }
 
-COLORS = {  # backward-compat alias (dark palette, old key names kept)
+COLORS = {  # backward-compat alias
     "bg_primary": _DARK["bg_app"],
     "bg_secondary": _DARK["bg_card"],
     "bg_tertiary": _DARK["border"],
@@ -126,58 +150,30 @@ COLORS = {  # backward-compat alias (dark palette, old key names kept)
 }
 
 
-def detect_color_scheme() -> str:
-    """Best-effort KDE/system dark-mode detection. Returns 'dark'|'light'."""
-    # Explicit override (useful for testing / screenshots)
-    forced = os.environ.get("DNF_GUI_THEME", "").lower()
-    if forced in ("dark", "light"):
-        return forced
-    # KDE / Qt global hints
-    for var in ("KDE_COLOR_SCHEME", "QT_QPA_PLATFORMTHEME"):
-        _ = var  # placeholder for future env-based detection
+def detect_system_theme() -> str:
+    """Detect whether system is dark or light mode."""
     try:
-        from PyQt6.QtWidgets import QApplication
-        from PyQt6.QtGui import QPalette
-
-        app = QApplication.instance()
-        if app is not None:
-            base = app.palette().color(QPalette.ColorRole.Window)
-            # luminance heuristic: dark window => dark scheme
-            lum = 0.2126 * base.red() + 0.7152 * base.green() + 0.0722 * base.blue()
-            return "dark" if lum < 128 else "light"
+        val = os.environ.get("KDE_COLOR_SCHEME_PATH", "").lower()
+        if "dark" in val:
+            return "dark"
+        if "light" in val:
+            return "light"
     except Exception:
         pass
-    # color-scheme preference files used on Fedora KDE
-    try:
-        import pathlib
-
-        kdeglobals = pathlib.Path.home() / ".config" / "kdeglobals"
-        if kdeglobals.exists():
-            text = kdeglobals.read_text(errors="ignore")
-            if "ColorScheme=BreezeDark" in text or "BreezeDark" in text:
-                return "dark"
-    except Exception:
-        pass
-    return "dark"  # historic default for this app
+    return "dark"
 
 
 def resolve_mode(mode: str | None = None) -> str:
-    if mode in ("dark", "light"):
+    """Resolve theme mode: 'auto' -> detect, 'light'/'dark' -> as is."""
+    if mode in ("light", "dark"):
         return mode
-    saved = get_saved_theme_mode()
-    if saved in ("dark", "light"):
-        return saved
-    if (mode or saved) == "light":
-        return "light"
-    detected = detect_color_scheme()
-    return detected if detected in ("dark", "light") else "dark"
+    return detect_system_theme()
 
 
 def get_saved_theme_mode() -> str:
     try:
         s = QSettings(_ORG, _APP)
-        v = str(s.value("theme/mode", "auto"))
-        return v if v in ("auto", "dark", "light") else "auto"
+        return s.value("theme/mode", "auto")
     except Exception:
         return "auto"
 
@@ -199,9 +195,7 @@ def get_stylesheet(mode: str | None = None) -> str:
     """Return the complete application QSS stylesheet."""
     c = get_palette(mode)
     f = FONTS
-    light = resolve_mode(mode) == "light"
-    card_shadow = "border"  # flat: rely on 1px border only
-    _ = (card_shadow, light)
+    is_light = resolve_mode(mode) == "light"
 
     return f"""
     /* ── Global ── */
@@ -228,37 +222,34 @@ def get_stylesheet(mode: str | None = None) -> str:
         max-width: 232px;
     }}
     #sidebar_title {{
-        font-size: {f['size_xl']};
-        font-weight: 800;
+        font-size: {f['size_lg']};
+        font-weight: 700;
         color: {c['text']};
-        padding: 18px 20px 4px 20px;
-        letter-spacing: -0.5px;
+        padding: 0px;
+        letter-spacing: -0.2px;
     }}
     #sidebar_subtitle {{
-        font-size: {f['size_sm']};
-        color: {c['text_dim']};
-        padding: 0px 20px 8px 20px;
+        font-size: {f['size_xs']};
+        color: {c['accent']};
+        font-weight: 600;
+        padding: 2px 0px 0px 0px;
+        letter-spacing: 0.4px;
     }}
     #nav_section {{
-        color: {c['text_dim']};
-        font-size: 11px;
+        color: {c['text_faint']};
+        font-size: 10px;
         font-weight: 700;
-        letter-spacing: 1px;
-        padding: 14px 20px 6px 20px;
+        letter-spacing: 1.2px;
+        padding: 16px 16px 6px 16px;
     }}
-    /* Nav row label: states driven by the parent button (QSS cannot
-       read parent state in code, so the button exposes active/hover). */
     QLabel#nav_label {{
         color: {c['text_dim']};
         background-color: transparent;
         font-size: {f['size_base']};
         font-weight: 500;
     }}
-    /* NOTE: :hover in an ancestor position of a descendant selector
-       mis-matches (all rows highlight), so hover state is exposed by the
-       button as a "hovered" dynamic property instead. */
     QPushButton#nav_button[hovered="true"] QLabel#nav_label {{
-        color: {c['accent']};
+        color: {c['text']};
     }}
     QPushButton#nav_button[active="true"] QLabel#nav_label {{
         color: {c['accent']};
@@ -269,8 +260,8 @@ def get_stylesheet(mode: str | None = None) -> str:
         color: {c['text_dim']};
         border: none;
         border-left: 3px solid transparent;
-        border-radius: 0px;
-        padding: 9px 16px 9px 13px;
+        border-radius: 8px;
+        padding: 9px 12px 9px 12px;
         text-align: left;
         font-size: {f['size_base']};
         font-weight: 500;
@@ -283,58 +274,62 @@ def get_stylesheet(mode: str | None = None) -> str:
     }}
     QPushButton#nav_button[active="true"] {{
         background-color: {c['bg_card']};
-        color: {c['text']};
+        color: {c['accent']};
         font-weight: 700;
         border-left: 3px solid {c['accent']};
         border-radius: 0px 8px 8px 0px;
     }}
     QLabel#nav_badge {{
         background-color: {c['accent']};
-        color: {c['on_bright']};
+        color: {c['on_accent']};
         border-radius: 9px;
-        padding: 1px 8px;
+        padding: 1px 7px;
         font-size: 11px;
         font-weight: 700;
     }}
     #sidebar_footer {{
         border-top: 1px solid {c['border_soft']};
+        padding: 10px 0px 6px 0px;
     }}
     QLabel#sidebar_version {{
-        color: {c['text_dim']};
-        font-size: 12px;
-        padding: 12px 20px;
+        color: {c['text_faint']};
+        font-size: 11px;
+        font-weight: 500;
+        padding: 6px 16px;
     }}
     QPushButton#theme_toggle {{
-        background-color: transparent;
-        color: {c['text_dim']};
-        border: 1px solid {c['border']};
+        background-color: {c['btn_neutral_bg']};
+        color: {c['btn_neutral_text']};
+        border: 1px solid {c['btn_neutral_border']};
         border-radius: 8px;
-        padding: 6px 10px;
+        padding: 6px 12px;
         font-size: {f['size_sm']};
-        margin: 0px 16px 12px 16px;
+        font-weight: 600;
+        margin: 4px 12px 6px 12px;
     }}
     QPushButton#theme_toggle:hover {{
-        color: {c['text']};
-        border-color: {c['border_focus']};
+        background-color: {c['btn_neutral_hover_bg']};
+        border-color: {c['btn_neutral_hover_border']};
+        color: {c['btn_neutral_hover_text']};
     }}
 
-    /* ── Content ── */
+    /* ── Content & Headers ── */
     #content_area {{ background-color: {c['bg_app']}; }}
     #progress_bar_slot {{ background-color: {c['bg_app']}; }}
     #page_header {{
-        font-size: 26px;
-        font-weight: 800;
+        font-size: 21px;
+        font-weight: 700;
         color: {c['text']};
         margin: 0px;
-        padding: 14px 0px 0px 0px;
-        letter-spacing: -0.5px;
+        padding: 0px;
+        letter-spacing: -0.3px;
     }}
     #page_subheader {{
         font-size: 13px;
         font-weight: 400;
         color: {c['text_dim']};
         margin: 0px;
-        padding: 0px 0px 14px 0px;
+        padding: 0px;
     }}
     #page_kicker {{
         font-size: 11px;
@@ -344,14 +339,16 @@ def get_stylesheet(mode: str | None = None) -> str:
         padding: 0px;
     }}
 
-    /* ── Cards ── */
+    /* ── Cards & Surfaces ── */
     QFrame#card {{
         background-color: {c['bg_card']};
         border: 1px solid {c['border_soft']};
         border-radius: 10px;
-        padding: 16px 18px;
+        padding: 14px 16px;
     }}
-    QFrame#card:hover {{ border-color: {c['border']}; }}
+    QFrame#card:hover {{
+        border-color: {c['border']};
+    }}
     QLabel#card_title {{
         font-size: {f['size_base']};
         font-weight: 600;
@@ -371,7 +368,7 @@ def get_stylesheet(mode: str | None = None) -> str:
         color: {c['text_dim']};
     }}
 
-    /* Stat hero cards */
+    /* Stat Cards */
     QFrame#stats_card {{
         background-color: {c['bg_card']};
         border: 1px solid {c['border_soft']};
@@ -379,33 +376,36 @@ def get_stylesheet(mode: str | None = None) -> str:
         padding: 14px 16px;
         min-height: 64px;
     }}
-    QFrame#stats_card:hover {{ border-color: {c['border']}; }}
+    QFrame#stats_card:hover {{
+        border-color: {c['border']};
+        background-color: {c['bg_card_hover']};
+    }}
     QLabel#stats_number {{
-        font-size: 30px;
-        font-weight: 800;
+        font-size: 26px;
+        font-weight: 700;
         color: {c['accent']};
-        letter-spacing: -1px;
+        letter-spacing: -0.6px;
     }}
     QLabel#stats_label {{
         font-size: 11px;
         color: {c['text_dim']};
-        font-weight: 700;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.6px;
+        letter-spacing: 0.5px;
     }}
 
-    /* Badges (install state, repo state) */
+    /* Badges */
     QLabel#badge_installed, QLabel#badge_update,
     QLabel#badge_ok, QLabel#badge_muted {{
-        border-radius: 9px;
-        padding: 2px 9px;
+        border-radius: 6px;
+        padding: 2px 8px;
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 600;
     }}
     QLabel#badge_installed {{
-        background-color: {c['green']}26;
+        background-color: {c['green']}22;
         color: {c['badge_ok_text']};
-        border: 1px solid {c['green']}55;
+        border: 1px solid {c['green']}44;
     }}
     QLabel#badge_update {{
         background-color: {c['badge_update_bg']};
@@ -415,57 +415,68 @@ def get_stylesheet(mode: str | None = None) -> str:
     QLabel#badge_ok {{
         background-color: {c['green']}22;
         color: {c['badge_ok_text']};
-        border: 1px solid {c['green']}55;
+        border: 1px solid {c['green']}44;
     }}
     QLabel#badge_muted {{
         background-color: transparent;
         color: {c['text_dim']};
         border: 1px solid {c['border']};
     }}
-    /* Repo status dot: plain glyph, intentionally no background/border
-       so it can never look squished. */
     QLabel#repo_dot_on, QLabel#repo_dot_off {{
         background-color: transparent;
         border: none;
         font-size: 13px;
     }}
     QLabel#repo_dot_on {{ color: {c['badge_ok_text']}; }}
-    QLabel#repo_dot_off {{ color: {c['text_dim']}; }}
+    QLabel#repo_dot_off {{ color: {c['text_faint']}; }}
     QLabel#txn_badge {{
         background-color: {c['accent']}1f;
         color: {c['accent']};
         border-radius: 6px;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
-        padding: 5px 8px;
+        padding: 4px 8px;
     }}
-    QLabel#tool_icon {{
-        font-size: 22px;
-        background-color: {c['accent']}1a;
-        border: 1px solid {c['border_soft']};
-        border-radius: 9px;
-    }}
-    QLabel#tool_title {{ font-size: {f['size_base']}; font-weight: 600; }}
-    QLabel#tool_desc {{ color: {c['text_dim']}; font-size: {f['size_sm']}; }}
 
-    /* ── Buttons ── */
+    /* Quick Tools Cards — Clean Desktop Style */
+    QLabel#tool_icon {{
+        background-color: transparent;
+        border: none;
+        padding: 0px;
+    }}
+    QLabel#tool_title {{
+        font-size: {f['size_base']};
+        font-weight: 600;
+        color: {c['text']};
+    }}
+    QLabel#tool_desc {{
+        color: {c['text_dim']};
+        font-size: {f['size_sm']};
+    }}
+
+    /* ── High-Contrast, Unified Buttons ── */
     QPushButton#primary_button {{
         background-color: {c['accent']};
-        color: {c['on_bright']};
+        color: {c['on_accent'] if not is_light else c['on_bright']};
         border: none;
         border-radius: 8px;
         padding: 8px 18px;
         min-height: 32px;
         font-size: {f['size_base']};
-        font-weight: 700;
-        min-width: 110px;
+        font-weight: 600;
+        min-width: 100px;
     }}
-    QPushButton#primary_button:hover {{ background-color: {c['accent_hover']}; }}
-    QPushButton#primary_button:pressed {{ background-color: {c['accent_pressed']}; }}
+    QPushButton#primary_button:hover {{
+        background-color: {c['accent_hover']};
+    }}
+    QPushButton#primary_button:pressed {{
+        background-color: {c['accent_pressed']};
+    }}
     QPushButton#primary_button:disabled {{
         background-color: {c['border_soft']};
         color: {c['text_faint']};
     }}
+
     QPushButton#success_button {{
         background-color: {c['green']};
         color: {c['on_bright']};
@@ -474,35 +485,38 @@ def get_stylesheet(mode: str | None = None) -> str:
         padding: 8px 18px;
         min-height: 32px;
         font-size: {f['size_base']};
-        font-weight: 700;
-        min-width: 110px;
+        font-weight: 600;
+        min-width: 100px;
     }}
-    QPushButton#success_button:hover {{ background-color: {c['green_hover']}; }}
-    QPushButton#success_button:pressed {{ background-color: {c['green']}; }}
+    QPushButton#success_button:hover {{
+        background-color: {c['green_hover']};
+    }}
     QPushButton#success_button:disabled {{
         background-color: {c['border_soft']};
         color: {c['text_faint']};
     }}
+
     QPushButton#accent_button {{
-        background-color: {c['bg_card']};
+        background-color: {c['btn_neutral_bg']};
         color: {c['accent']};
-        border: 1px solid {c['accent']}66;
+        border: 1px solid {c['accent']};
         border-radius: 8px;
         padding: 8px 18px;
         min-height: 32px;
         font-size: {f['size_base']};
-        font-weight: 700;
-        min-width: 110px;
+        font-weight: 600;
+        min-width: 100px;
     }}
     QPushButton#accent_button:hover {{
-        border-color: {c['accent']};
-        background-color: {c['accent']}14;
+        background-color: {c['btn_neutral_hover_bg']};
+        border-color: {c['accent_hover']};
     }}
     QPushButton#accent_button:disabled {{
         background-color: transparent;
         color: {c['text_faint']};
         border-color: {c['border_soft']};
     }}
+
     QPushButton#warning_button {{
         background-color: {c['amber']};
         color: {c['on_bright']};
@@ -511,18 +525,22 @@ def get_stylesheet(mode: str | None = None) -> str:
         padding: 8px 18px;
         min-height: 32px;
         font-size: {f['size_base']};
-        font-weight: 700;
-        min-width: 110px;
+        font-weight: 600;
+        min-width: 100px;
     }}
-    QPushButton#warning_button:hover {{ background-color: {c['amber']}; }}
+    QPushButton#warning_button:hover {{
+        background-color: {c['amber']};
+        opacity: 0.9;
+    }}
     QPushButton#warning_button:disabled {{
         background-color: {c['border_soft']};
         color: {c['text_faint']};
     }}
+
     QPushButton#ghost_button {{
-        background-color: transparent;
-        color: {c['text_dim']};
-        border: 1px solid {c['border']};
+        background-color: {c['btn_neutral_bg']};
+        color: {c['btn_neutral_text']};
+        border: 1px solid {c['btn_neutral_border']};
         border-radius: 8px;
         padding: 7px 16px;
         min-height: 32px;
@@ -531,17 +549,20 @@ def get_stylesheet(mode: str | None = None) -> str:
         min-width: 72px;
     }}
     QPushButton#ghost_button:hover {{
-        color: {c['text']};
-        border-color: {c['border_focus']};
+        background-color: {c['btn_neutral_hover_bg']};
+        border-color: {c['btn_neutral_hover_border']};
+        color: {c['btn_neutral_hover_text']};
     }}
     QPushButton#ghost_button:disabled {{
+        background-color: {c['bg_card_disabled']};
         color: {c['text_faint']};
         border-color: {c['border_soft']};
     }}
+
     QPushButton#danger_button {{
-        background-color: transparent;
+        background-color: {c['btn_neutral_bg']};
         color: {c['danger']};
-        border: 1px solid {c['border']};
+        border: 1px solid {c['danger']}66;
         border-radius: 8px;
         padding: 7px 16px;
         min-height: 32px;
@@ -550,12 +571,14 @@ def get_stylesheet(mode: str | None = None) -> str:
     }}
     QPushButton#danger_button:hover {{
         border-color: {c['danger']};
-        background-color: {c['danger']}14;
+        background-color: {c['danger']}18;
     }}
     QPushButton#danger_button:disabled {{
+        background-color: transparent;
         color: {c['text_faint']};
         border-color: {c['border_soft']};
     }}
+
     QPushButton#icon_button {{
         background-color: transparent;
         color: {c['text_dim']};
@@ -568,6 +591,7 @@ def get_stylesheet(mode: str | None = None) -> str:
         color: {c['text']};
         background-color: {c['border_soft']};
     }}
+
     QPushButton#primary_button[compact="true"],
     QPushButton#success_button[compact="true"],
     QPushButton#accent_button[compact="true"],
@@ -580,12 +604,11 @@ def get_stylesheet(mode: str | None = None) -> str:
         font-size: {f['size_sm']};
     }}
 
-    /* ── Inputs ── */
+    /* ── Inputs & Controls ── */
     QCheckBox {{
         color: {c['text']};
         font-size: {f['size_base']};
-        spacing: 10px;
-        padding: 4px 0px;
+        spacing: 8px;
     }}
     QCheckBox::indicator {{
         width: 18px;
@@ -594,219 +617,187 @@ def get_stylesheet(mode: str | None = None) -> str:
         border-radius: 5px;
         background-color: {c['bg_input']};
     }}
-    QCheckBox::indicator:hover {{ border-color: {c['border_focus']}; }}
+    QCheckBox::indicator:hover {{
+        border-color: {c['border_focus']};
+    }}
     QCheckBox::indicator:checked {{
         background-color: {c['accent']};
         border-color: {c['accent']};
-        image: none;
     }}
-    QCheckBox::indicator:disabled {{
-        background-color: {c['border_soft']};
-        border-color: {c['border_soft']};
-    }}
-    QCheckBox:disabled {{ color: {c['text_faint']}; }}
-    QLabel#hint {{
-        color: {c['text_dim']};
-        font-size: {f['size_sm']};
-    }}
-    QLabel#section_label {{
-        font-size: {f['size_lg']};
-        font-weight: 700;
-        color: {c['text']};
-        padding: 10px 0px 2px 0px;
-        border-bottom: 1px solid {c['border_soft']};
-    }}
-    QLabel#status_line {{
-        color: {c['text']};
-        font-size: {f['size_base']};
-    }}
-    QLabel#caption {{
-        color: {c['text_dim']};
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        padding: 8px 0px 0px 0px;
-    }}
-    QFrame#status_ok, QFrame#status_warn, QFrame#status_info {{
-        border-radius: 10px;
-        padding: 12px 16px;
-    }}
-    QFrame#status_ok {{
-        background-color: {c['green']}14;
-        border: 1px solid {c['green']}55;
-    }}
-    QFrame#status_warn {{
-        background-color: {c['amber']}14;
-        border: 1px solid {c['amber']}55;
-    }}
-    QFrame#status_info {{
-        background-color: {c['bg_banner']};
-        border: 1px solid {c['border_soft']};
-    }}
-    QLabel#status_title {{
-        font-size: 14px;
-        font-weight: 700;
-        color: {c['text']};
-    }}
-    QLabel#status_detail {{
-        font-size: 12px;
-        color: {c['text_dim']};
-    }}
-    QFrame#reboot_banner {{
-        background-color: {c['amber_bg']};
-        border: 1px solid {c['amber']};
-        border-radius: 10px;
-    }}
-    QLabel#reboot_banner_text {{
-        color: {c['amber']};
-        font-size: {f['size_base']};
-        font-weight: 600;
-    }}
+
     QLineEdit#search_input {{
         background-color: {c['bg_input']};
         color: {c['text']};
         border: 1px solid {c['border']};
         border-radius: 8px;
-        padding: 6px 14px;
-        min-height: 26px;
+        padding: 8px 14px;
         font-size: {f['size_base']};
         selection-background-color: {c['accent']};
     }}
-    QLineEdit#search_input:focus {{ border-color: {c['border_focus']}; }}
-    QLineEdit#search_input::placeholder {{ color: {c['text_faint']}; }}
-
-    /* ── Lists / scroll ── */
-    QScrollArea {{ border: none; background-color: transparent; }}
-    QScrollArea > QWidget > QWidget {{ background-color: transparent; }}
-    QScrollBar:vertical {{
-        background-color: {c['scroll_bg']};
-        width: 8px;
-        border-radius: 4px;
-        margin: 0;
-    }}
-    QScrollBar::handle:vertical {{
-        background-color: {c['scroll_handle']};
-        border-radius: 4px;
-        min-height: 30px;
-    }}
-    QScrollBar::handle:vertical:hover {{ background-color: {c['scroll_hover']}; }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-    QScrollBar:horizontal {{
-        background-color: {c['scroll_bg']};
-        height: 8px;
-        border-radius: 4px;
-    }}
-    QScrollBar::handle:horizontal {{
-        background-color: {c['scroll_handle']};
-        border-radius: 4px;
-        min-width: 30px;
-    }}
-    QScrollBar::handle:horizontal:hover {{ background-color: {c['scroll_hover']}; }}
-    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
-
-    /* ── Terminal ── */
-    QPlainTextEdit#terminal {{
-        background-color: {c['terminal_bg']};
-        color: {'#fcfcfc' if light else c['text']};
-        border: 1px solid {c['border_soft']};
-        border-radius: 8px;
-        padding: 14px;
-        font-family: {f['family_mono']};
-        font-size: {f['size_sm']};
-        selection-background-color: {c['accent']};
-    }}
-    QLabel#term_dot_ok {{ color: {c['green']}; font-size: 12px; }}
-    QLabel#term_dot_run {{ color: {c['green']}; font-size: 12px; }}
-    QLabel#term_dot_err {{ color: {c['danger']}; font-size: 12px; }}
-    QLabel#term_dot_idle {{ color: {c['text_faint']}; font-size: 12px; }}
-
-    /* ── Resource bars (system page) ── */
-    QProgressBar#resource_bar {{
-        background-color: {c['border_soft']};
-        border: none;
-        border-radius: 4px;
-        height: 8px;
-    }}
-    QProgressBar#resource_bar::chunk {{
-        background-color: {c['accent']};
-        border-radius: 4px;
-    }}
-    QProgressBar {{
-        background-color: {c['border_soft']};
-        border: none;
-        border-radius: 2px;
-        height: 4px;
-        text-align: center;
-    }}
-    QProgressBar::chunk {{
-        background-color: {c['accent']};
-        border-radius: 2px;
+    QLineEdit#search_input:focus {{
+        border-color: {c['border_focus']};
     }}
 
-    QToolTip {{
-        background-color: {c['bg_card']};
-        color: {c['text']};
-        border: 1px solid {c['border']};
-        border-radius: 4px;
-        padding: 6px 10px;
-        font-size: {f['size_sm']};
-    }}
     QComboBox {{
         background-color: {c['bg_input']};
         color: {c['text']};
         border: 1px solid {c['border']};
         border-radius: 8px;
         padding: 6px 12px;
-        min-height: 24px;
-        font-size: {f['size_base']};
         min-width: 140px;
+        font-size: {f['size_sm']};
     }}
-    QComboBox:hover {{ border-color: {c['text_dim']}; }}
-    QComboBox::drop-down {{ border: none; padding-right: 8px; }}
+    QComboBox:focus {{
+        border-color: {c['border_focus']};
+    }}
+    QComboBox::drop-down {{
+        border: none;
+        width: 24px;
+    }}
     QComboBox QAbstractItemView {{
         background-color: {c['bg_card']};
         color: {c['text']};
         border: 1px solid {c['border']};
-        border-radius: 6px;
-        selection-background-color: {c['border_soft']};
+        border-radius: 8px;
         padding: 4px;
+        selection-background-color: {c['accent']};
     }}
-    QTabWidget::pane {{ border: none; background-color: transparent; }}
+
+    /* ── Reboot Banner ── */
+    QFrame#reboot_banner {{
+        background-color: {c['amber_bg']};
+        border: 1px solid {c['amber']};
+        border-radius: 10px;
+        padding: 12px 16px;
+    }}
+    QLabel#reboot_banner_text {{
+        color: {c['amber']};
+        font-size: {f['size_base']};
+        font-weight: 600;
+    }}
+
+    /* ── Tabs ── */
+    QTabWidget::pane {{
+        border: none;
+        background-color: transparent;
+    }}
     QTabBar::tab {{
         background-color: transparent;
         color: {c['text_dim']};
         border: none;
         border-bottom: 2px solid transparent;
-        padding: 8px 16px;
+        padding: 8px 18px;
         font-size: {f['size_base']};
-        font-weight: 500;
+        font-weight: 600;
         margin-right: 8px;
     }}
-    QTabBar::tab:hover {{ color: {c['text']}; }}
-    QTabBar::tab:selected {{
+    QTabBar::tab:hover {{
         color: {c['text']};
-        border-bottom: 2px solid {c['accent']};
-        font-weight: 600;
     }}
-    QFrame#separator {{
-        background-color: transparent;
-        max-height: 0px;
-        margin: 0px;
+    QTabBar::tab:selected {{
+        color: {c['accent']};
+        border-bottom: 2px solid {c['accent']};
+    }}
+
+    /* ── Progress & Resources ── */
+    QProgressBar {{
+        background-color: {c['border_soft']};
         border: none;
+        border-radius: 4px;
+        text-align: center;
+    }}
+    QProgressBar::chunk {{
+        background-color: {c['accent']};
+        border-radius: 4px;
+    }}
+    QProgressBar#resource_bar {{
+        background-color: {c['border_soft']};
+        border: none;
+        border-radius: 4px;
+        min-height: 8px;
+        max-height: 8px;
+    }}
+    QProgressBar#resource_bar::chunk {{
+        background-color: {c['accent']};
+        border-radius: 4px;
+    }}
+
+    /* ── Scrollbars ── */
+    QScrollArea {{
+        border: none;
+        background-color: transparent;
+    }}
+    QScrollBar:vertical {{
+        border: none;
+        background: {c['scroll_bg']};
+        width: 8px;
+        margin: 0px;
+    }}
+    QScrollBar::handle:vertical {{
+        background: {c['scroll_handle']};
+        min-height: 24px;
+        border-radius: 4px;
+    }}
+    QScrollBar::handle:vertical:hover {{
+        background: {c['scroll_hover']};
+    }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+        background: none;
+        border: none;
+    }}
+
+    /* ── Terminal ── */
+    QPlainTextEdit#terminal {{
+        background-color: {c['terminal_bg']};
+        color: #d8dee9;
+        border: 1px solid {c['border_soft']};
+        border-radius: 8px;
+        padding: 12px;
+        font-family: {f['family_mono']};
+        font-size: 12px;
+        line-height: 1.4;
+    }}
+
+    /* ── Terminal Status Dots ── */
+    QLabel#term_dot_idle, QLabel#term_dot_run,
+    QLabel#term_dot_ok, QLabel#term_dot_err {{
+        background-color: transparent;
+        border: none;
+        font-size: 14px;
+    }}
+    QLabel#term_dot_idle {{ color: {c['text_faint']}; }}
+    QLabel#term_dot_run  {{ color: {c['accent']}; }}
+    QLabel#term_dot_ok   {{ color: {c['green']}; }}
+    QLabel#term_dot_err  {{ color: {c['danger']}; }}
+
+    /* ── Typography Helpers ── */
+    QLabel#section_label {{
+        font-size: {f['size_md']};
+        font-weight: 700;
+        color: {c['text']};
+        letter-spacing: -0.2px;
+        padding: 8px 0px 4px 0px;
+    }}
+    QLabel#hint {{
+        color: {c['text_dim']};
+        font-size: {f['size_sm']};
+    }}
+    QLabel#caption {{
+        color: {c['text_faint']};
+        font-size: {f['size_xs']};
+    }}
+    QLabel#status_line {{
+        color: {c['text_dim']};
+        font-size: {f['size_sm']};
     }}
     QLabel#loading_label {{
         color: {c['text_dim']};
-        font-size: {f['size_lg']};
+        font-size: {f['size_base']};
         padding: 40px;
     }}
-    QLabel#empty_title {{
-        font-size: {f['size_lg']};
-        font-weight: 700;
-        color: {c['text']};
-    }}
-    QLabel#empty_hint {{
-        font-size: {f['size_sm']};
-        color: {c['text_dim']};
+    QFrame#separator {{
+        background-color: {c['border_soft']};
+        max-height: 1px;
     }}
     """

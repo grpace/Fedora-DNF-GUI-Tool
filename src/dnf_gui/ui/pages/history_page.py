@@ -1,73 +1,76 @@
-"""History page — DNF transaction history with undo capability."""
+"""Transaction history page — view DNF transaction log with undo capability."""
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QPlainTextEdit
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QScrollArea, QFrame,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
 
 class HistoryCard(QFrame):
-    """Card displaying a single DNF transaction."""
+    """Card representing a single DNF transaction."""
 
-    undo_clicked = pyqtSignal(str)   # transaction_id
-    info_clicked = pyqtSignal(str)   # transaction_id
+    undo_clicked = pyqtSignal(str)  # transaction_id
+    info_clicked = pyqtSignal(str)  # transaction_id
 
-    def __init__(self, transaction: dict, parent=None):
+    def __init__(self, txn: dict, parent=None):
         super().__init__(parent)
-        self._txn = transaction
+        self._txn = txn
         self.setObjectName("card")
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
         # Transaction ID badge
-        id_label = QLabel(f"#{self._txn.get('id', '?')}")
-        id_label.setFixedWidth(60)
-        id_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        id_label.setObjectName("txn_badge")
-        layout.addWidget(id_label)
+        id_badge = QLabel(f"#{self._txn.get('id', '?')}")
+        id_badge.setObjectName("txn_badge")
+        id_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        id_badge.setFixedWidth(48)
+        layout.addWidget(id_badge)
 
         # Info
         info_layout = QVBoxLayout()
         info_layout.setSpacing(2)
 
-        command = self._txn.get("command", "Unknown operation")
-        cmd_label = QLabel(command)
+        cmd_label = QLabel(self._txn.get("command", "Unknown command"))
         cmd_label.setObjectName("card_title")
-        cmd_label.setWordWrap(True)
         info_layout.addWidget(cmd_label)
 
-        detail_parts = []
-        if self._txn.get("date"):
-            detail_parts.append(self._txn["date"])
-        if self._txn.get("action"):
-            detail_parts.append(self._txn["action"])
-        if self._txn.get("altered"):
-            detail_parts.append(f"{self._txn['altered']} packages")
+        details = []
+        date = self._txn.get("date", "")
+        if date:
+            details.append(date)
+        action = self._txn.get("action", "")
+        if action:
+            details.append(action)
+        altered = self._txn.get("altered", "")
+        if altered:
+            details.append(f"{altered} packages altered")
 
-        if detail_parts:
-            detail = QLabel(" · ".join(detail_parts))
-            detail.setObjectName("card_detail")
-            info_layout.addWidget(detail)
+        if details:
+            detail_label = QLabel(" · ".join(details))
+            detail_label.setObjectName("card_detail")
+            info_layout.addWidget(detail_label)
 
         layout.addLayout(info_layout, 1)
 
-        # Action buttons
+        # Actions
         action_layout = QHBoxLayout()
-        action_layout.setSpacing(12)
+        action_layout.setSpacing(8)
 
         info_btn = QPushButton("Details")
         info_btn.setObjectName("ghost_button")
+        info_btn.setProperty("compact", True)
         info_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         info_btn.clicked.connect(lambda: self.info_clicked.emit(self._txn.get("id", "")))
         action_layout.addWidget(info_btn)
 
         undo_btn = QPushButton("Undo")
         undo_btn.setObjectName("danger_button")
+        undo_btn.setProperty("compact", True)
         undo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         undo_btn.clicked.connect(lambda: self.undo_clicked.emit(self._txn.get("id", "")))
         action_layout.addWidget(undo_btn)
@@ -93,21 +96,21 @@ class HistoryPage(QWidget):
         layout.setSpacing(0)
 
         self._refresh_btn = QPushButton("Refresh")
-        self._refresh_btn.setObjectName("primary_button")
+        self._refresh_btn.setObjectName("ghost_button")
         self._refresh_btn.setProperty("compact", True)
         self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._refresh_btn.clicked.connect(self.refresh_clicked.emit)
 
-        # ── Header (own left inset, closer to the sidebar) ──
+        # ── Header ──
         layout.addWidget(PageHeader(
-            "Transaction History", "View and undo recent DNF package operations",
+            "Transaction History", "Review and Undo Recent DNF Package Operations",
             action=self._refresh_btn))
 
         # ── Body ──
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(16, 0, 16, 16)
-        body_layout.setSpacing(20)
+        body_layout.setSpacing(16)
         layout.addWidget(body, 1)
 
         self._count_label = QLabel("")
@@ -120,34 +123,7 @@ class HistoryPage(QWidget):
         sep.setFrameShape(QFrame.Shape.HLine)
         body_layout.addWidget(sep)
 
-        # ── Info Detail Panel (hidden by default) ──
-        self._detail_panel = QFrame()
-        self._detail_panel.setObjectName("card")
-        self._detail_panel.hide()
-        detail_layout = QVBoxLayout(self._detail_panel)
-
-        detail_header = QHBoxLayout()
-        detail_title = QLabel("📋  Transaction Details")
-        detail_title.setObjectName("status_title")
-        detail_header.addWidget(detail_title)
-        detail_header.addStretch()
-
-        close_btn = QPushButton("✕")
-        close_btn.setObjectName("icon_button")
-        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.clicked.connect(lambda: self._detail_panel.hide())
-        detail_header.addWidget(close_btn)
-        detail_layout.addLayout(detail_header)
-
-        self._detail_text = QPlainTextEdit()
-        self._detail_text.setObjectName("terminal")
-        self._detail_text.setReadOnly(True)
-        self._detail_text.setMaximumHeight(200)
-        detail_layout.addWidget(self._detail_text)
-
-        body_layout.addWidget(self._detail_panel)
-
-        # ── History List ──
+        # ── Transaction List ──
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -155,50 +131,68 @@ class HistoryPage(QWidget):
         self._list_container = QWidget()
         self._list_layout = QVBoxLayout(self._list_container)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.setSpacing(12)
+        self._list_layout.setSpacing(8)
         self._list_layout.addStretch()
 
         self._scroll.setWidget(self._list_container)
         body_layout.addWidget(self._scroll, 1)
 
-        # ── Empty State ──
-        self._status_label = QLabel("Click 'Refresh' to load transaction history")
-        self._status_label.setObjectName("loading_label")
-        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._list_layout.insertWidget(0, self._status_label)
+        # ── Transaction Details Drawer (collapsed by default) ──
+        self._detail_drawer = QFrame()
+        self._detail_drawer.setObjectName("card")
+        drawer_layout = QVBoxLayout(self._detail_drawer)
+        drawer_layout.setContentsMargins(16, 12, 16, 12)
+        drawer_layout.setSpacing(8)
 
-    def set_loading(self, loading: bool):
-        if loading:
-            self._status_label.setText("Checking history...")
-            self._status_label.show()
-            self._refresh_btn.setEnabled(False)
-        else:
-            self._refresh_btn.setEnabled(True)
+        drawer_hdr = QHBoxLayout()
+        self._drawer_title = QLabel("Transaction Details")
+        self._drawer_title.setObjectName("card_title")
+        drawer_hdr.addWidget(self._drawer_title)
+        drawer_hdr.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.setObjectName("ghost_button")
+        close_btn.setProperty("compact", True)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self._detail_drawer.hide)
+        drawer_hdr.addWidget(close_btn)
+        drawer_layout.addLayout(drawer_hdr)
 
-    def display_history(self, transactions: list[dict]):
-        # Clear
+        self._detail_text = QLabel("")
+        self._detail_text.setObjectName("card_mono")
+        self._detail_text.setWordWrap(True)
+        drawer_layout.addWidget(self._detail_text)
+
+        body_layout.addWidget(self._detail_drawer)
+        self._detail_drawer.hide()
+
+    def display_history(self, history: list[dict]):
+        """Display transaction history items."""
         while self._list_layout.count() > 1:
             item = self._list_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        if not transactions:
-            self._status_label.setText("No transaction history available")
-            self._status_label.show()
-            self._list_layout.insertWidget(0, self._status_label)
-            self._count_label.setText("")
+        if not history:
+            self._count_label.setText("No transaction history available")
+            return
+
+        self._count_label.setText(f"{len(history)} recent transactions")
+
+        for txn in history:
+            card = HistoryCard(txn)
+            card.undo_clicked.connect(self.undo_clicked.emit)
+            card.info_clicked.connect(self.info_requested.emit)
+            self._list_layout.insertWidget(self._list_layout.count() - 1, card)
+
+    def show_detail(self, text: str, txn_id: str = ""):
+        """Show full transaction output in the detail drawer."""
+        if txn_id:
+            self._drawer_title.setText(f"Transaction #{txn_id} Details")
         else:
-            self._status_label.hide()
-            self._count_label.setText(f"{len(transactions)} recent transactions")
+            self._drawer_title.setText("Transaction Details")
+        self._detail_text.setText(text)
+        self._detail_drawer.show()
 
-            # Show most recent first
-            for txn in reversed(transactions):
-                card = HistoryCard(txn)
-                card.undo_clicked.connect(self.undo_clicked.emit)
-                card.info_clicked.connect(self.info_requested.emit)
-                self._list_layout.insertWidget(self._list_layout.count() - 1, card)
-
-    def show_detail(self, detail_text: str):
-        """Show transaction detail in the panel."""
-        self._detail_text.setPlainText(detail_text)
-        self._detail_panel.show()
+    def set_loading(self, loading: bool = True):
+        if loading:
+            self._count_label.setText("Loading transaction history...")

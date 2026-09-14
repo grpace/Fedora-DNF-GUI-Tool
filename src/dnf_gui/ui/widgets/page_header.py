@@ -1,4 +1,4 @@
-"""Shared page header — kicker + title + subtitle with fixed left inset.
+"""Shared page header — title + subtitle with fixed left inset.
 
 Contract (covered by tests): the ``page_header`` QLabel sits at x=8 within
 the page. Body content on every page stays at 16px, so headings feel
@@ -17,8 +17,8 @@ class PageHeader(QWidget):
                  kicker: str = "", parent=None):
         super().__init__(parent)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 0, 16, 0)
-        outer.setSpacing(0)
+        outer.setContentsMargins(8, 16, 16, 12)
+        outer.setSpacing(4)
 
         if kicker:
             kick = QLabel(kicker.upper())
@@ -33,7 +33,8 @@ class PageHeader(QWidget):
         else:
             row = QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
-            row.setAlignment(Qt.AlignmentFlag.AlignBottom)
+            row.setSpacing(12)
+            row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
             row.addWidget(title_label)
             row.addStretch()
             row.addWidget(action)

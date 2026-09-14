@@ -1,18 +1,15 @@
-"""Terminal page — live output view for DNF operations."""
+"""Live terminal page — displays real-time command output."""
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QPlainTextEdit, QFrame, QLineEdit
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QPlainTextEdit, QFrame,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QTextCursor
 
 
 class TerminalPage(QWidget):
-    """Page showing live terminal output from DNF operations."""
+    """Page showing real-time terminal output from DNF operations."""
 
-    clear_clicked = pyqtSignal()
-    input_submitted = pyqtSignal(str)
     cancel_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -31,16 +28,16 @@ class TerminalPage(QWidget):
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(self._clear_terminal)
 
-        # ── Header (own left inset, closer to the sidebar) ──
+        # ── Header ──
         layout.addWidget(PageHeader(
-            "Terminal Output", "Real-time output from DNF package operations",
+            "Live Terminal", "Real-Time Output from System Package Operations",
             action=clear_btn))
 
         # ── Body ──
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(16, 0, 16, 16)
-        body_layout.setSpacing(20)
+        body_layout.setSpacing(16)
         layout.addWidget(body, 1)
 
         # ── Status indicator ──
@@ -49,7 +46,7 @@ class TerminalPage(QWidget):
         self._status_indicator.setObjectName("term_dot_idle")
         self._status_row.addWidget(self._status_indicator)
 
-        self._status_text = QLabel("Idle — No operations running")
+        self._status_text = QLabel("Idle · No Operations Running")
         self._status_text.setObjectName("hint")
         self._status_row.addWidget(self._status_text)
         self._status_row.addStretch()
@@ -68,81 +65,59 @@ class TerminalPage(QWidget):
         self._terminal.setPlaceholderText(
             "Terminal output will appear here when you run operations like\n"
             "upgrading packages, installing, or removing software.\n\n"
-            "Try checking for updates or installing a package to get started!"
+            "Use keyboard shortcuts to quickly navigate:\n"
+            "Ctrl+1 Updates · Ctrl+2 Installed · Ctrl+3 Flatpak · Ctrl+4 System Info"
         )
         body_layout.addWidget(self._terminal, 1)
 
-        # ── Terminal Input ──
-        self._input_row = QHBoxLayout()
-        self._input_row.setSpacing(12)
-        
-        self._input_field = QLineEdit()
-        self._input_field.setObjectName("search_input")
-        self._input_field.setPlaceholderText("Type input here and press Enter (e.g. 'y' for Yes)...")
-        self._input_field.returnPressed.connect(self._send_input)
-        self._input_field.setVisible(False)
-        self._input_row.addWidget(self._input_field, 1)
-        
-        self._cancel_btn = QPushButton("Cancel Process")
+        # ── Bottom Action Bar ──
+        bottom_bar = QHBoxLayout()
+
+        self._cancel_btn = QPushButton("Cancel Operation")
         self._cancel_btn.setObjectName("danger_button")
         self._cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._cancel_btn.setEnabled(False)
         self._cancel_btn.clicked.connect(self.cancel_clicked.emit)
-        self._cancel_btn.setVisible(False)
-        self._input_row.addWidget(self._cancel_btn)
-        
-        body_layout.addLayout(self._input_row)
+        bottom_bar.addWidget(self._cancel_btn)
 
-    def append_line(self, line: str):
+        bottom_bar.addStretch()
+        body_layout.addLayout(bottom_bar)
+
+    def append_line(self, text: str):
         """Append a line to the terminal output."""
-        self._terminal.appendPlainText(line)
-        # Auto-scroll to bottom
-        cursor = self._terminal.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self._terminal.setTextCursor(cursor)
+        self._terminal.appendPlainText(text)
+        self._scroll_to_bottom()
 
-    def _send_input(self):
-        """Emit text from input field and clear it."""
-        text = self._input_field.text()
-        self._input_field.clear()
-        # Echo input to terminal output visually
-        self.append_line(f"> {text}")
-        self.input_submitted.emit(text)
-
-    def _set_dot(self, name: str):
-        self._status_indicator.setObjectName(name)
-        try:
-            self._status_indicator.style().unpolish(self._status_indicator)
-            self._status_indicator.style().polish(self._status_indicator)
-        except Exception:
-            pass
-
-    def set_running(self, running: bool, operation: str = ""):
-        """Update the running status indicator."""
-        self._input_field.setVisible(running)
-        self._cancel_btn.setVisible(running)
+    def set_running(self, running: bool, description: str = ""):
+        """Update the status indicator for a running operation."""
+        self._cancel_btn.setEnabled(running)
         if running:
-            self._input_field.setFocus()
-            self._set_dot("term_dot_run")
-            self._status_text.setText(f"Running — {operation}")
+            self._status_indicator.setObjectName("term_dot_run")
+            self._status_text.setText(f"Running: {description}" if description else "Operation in Progress...")
         else:
-            self._set_dot("term_dot_idle")
-            self._status_text.setText("Idle — No operations running")
-
-    def set_error(self):
-        """Set error status."""
-        self._input_field.setVisible(False)
-        self._cancel_btn.setVisible(False)
-        self._set_dot("term_dot_err")
-        self._status_text.setText("Error — Operation failed")
+            self._status_indicator.setObjectName("term_dot_idle")
+            self._status_text.setText("Idle · No Operations Running")
+        # Re-polish for dynamic QSS update
+        self._status_indicator.style().unpolish(self._status_indicator)
+        self._status_indicator.style().polish(self._status_indicator)
 
     def set_success(self):
-        """Set success status."""
-        self._input_field.setVisible(False)
-        self._cancel_btn.setVisible(False)
-        self._set_dot("term_dot_ok")
-        self._status_text.setText("Complete — Operation finished successfully")
+        """Show success status."""
+        self._status_indicator.setObjectName("term_dot_ok")
+        self._status_text.setText("Operation Completed Successfully")
+        self._status_indicator.style().unpolish(self._status_indicator)
+        self._status_indicator.style().polish(self._status_indicator)
+
+    def set_error(self, message: str = ""):
+        """Show error status."""
+        self._status_indicator.setObjectName("term_dot_err")
+        self._status_text.setText(message or "Operation Failed")
+        self._status_indicator.style().unpolish(self._status_indicator)
+        self._status_indicator.style().polish(self._status_indicator)
 
     def _clear_terminal(self):
-        """Clear all terminal output."""
         self._terminal.clear()
-        self.set_running(False)
+
+    def _scroll_to_bottom(self):
+        sb = self._terminal.verticalScrollBar()
+        sb.setValue(sb.maximum())

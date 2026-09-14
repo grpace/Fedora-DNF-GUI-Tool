@@ -4,25 +4,25 @@ Design notes:
 - Every row is ONE QPushButton (icon + label + count badge inside), so the
   update-count pill can never detach from its row.
 - Icons are painted in code (see dnf_gui.ui.icons) with the theme's
-  foreground color — distro icon themes have fixed colors that vanish or
-  clash on light/dark surfaces, so QIcon.fromTheme is deliberately avoided.
-- Text/icon colors are driven in code for base/hover/active states because
-  QSS cannot target child widgets by parent state.
+  foreground color — distro icon themes have fixed colors that clash on
+  light/dark surfaces.
+- Sleek brand header with package icon emblem and Fedora KDE branding.
 """
 
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QMouseEvent, QColor
+from PyQt6.QtGui import QMouseEvent, QColor, QPainter, QPixmap
 
 from dnf_gui.ui.icons import paint_icon
 
 _NAV_ITEMS: list[tuple[str, str, str]] = [
     # (label, section, icon kind)
-    ("Updates", "PACKAGE MANAGEMENT", "updates"),
-    ("Installed", "PACKAGE MANAGEMENT", "installed"),
-    ("Flatpak", "PACKAGE MANAGEMENT", "flatpak"),
+    ("Updates", "PACKAGES", "updates"),
+    ("Installed", "PACKAGES", "installed"),
+    ("Flatpak", "PACKAGES", "flatpak"),
     ("System Info", "SYSTEM", "sysinfo"),
     ("Quick Tools", "SYSTEM", "tools"),
     ("Repositories", "SYSTEM", "repos"),
@@ -55,20 +55,15 @@ class SidebarButton(QPushButton):
         self._icon_kind = icon_kind
         self._active = False
         self._hover = False
-        self._fg = QColor("#aeb4c2")
+        self._fg = QColor("#a2abbb")
         self._fg_active = QColor("#3daee9")
 
         row = QHBoxLayout(self)
-        # Explicit margins: a child layout on QPushButton does not reliably
-        # honor QSS padding for positioning, so the left inset clears the
-        # 3px active-indicator bar deterministically.
-        row.setContentsMargins(14, 0, 12, 0)
+        row.setContentsMargins(12, 0, 10, 0)
         row.setSpacing(10)
 
         self._icon_label = QLabel()
         self._icon_label.setFixedSize(20, 20)
-        # Safety net: whatever the pixmap size, it always fits the label —
-        # a wrong-sized pixmap can never overflow/crop again.
         self._icon_label.setScaledContents(True)
         self._icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         row.addWidget(self._icon_label)
@@ -117,13 +112,7 @@ class SidebarButton(QPushButton):
             pass
 
     def _repaint(self):
-        """Recolor the icon pixmap for the current state.
-
-        Text color/weight is handled by QSS (nav_label rules keyed off
-        the button's hover/active state); only the pixmap needs code.
-        The pixmap is painted at the label's exact device size because
-        QLabel blits pixmaps 1:1 in device pixels.
-        """
+        """Recolor the icon pixmap for the current state."""
         color = QColor(self._fg_active if (self._active or self._hover)
                        else self._fg)
         if self._icon_kind:
@@ -161,7 +150,6 @@ class Sidebar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("sidebar")
-        # Plain QWidget needs this for QSS background-color to paint.
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._buttons: list[SidebarButton] = []
         self._setup_ui()
@@ -171,19 +159,42 @@ class Sidebar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # ── Brand Header ──
+        brand_widget = QWidget()
+        brand_layout = QHBoxLayout(brand_widget)
+        brand_layout.setContentsMargins(16, 18, 16, 14)
+        brand_layout.setSpacing(12)
+
+        # Brand Icon Emblem
+        self._logo_label = QLabel()
+        self._logo_label.setFixedSize(36, 36)
+        self._logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._logo_label.setScaledContents(True)
+        self._logo_label.setPixmap(self._render_app_logo(36))
+        brand_layout.addWidget(self._logo_label)
+
+        # Title + Subtitle Column
+        title_col = QVBoxLayout()
+        title_col.setSpacing(1)
+        title_col.setContentsMargins(0, 0, 0, 0)
+
         title = QLabel("DNF Manager")
         title.setObjectName("sidebar_title")
-        layout.addWidget(title)
+        title_col.addWidget(title)
 
-        subtitle = QLabel("Fedora KDE package center")
+        subtitle = QLabel("Fedora KDE")
         subtitle.setObjectName("sidebar_subtitle")
-        layout.addWidget(subtitle)
+        title_col.addWidget(subtitle)
+
+        brand_layout.addLayout(title_col, 1)
+        layout.addWidget(brand_widget)
 
         sep = QFrame()
         sep.setObjectName("separator")
         sep.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(sep)
 
+        # ── Navigation Items ──
         current_section: str | None = None
         for idx, (label, section, icon_kind) in enumerate(_NAV_ITEMS):
             if section != current_section:
@@ -204,22 +215,23 @@ class Sidebar(QWidget):
         footer.setObjectName("sidebar_footer")
         footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         footer_layout = QVBoxLayout(footer)
-        footer_layout.setContentsMargins(0, 8, 0, 0)
-        footer_layout.setSpacing(0)
+        footer_layout.setContentsMargins(0, 8, 0, 8)
+        footer_layout.setSpacing(4)
 
         from dnf_gui import __version__
         from dnf_gui.ui.styles.theme import get_saved_theme_mode, resolve_mode
         saved = get_saved_theme_mode()
         current = resolve_mode(saved if saved != "auto" else None)
+
         self._theme_btn = QPushButton(
-            "Light mode" if current == "dark" else "Dark mode")
+            "☀️  Light mode" if current == "dark" else "🌙  Dark mode")
         self._theme_btn.setObjectName("theme_toggle")
         self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._theme_btn.setToolTip("Toggle light / dark theme")
         self._theme_btn.clicked.connect(self.theme_toggle_requested.emit)
         footer_layout.addWidget(self._theme_btn)
 
-        self._version_label = ClickableLabel(f"v{__version__} — Greg.Tech")
+        self._version_label = ClickableLabel(f"v{__version__} · Greg.Tech")
         self._version_label.setObjectName("sidebar_version")
         self._version_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._version_label.clicked.connect(self.update_clicked.emit)
@@ -230,6 +242,29 @@ class Sidebar(QWidget):
             self._buttons[0].set_active(True)
 
         self.apply_theme(current)
+
+    def _render_app_logo(self, size: int = 36) -> QPixmap:
+        """Render high-res app icon or fallback."""
+        base = Path(__file__).resolve().parent.parent.parent.parent
+        svg_path = base / "assets" / "icons" / "app_icon.svg"
+        if svg_path.exists():
+            try:
+                from PyQt6.QtSvg import QSvgRenderer
+                renderer = QSvgRenderer(str(svg_path))
+                if renderer.isValid():
+                    scale = 2
+                    pix = QPixmap(size * scale, size * scale)
+                    pix.fill(Qt.GlobalColor.transparent)
+                    p = QPainter(pix)
+                    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+                    renderer.render(p)
+                    p.end()
+                    return pix
+            except Exception:
+                pass
+        from dnf_gui.ui.styles.theme import get_palette
+        pal = get_palette()
+        return paint_icon("installed", pal["accent"], size)
 
     def _on_button_clicked(self, index: int):
         """Handle button click — update active state and emit signal."""
@@ -254,18 +289,19 @@ class Sidebar(QWidget):
     def set_update_available(self, latest_version: str):
         """Show that an update is available in the version label."""
         self._version_label.setText(
-            f"v{latest_version} available — click to update")
+            f"v{latest_version} available · update")
         self._version_label.setToolTip(
             f"Open the GitHub releases page for v{latest_version}")
 
     def refresh_theme_button(self, mode: str):
         """Update the footer toggle label after a theme change."""
-        self._theme_btn.setText("Light mode" if mode == "dark" else "Dark mode")
+        self._theme_btn.setText("☀️  Light mode" if mode == "dark" else "🌙  Dark mode")
 
     def apply_theme(self, mode: str):
         """Apply icon/text colors for a theme mode (called on toggle)."""
         from dnf_gui.ui.styles.theme import get_palette
         pal = get_palette(mode)
+        self._logo_label.setPixmap(self._render_app_logo(36))
         for btn in self._buttons:
             btn.apply_theme_colors(pal["text_dim"], pal["accent"])
         self.refresh_theme_button(mode)

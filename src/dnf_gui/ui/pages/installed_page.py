@@ -1,19 +1,19 @@
-"""Installed packages page — browse and manage installed software."""
+"""Installed packages page — browse, search, and manage installed software."""
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QScrollArea, QFrame, QComboBox, QPushButton, QSizePolicy
+    QPushButton, QScrollArea, QFrame, QComboBox,
 )
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer
+from PyQt6.QtCore import pyqtSignal, Qt
 
-from dnf_gui.core.package import Package, PackageStatus
+from dnf_gui.core.package import Package
 from dnf_gui.ui.widgets.package_card import PackageCard
 
 
 class InstalledPage(QWidget):
-    """Page for browsing and managing installed packages."""
+    """Page for browsing and searching installed packages."""
 
-    remove_clicked = pyqtSignal(str)
+    remove_clicked = pyqtSignal(str)   # package name
     details_requested = pyqtSignal(str)  # package name
     refresh_clicked = pyqtSignal()
     show_terminal = pyqtSignal()
@@ -21,11 +21,7 @@ class InstalledPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._all_packages: list[Package] = []
-        self._displayed_packages: list[Package] = []
-        self._search_timer = QTimer()
-        self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(300)
-        self._search_timer.timeout.connect(self._apply_filter)
+        self._filtered_packages: list[Package] = []
         self._setup_ui()
 
     def _setup_ui(self):
@@ -34,15 +30,15 @@ class InstalledPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Header (own left inset, closer to the sidebar) ──
+        # ── Header ──
         layout.addWidget(PageHeader(
-            "Installed Packages", "Browse and manage all packages on your system"))
+            "Installed Packages", "Browse and Manage All System Software"))
 
         # ── Body ──
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(16, 0, 16, 16)
-        body_layout.setSpacing(20)
+        body_layout.setSpacing(16)
         layout.addWidget(body, 1)
 
         # ── Stats ──
@@ -56,7 +52,7 @@ class InstalledPage(QWidget):
 
         self._search_input = QLineEdit()
         self._search_input.setObjectName("search_input")
-        self._search_input.setPlaceholderText("Search installed packages...")
+        self._search_input.setPlaceholderText("Search Installed Packages...")
         self._search_input.textChanged.connect(self._on_search_changed)
         filter_bar.addWidget(self._search_input, 1)
 
@@ -66,7 +62,7 @@ class InstalledPage(QWidget):
         filter_bar.addWidget(self._sort_combo)
 
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setObjectName("primary_button")
+        refresh_btn.setObjectName("ghost_button")
         refresh_btn.setProperty("compact", True)
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_btn.clicked.connect(self.refresh_clicked.emit)
@@ -88,92 +84,68 @@ class InstalledPage(QWidget):
         self._list_container = QWidget()
         self._list_layout = QVBoxLayout(self._list_container)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.setSpacing(12)
+        self._list_layout.setSpacing(8)
         self._list_layout.addStretch()
 
         self._scroll.setWidget(self._list_container)
         body_layout.addWidget(self._scroll, 1)
 
-        # ── Loading / Empty State ──
-        self._status_label = QLabel("Loading installed packages...")
-        self._status_label.setObjectName("loading_label")
-        self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._list_layout.insertWidget(0, self._status_label)
+    def display_packages(self, packages: list[Package]):
+        """Display the list of packages."""
+        self._all_packages = packages
+        self._count_label.setText(f"{len(packages)} packages installed")
+        self._apply_filter()
 
     def _on_search_changed(self, text: str):
-        """Debounce search input."""
-        self._search_timer.start()
+        self._apply_filter()
 
     def _apply_filter(self):
-        """Filter and sort the package list based on current inputs."""
-        query = self._search_input.text().lower().strip()
-        sort_mode = self._sort_combo.currentIndex()
+        query = self._search_input.text().strip().lower()
 
-        # Filter
         if query:
-            filtered = [p for p in self._all_packages if query in p.name.lower()]
+            filtered = [
+                p for p in self._all_packages
+                if query in p.name.lower() or query in p.summary.lower()
+            ]
         else:
             filtered = list(self._all_packages)
 
         # Sort
-        if sort_mode == 0:  # Name A-Z
+        sort_idx = self._sort_combo.currentIndex()
+        if sort_idx == 0:
             filtered.sort(key=lambda p: p.name.lower())
-        elif sort_mode == 1:  # Name Z-A
+        elif sort_idx == 1:
             filtered.sort(key=lambda p: p.name.lower(), reverse=True)
-        elif sort_mode == 2:  # Repository
+        elif sort_idx == 2:
             filtered.sort(key=lambda p: (p.repo, p.name.lower()))
 
-        self._displayed_packages = filtered
-        self._render_list()
+        self._filtered_packages = filtered
+        self._render_page(filtered[:100])
 
-    def _render_list(self):
-        """Render the filtered package list."""
-        # Clear existing
-        while self._list_layout.count() > 2:
-            item = self._list_layout.takeAt(1)
+        if query:
+            self._count_label.setText(
+                f"Showing {len(filtered)} of {len(self._all_packages)} packages"
+            )
+        else:
+            self._count_label.setText(f"{len(self._all_packages)} packages installed")
+
+    def _render_page(self, packages: list[Package]):
+        while self._list_layout.count() > 1:
+            item = self._list_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # Show up to 200 packages for performance
-        display_list = self._displayed_packages[:200]
-        
-        if not display_list:
-            self._status_label.setText("No packages match your search")
-            self._status_label.show()
-        else:
-            self._status_label.hide()
-            for pkg in display_list:
-                card = PackageCard(pkg)
-                card.remove_clicked.connect(self.remove_clicked.emit)
-                card.info_clicked.connect(self.details_requested.emit)
-                self._list_layout.insertWidget(self._list_layout.count() - 1, card)
+        for pkg in packages:
+            card = PackageCard(pkg)
+            card.remove_clicked.connect(self.remove_clicked.emit)
+            card.info_clicked.connect(self.details_requested.emit)
+            self._list_layout.insertWidget(self._list_layout.count() - 1, card)
 
-        # Update count
-        total = len(self._all_packages)
-        shown = len(display_list)
-        filtered = len(self._displayed_packages)
-
-        if shown < filtered:
-            self._count_label.setText(
-                f"Showing {shown} of {filtered} matches ({total} total installed)"
-            )
-        elif self._search_input.text():
-            self._count_label.setText(f"{filtered} matches found ({total} total installed)")
-        else:
-            self._count_label.setText(f"{total} packages installed")
-
-    def set_loading(self, loading: bool):
-        """Show/hide loading state."""
+    def set_loading(self, loading: bool = True):
         if loading:
-            self._status_label.setText("Loading installed packages...")
-            self._status_label.show()
+            self._count_label.setText("Loading installed packages...")
 
-    def display_packages(self, packages: list[Package]):
-        """Set the full package list and render."""
-        self._all_packages = packages
-        self._apply_filter()
-
-    def focus_search(self) -> None:
-        """Focus the search input (Ctrl+F target)."""
+    def focus_search(self):
+        """Focus and select all in search input for keyboard shortcut."""
         self._search_input.setFocus()
         self._search_input.selectAll()

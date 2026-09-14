@@ -215,24 +215,22 @@ class SettingsPage(QWidget):
 
         self._rem_enabled = QCheckBox("Remind Me About Pending Updates")
         self._rem_enabled.setStyleSheet("font-weight: 600;")
+        self._rem_enabled.toggled.connect(self._on_rem_enabled_toggled)
         rem_card.add_row(self._rem_enabled)
 
         # Indented secondary options
-        child_options = QWidget()
-        child_layout = QVBoxLayout(child_options)
+        self._child_options = QWidget()
+        child_layout = QVBoxLayout(self._child_options)
         child_layout.setContentsMargins(24, 0, 0, 0)
         child_layout.setSpacing(10)
 
-        self._rem_security_only = QCheckBox("Security Updates Only (Quiet Otherwise)")
+        self._rem_security_only = QCheckBox("Security Updates Only (Quiet for Routine RPMs)")
         self._rem_flatpak = QCheckBox("Include Flatpak Updates in Reminders")
         self._rem_flatpak.setChecked(True)
-        self._checker_box = QCheckBox("Run Reminder Check at Login (Installs Autostart Entry)")
-        self._checker_box.toggled.connect(self.checker_toggle_requested.emit)
 
         child_layout.addWidget(self._rem_security_only)
         child_layout.addWidget(self._rem_flatpak)
-        child_layout.addWidget(self._checker_box)
-        rem_card.add_row(child_options)
+        rem_card.add_row(self._child_options)
 
         interval_row = QHBoxLayout()
         interval_row.setSpacing(10)
@@ -257,9 +255,9 @@ class SettingsPage(QWidget):
         rem_card.add_button_row(self._btn_rem_save, self._btn_rem_test)
 
         rem_card.add_row(_hint(
-            "Login checks run quietly in the background and only notify when "
-            "something is actually pending. Critical and Important security "
-            "fixes always use an urgent notification."
+            "When enabled, reminders automatically run in the background at login and "
+            "on your chosen schedule, notifying only when updates are ready. "
+            "Flatpak updates notify independently even when Security Updates Only is active."
         ))
         content.addWidget(rem_card)
 
@@ -336,9 +334,15 @@ class SettingsPage(QWidget):
             "interval_hours": self._interval_combo.currentData(),
         })
 
-    def load_reminder_settings(self, prefs: dict, checker_installed: bool,
-                               last_check: str) -> None:
-        self._rem_enabled.setChecked(bool(prefs.get("enabled", False)))
+    def _on_rem_enabled_toggled(self, checked: bool) -> None:
+        """Enable or disable reminder sub-options with the master toggle."""
+        self._child_options.setEnabled(checked)
+        self._interval_combo.setEnabled(checked)
+
+    def load_reminder_settings(self, prefs: dict, checker_installed: bool = False,
+                               last_check: str = "") -> None:
+        enabled = bool(prefs.get("enabled", False))
+        self._rem_enabled.setChecked(enabled)
         self._rem_security_only.setChecked(bool(prefs.get("security_only", False)))
         self._rem_flatpak.setChecked(bool(prefs.get("notify_flatpak", True)))
         interval = int(prefs.get("interval_hours", 24))
@@ -346,9 +350,8 @@ class SettingsPage(QWidget):
             if self._interval_combo.itemData(i) == interval:
                 self._interval_combo.setCurrentIndex(i)
                 break
-        self._checker_box.blockSignals(True)
-        self._checker_box.setChecked(checker_installed)
-        self._checker_box.blockSignals(False)
+        self._child_options.setEnabled(enabled)
+        self._interval_combo.setEnabled(enabled)
         self._rem_last.setText(
             f"Last background check: {last_check}" if last_check
             else "Background checks have never run."

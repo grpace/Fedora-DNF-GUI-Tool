@@ -3,7 +3,7 @@
 %global install_dir /opt/%{app_name}
 
 Name:           %{app_name}
-Version:        1.1.0
+Version:        1.1.1
 Release:        1%{?dist}
 Summary:        Modern GUI package manager for Fedora Linux
 License:        GPL-3.0-or-later
@@ -88,6 +88,13 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 /usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
+* Mon Sep 14 2026 Greg.Tech <hello@greg.tech> - 1.1.1-1
+- Fix terminal worker crash on command execution and uncancelable operations
+- Clean process group isolation and SIGTERM/SIGKILL escalation on cancellation
+- Automatically sync login autostart reminder checker with master reminder switch
+- Independent Flatpak update checks and notifications alongside Security Updates Only
+- Defer passwordless setting update until privilege rule installation succeeds
+
 * Mon Sep 14 2026 Greg.Tech <hello@greg.tech> - 1.1.0-1
 - Combined DNF + Flatpak + security view on Updates page (Update Everything, Security Only)
 - Upgrade previews (package count + download size) and reboot-required banner
@@ -108,5 +115,3 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 - Repository Manager with COPR support
 - Transaction History with undo
 - Auto-update checker
-- Live terminal output
-- Dark theme UI

@@ -1,7 +1,10 @@
 """Background worker threads for non-blocking DNF operations."""
 
 import os
+import signal
 import subprocess
+import threading
+import time
 import tempfile
 import urllib.request
 import urllib.parse
@@ -121,6 +124,7 @@ class CommandWorker(QThread):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                start_new_session=True,
             )
 
             for line in iter(self._process.stdout.readline, ""):
@@ -132,7 +136,7 @@ class CommandWorker(QThread):
             self.output_line.emit("")
             if exit_code == 0:
                 self.output_line.emit("✓ Operation completed successfully.")
-            elif exit_code == -15 or exit_code == 143:
+            elif exit_code in (-15, 143, -9, 137):
                 self.output_line.emit("⚠ Operation was cancelled by user.")
             else:
                 self.output_line.emit(f"✗ Operation finished with exit code {exit_code}")
@@ -154,9 +158,29 @@ class CommandWorker(QThread):
                 pass
 
     def cancel(self):
-        """Attempt to terminate the running process."""
+        """Attempt to terminate the running process group cleanly, escalating if needed."""
         if self._process and self._process.poll() is None:
-            self._process.terminate()
+            pid = self._process.pid
+            try:
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+            except Exception:
+                try:
+                    self._process.terminate()
+                except Exception:
+                    pass
+
+            def _escalate_kill():
+                time.sleep(0.6)
+                if self._process and self._process.poll() is None:
+                    try:
+                        os.killpg(os.getpgid(pid), signal.SIGKILL)
+                    except Exception:
+                        try:
+                            self._process.kill()
+                        except Exception:
+                            pass
+
+            threading.Thread(target=_escalate_kill, daemon=True).start()
 
 
 class SystemInfoWorker(QThread):

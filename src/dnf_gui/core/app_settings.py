@@ -1,19 +1,22 @@
 """Persistent app settings + background update-reminder service.
 
-Settings are stored with Qt's QSettings (INI at
-``~/.config/Greg.Tech/DNF Package Manager.conf``) so they survive
-upgrades and don't need root.
-
-Reminders work two ways:
-
-1. **In-app timer** — MainWindow starts a QTimer that re-checks every
-   ``check_interval_hours`` while the app is open.
+Owns:
+1. **Persistent preferences** via ``QSettings`` (written to
+   ``~/.config/Greg.Tech/DNF Package Manager.conf``):
+   - ``reminders/enabled`` (bool)
+   - ``reminders/interval_hours`` (int: 12, 24, 72, 168)
+   - ``reminders/security_only`` (bool)
+   - ``reminders/notify_flatpak`` (bool)
+   - ``reminders/last_check`` (ISO timestamp)
+   - ``discover/notifier_overridden`` (bool)
+   - ``passwordless/scope`` ("off" | "updates" | "full")
 2. **Login checker** — ``dnf-gui --check`` can be installed as a
-   ``~/.config/autostart`` entry. It runs headless at login, checks DNF
-   + Flatpak + security advisories, and sends a desktop notification only
-   when something important is pending (respects interval + security-only
+   per-user XDG autostart entry (``~/.config/autostart/dnf-gui-update-checker.desktop``)
+   that triggers at login, checks if an update check is due according
+   to the configured interval, and sends a desktop notification via
+   ``notify-send`` (or falls back to an in-app banner if run in GUI
    mode). This is the "ongoing thing that reminds people" without
-   requiring the main window to be open.
+   requiring a resident background daemon.
 """
 
 from __future__ import annotations
@@ -89,7 +92,6 @@ class AppSettings:
 
     @property
     def security_only(self) -> bool:
-        """If True, notify only when security advisories are pending."""
         return self.get_bool("reminders/security_only", False)
 
     @security_only.setter
@@ -104,17 +106,19 @@ class AppSettings:
     def notify_flatpak(self, value: bool) -> None:
         self.set("reminders/notify_flatpak", bool(value))
 
-    # ─── Passwordless updates (remembered scope; sudoers file is truth) ──
     @property
     def passwordless_scope(self) -> str:
-        scope = str(self.get("privilege/passwordless_scope", "off"))
-        return scope if scope in ("off", "updates", "full") else "off"
+        val = self.get("passwordless/scope", "") or self.get("privilege/passwordless_scope", "off")
+        return str(val) if str(val) in ("off", "updates", "full") else "off"
 
     @passwordless_scope.setter
     def passwordless_scope(self, value: str) -> None:
-        self.set("privilege/passwordless_scope",
-                 value if value in ("off", "updates", "full") else "off")
+        if value not in ("off", "updates", "full"):
+            value = "off"
+        self.set("passwordless/scope", value)
+        self.set("privilege/passwordless_scope", value)
 
+    # ─── Last check timestamp + throttle ──────────────────────
     def get_last_check(self) -> datetime | None:
         raw = self.get("reminders/last_check", "")
         if not raw:
@@ -137,9 +141,11 @@ class AppSettings:
         return datetime.now() - last >= timedelta(hours=self.check_interval_hours)
 
     # ─── Login checker autostart ──────────────────────────────
-    @staticmethod
-    def checker_autostart_path() -> Path:
-        return Path.home() / ".config" / "autostart" / CHECKER_DESKTOP_NAME
+    @classmethod
+    def checker_autostart_path(cls) -> Path:
+        config_home = Path(os.environ.get("XDG_CONFIG_HOME")
+                           or Path.home() / ".config")
+        return config_home / "autostart" / CHECKER_DESKTOP_NAME
 
     @classmethod
     def is_checker_installed(cls) -> bool:
@@ -224,17 +230,30 @@ def perform_background_check(settings: AppSettings | None = None) -> ReminderRes
 
     settings.set_last_check()
 
+    # Determine whether system DNF packages warrant a reminder
     if settings.security_only:
-        result.should_notify = result.security_total > 0
+        system_notify = result.security_total > 0
     else:
-        result.should_notify = result.total > 0 or result.security_total > 0
+        system_notify = result.dnf_updates > 0 or result.security_total > 0
+
+    # Flatpak updates trigger reminders independently if enabled
+    flatpak_notify = (result.flatpak_updates > 0) if settings.notify_flatpak else False
+
+    result.should_notify = system_notify or flatpak_notify
 
     if result.should_notify:
         parts = []
-        if result.dnf_updates:
-            parts.append(f"{result.dnf_updates} system")
-        if result.flatpak_updates:
+        if result.dnf_updates and (not settings.security_only or result.security_total):
+            if settings.security_only:
+                parts.append(f"{result.security_total} security")
+            else:
+                parts.append(f"{result.dnf_updates} system")
+        elif result.security_total:
+            parts.append(f"{result.security_total} security")
+
+        if result.flatpak_updates and settings.notify_flatpak:
             parts.append(f"{result.flatpak_updates} Flatpak")
+
         updates_str = " + ".join(parts) if parts else "updates"
         if result.security_urgent:
             result.message = (
@@ -243,8 +262,8 @@ def perform_background_check(settings: AppSettings | None = None) -> ReminderRes
             )
         elif result.security_total:
             result.message = (
-                f"{result.security_total} security advisories among "
-                f"{updates_str} updates pending."
+                f"{result.security_total} security advisories ready "
+                f"({updates_str}). Open DNF Package Manager to apply."
             )
         else:
             result.message = f"{updates_str} updates available."
@@ -263,9 +282,6 @@ def checker_autostart_desktop_source() -> str:
         "Terminal=false\n"
         "Categories=System;\n"
         "X-GNOME-Autostart-enabled=true\n"
+        "X-KDE-AutostartScript=true\n"
         "NoDisplay=true\n"
     )
-
-
-def _noop() -> None:  # keep linters happy about unused import guard
-    _ = os.environ.get("DNF_GUI_NOOP")

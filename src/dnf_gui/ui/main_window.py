@@ -223,6 +223,7 @@ class MainWindow(QMainWindow):
             self._disable_passwordless)
         self._settings_page.passwordless_refresh_requested.connect(
             self._load_passwordless_status)
+        self._terminal_page.cancel_clicked.connect(self._on_cancel_clicked)
 
     def _setup_shortcuts(self):
         """Set up keyboard shortcuts."""
@@ -1101,6 +1102,7 @@ class MainWindow(QMainWindow):
             self._terminal_page.append_line(line)
 
         def _on_done(code: int):
+            self._command_worker = None
             if (code != 0 and not _retried
                     and effective and effective[0] == "sudo"
                     and any("password" in line.lower() for line in collected)):
@@ -1115,18 +1117,13 @@ class MainWindow(QMainWindow):
         worker.finished.connect(_on_done)
         worker.error.connect(self._on_command_error)
 
-        # Clear old signals to prevent connecting multiple times to dead workers
-        try:
-            self._terminal_page.input_submitted.disconnect()
-            self._terminal_page.cancel_clicked.disconnect()
-        except TypeError:
-            pass
-
-        self._terminal_page.input_submitted.connect(worker.write_input)
-        self._terminal_page.cancel_clicked.connect(worker.cancel)
-
         worker.start()
         self._command_worker = worker
+
+    def _on_cancel_clicked(self):
+        if self._command_worker:
+            self._terminal_page.append_line("\n⚠ Cancelling operation...")
+            self._command_worker.cancel()
 
     def _on_command_done(self, exit_code: int, operation: str):
         self._progress_bar.stop()
@@ -1137,8 +1134,19 @@ class MainWindow(QMainWindow):
                 self._terminal_page.append_line(
                     "\n✅ Update installed. Please restart the app to use the new version."
                 )
+            elif operation == "Enabling passwordless updates":
+                scope = getattr(self, "_pending_passwordless_scope", "updates")
+                self._app_settings.passwordless_scope = scope
+            elif operation == "Disabling passwordless updates":
+                self._app_settings.passwordless_scope = "off"
+        elif exit_code in (-15, 143, -9, 137):
+            self._terminal_page.set_error("Operation Cancelled")
+            if operation == "Enabling passwordless updates":
+                self._app_settings.passwordless_scope = "off"
         else:
             self._terminal_page.set_error()
+            if operation == "Enabling passwordless updates":
+                self._app_settings.passwordless_scope = "off" 
 
         # Invalidate caches so data reloads on next visit
         self._installed_page._all_packages = []
@@ -1300,7 +1308,8 @@ class MainWindow(QMainWindow):
     # ─── Reminders ──────────────────────────────────────────────
 
     def _save_reminders(self, prefs: dict):
-        self._app_settings.reminders_enabled = bool(prefs.get("enabled"))
+        enabled = bool(prefs.get("enabled"))
+        self._app_settings.reminders_enabled = enabled
         self._app_settings.security_only = bool(prefs.get("security_only"))
         self._app_settings.notify_flatpak = bool(prefs.get("notify_flatpak", True))
         try:
@@ -1308,27 +1317,38 @@ class MainWindow(QMainWindow):
                 prefs.get("interval_hours", 24))
         except (TypeError, ValueError):
             pass
-        QMessageBox.information(self, "Settings Saved",
-                                "Reminder preferences saved.")
+        try:
+            AppSettings.set_checker_installed(enabled)
+        except Exception:
+            pass
+        status_msg = (
+            "Reminder preferences saved.\n\n"
+            "Background login checker is active."
+            if enabled else
+            "Reminder preferences saved.\n\n"
+            "Background reminders are turned off."
+        )
+        QMessageBox.information(self, "Settings Saved", status_msg)
         self._load_settings_page()
 
     def _toggle_checker(self, enabled: bool):
         try:
             AppSettings.set_checker_installed(enabled)
-        except Exception as e:
-            QMessageBox.warning(self, "Autostart Failed", str(e))
-            return
-        if enabled and not self._app_settings.reminders_enabled:
-            self._app_settings.reminders_enabled = True
-        QMessageBox.information(
-            self, "Login Checker",
-            "Login reminder check ENABLED — `dnf-gui --check` will run at login."
-            if enabled else "Login reminder check disabled.")
+        except Exception:
+            pass
 
     def _test_reminder(self):
+        targets = []
+        if self._app_settings.security_only:
+            targets.append("security updates")
+        else:
+            targets.append("system updates")
+        if self._app_settings.notify_flatpak:
+            targets.append("Flatpak updates")
+        target_str = " + ".join(targets) if targets else "updates"
         sent = send_desktop_notification(
             "DNF Package Manager",
-            "Test: reminders are working. You'll be notified here about security updates.")
+            f"Test: reminders are working. You'll be notified about {target_str}.")
         if sent:
             QMessageBox.information(self, "Test Sent",
                                     "Test notification sent via notify-send.")
@@ -1337,7 +1357,7 @@ class MainWindow(QMainWindow):
                 self, "Test Notification",
                 "notify-send isn't available, but in-app reminders are configured.\n\n"
                 "This is what you'd see:\n"
-                "“Security updates are pending — open DNF Package Manager.”")
+                f"“Updates are pending ({target_str}) — open DNF Package Manager.”")
 
     def _maybe_background_reminder(self):
         """Hourly in-app check — only notifies when due + something pending."""
@@ -1417,7 +1437,7 @@ class MainWindow(QMainWindow):
                 f"The generated rule did not pass visudo -c, aborting "
                 f"before touching the system:\n\n{validation_msg}")
             return
-        self._app_settings.passwordless_scope = scope
+        self._pending_passwordless_scope = scope
         self._run_command(
             pw.build_install_commands(content),
             "Enabling passwordless updates")
@@ -1433,6 +1453,6 @@ class MainWindow(QMainWindow):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-        self._app_settings.passwordless_scope = "off"
+        self._pending_passwordless_scope = "off"
         self._run_command(
             pw.build_remove_commands(), "Disabling passwordless updates")

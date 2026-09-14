@@ -8,6 +8,11 @@
     <p>Features: combined DNF + Flatpak + security updates with download previews, package details, reboot reminders, Discover takeover, background update reminders, optional passwordless updates, light and dark themes with adaptive icons, Flatpak manager with Flathub search, system info dashboard, quick tools, repository manager, transaction history with undo, and auto-update.</p>
   </description>
   <releases>
+    <release version="1.1.1" date="2026-09-14">
+      <description>
+        <p>Fix terminal worker execution hang and cancel operation behavior, sync login autostart with reminder switch, and add independent Flatpak reminders.</p>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-09-14">
       <description>
         <p>Combined updates, upgrade previews, reboot banner, package details dialog, Settings page (Discover takeover, reminders, passwordless updates), light/dark themes, adaptive vector icons, and UI polish.</p>

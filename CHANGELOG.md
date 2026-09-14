@@ -5,6 +5,16 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-09-14
+
+### Fixed
+
+- **Live Terminal & Worker Execution** — Resolved crash caused by missing `input_submitted` signal on `TerminalPage`, unblocking background command execution for passwordless privilege enablement, package installs, and updates.
+- **Immediate Operation Cancellation** — Wired terminal cancel button to kill process groups via `SIGTERM` with escalation to `SIGKILL`, updating status immediately to "Operation Cancelled".
+- **Automatic Login Reminder Autostart** — Master "Remind Me About Pending Updates" switch now directly manages the login autostart entry (`~/.config/autostart/dnf-gui-update-checker.desktop`), removing the redundant duplicate sub-checkbox.
+- **Independent Flatpak Reminders** — Flatpak update alerts notify independently even when "Security Updates Only" is selected for system packages.
+- **Passwordless Scope Integrity** — Passwordless settings scope is only committed upon successful sudoers validation and rule installation, avoiding desynchronized settings on aborted operations.
+
 ## [1.1.0] - 2026-09-14
 
 ### Added
@@ -61,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Packaging** — RPM spec file, build script, and install script
 - **Auto-Update** — Update checker with direct RPM install via DNF
 
+[1.1.1]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.1.1
 [1.1.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.1.0
 [1.0.1]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.0.1
 [1.0.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.0.0

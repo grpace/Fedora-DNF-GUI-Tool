@@ -77,7 +77,7 @@ class TerminalPage(QWidget):
         self._cancel_btn.setObjectName("danger_button")
         self._cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._cancel_btn.setEnabled(False)
-        self._cancel_btn.clicked.connect(self.cancel_clicked.emit)
+        self._cancel_btn.clicked.connect(self._on_cancel_pressed)
         bottom_bar.addWidget(self._cancel_btn)
 
         bottom_bar.addStretch()
@@ -87,6 +87,11 @@ class TerminalPage(QWidget):
         """Append a line to the terminal output."""
         self._terminal.appendPlainText(text)
         self._scroll_to_bottom()
+
+    def _on_cancel_pressed(self):
+        self._cancel_btn.setEnabled(False)
+        self._status_text.setText("Cancelling Operation...")
+        self.cancel_clicked.emit()
 
     def set_running(self, running: bool, description: str = ""):
         """Update the status indicator for a running operation."""

@@ -92,22 +92,26 @@ class RepoManagerPage(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        from dnf_gui.ui.widgets.page_header import PageHeader
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # ── Header ──
-        header = QLabel("Repository Manager")
-        header.setObjectName("page_header")
-        layout.addWidget(header)
+        # ── Header (own left inset, closer to the sidebar) ──
+        layout.addWidget(PageHeader(
+            "Repository Manager",
+            "Manage DNF package repositories, enable/disable repos, and add COPRs"))
 
-        subheader = QLabel("Manage DNF package repositories, enable/disable repos, and add COPRs")
-        subheader.setObjectName("page_subheader")
-        layout.addWidget(subheader)
+        # ── Body ──
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setSpacing(20)
+        layout.addWidget(body, 1)
 
         # ── Action Bar ──
         action_bar = QHBoxLayout()
-        action_bar.setSpacing(12)
+        action_bar.setSpacing(16)
 
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("primary_button")
@@ -116,38 +120,30 @@ class RepoManagerPage(QWidget):
         action_bar.addWidget(refresh_btn)
 
         add_copr_btn = QPushButton("Add COPR")
-        add_copr_btn.setObjectName("primary_button")
+        add_copr_btn.setObjectName("accent_button")
         add_copr_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_copr_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #bc8cff; color: #ffffff; border: none;
-                border-radius: 8px; padding: 10px 20px; font-size: 13px;
-                font-weight: 600; min-width: 120px;
-            }
-            QPushButton:hover { background-color: #d2b3ff; }
-        """)
         add_copr_btn.clicked.connect(self._prompt_add_copr)
         action_bar.addWidget(add_copr_btn)
 
         action_bar.addStretch()
-        layout.addLayout(action_bar)
+        body_layout.addLayout(action_bar)
 
         # ── Filter ──
         self._filter_input = QLineEdit()
         self._filter_input.setObjectName("search_input")
         self._filter_input.setPlaceholderText("Filter repositories...")
         self._filter_input.textChanged.connect(self._filter_repos)
-        layout.addWidget(self._filter_input)
+        body_layout.addWidget(self._filter_input)
 
         self._count_label = QLabel("")
         self._count_label.setStyleSheet("color: #8b949e; font-size: 13px;")
-        layout.addWidget(self._count_label)
+        body_layout.addWidget(self._count_label)
 
         # ── Separator ──
         sep = QFrame()
         sep.setObjectName("separator")
         sep.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(sep)
+        body_layout.addWidget(sep)
 
         # ── Repo List ──
         self._scroll = QScrollArea()
@@ -157,11 +153,11 @@ class RepoManagerPage(QWidget):
         self._list_container = QWidget()
         self._list_layout = QVBoxLayout(self._list_container)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.setSpacing(6)
+        self._list_layout.setSpacing(12)
         self._list_layout.addStretch()
 
         self._scroll.setWidget(self._list_container)
-        layout.addWidget(self._scroll, 1)
+        body_layout.addWidget(self._scroll, 1)
 
         self._status_label = QLabel("Click 'Refresh' to load repositories")
         self._status_label.setObjectName("loading_label")
@@ -219,3 +215,8 @@ class RepoManagerPage(QWidget):
     def display_repos(self, repos: list[dict]):
         self._all_repos = repos
         self._render_repos()
+
+    def focus_search(self) -> None:
+        """Focus the filter input (Ctrl+F target)."""
+        self._filter_input.setFocus()
+        self._filter_input.selectAll()

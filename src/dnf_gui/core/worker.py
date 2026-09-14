@@ -345,3 +345,97 @@ class ToolkitCheckWorker(QThread):
 
         self.finished.emit(status)
 
+
+class SecurityCheckWorker(QThread):
+    """Worker thread to query pending security advisories (no root)."""
+
+    finished = pyqtSignal(object)  # SecuritySummary
+    error = pyqtSignal(str)
+
+    def run(self):
+        try:
+            from dnf_gui.core.security import get_security_summary
+            summary = get_security_summary()
+            self.finished.emit(summary)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class CombinedUpdateCheckWorker(QThread):
+    """Check DNF + Flatpak + security in one pass for the Updates page."""
+
+    finished = pyqtSignal(dict)  # {"dnf": UpdateInfo, "flatpak": [...], "security": ..., "preview": ..., "security_preview": ..., "reboot": bool}
+    error = pyqtSignal(str)
+
+    def __init__(self, dnf_backend, flatpak_backend, parent=None):
+        super().__init__(parent)
+        self._dnf_backend = dnf_backend
+        self._flatpak_backend = flatpak_backend
+
+    def run(self):
+        try:
+            from dnf_gui.core.security import get_security_summary
+            dnf_info = self._dnf_backend.check_updates()
+            flatpak_updates: list = []
+            try:
+                if self._flatpak_backend.available:
+                    flatpak_updates = self._flatpak_backend.check_updates()
+            except Exception:
+                flatpak_updates = []
+            try:
+                security = get_security_summary()
+            except Exception:
+                security = None
+            try:
+                preview = self._dnf_backend.get_upgrade_preview()
+            except Exception:
+                preview = None
+            try:
+                security_preview = self._dnf_backend.get_upgrade_preview(
+                    security_only=True)
+            except Exception:
+                security_preview = None
+            try:
+                reboot = self._dnf_backend.reboot_required()
+            except Exception:
+                reboot = False
+            self.finished.emit(
+                {"dnf": dnf_info, "flatpak": flatpak_updates,
+                 "security": security, "preview": preview,
+                 "security_preview": security_preview, "reboot": reboot}
+            )
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class RebootCheckWorker(QThread):
+    """Check whether a reboot is needed (fast, no root)."""
+
+    finished = pyqtSignal(bool)
+    error = pyqtSignal(str)
+
+    def __init__(self, dnf_backend, parent=None):
+        super().__init__(parent)
+        self._backend = dnf_backend
+
+    def run(self):
+        try:
+            self.finished.emit(bool(self._backend.reboot_required()))
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class DiscoverStatusWorker(QThread):
+    """Worker thread to inspect Discover/PackageKit state (no root)."""
+
+    finished = pyqtSignal(object)  # DiscoverStatus
+    error = pyqtSignal(str)
+
+    def run(self):
+        try:
+            from dnf_gui.core.discover_manager import DiscoverManager
+            status = DiscoverManager().get_status()
+            self.finished.emit(status)
+        except Exception as e:
+            self.error.emit(str(e))
+

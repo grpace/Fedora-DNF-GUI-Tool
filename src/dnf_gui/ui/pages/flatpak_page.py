@@ -117,22 +117,26 @@ class FlatpakPage(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        from dnf_gui.ui.widgets.page_header import PageHeader
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # ── Header ──
-        header = QLabel("Flatpak Manager")
-        header.setObjectName("page_header")
-        layout.addWidget(header)
+        # ── Header (own left inset, closer to the sidebar) ──
+        layout.addWidget(PageHeader(
+            "Flatpak Manager",
+            "Install, update, and manage Flatpak applications from Flathub"))
 
-        subheader = QLabel("Install, update, and manage Flatpak applications from Flathub")
-        subheader.setObjectName("page_subheader")
-        layout.addWidget(subheader)
+        # ── Body ──
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setSpacing(20)
+        layout.addWidget(body, 1)
 
         # ── Action Bar ──
         action_bar = QHBoxLayout()
-        action_bar.setSpacing(12)
+        action_bar.setSpacing(16)
 
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("primary_button")
@@ -141,16 +145,8 @@ class FlatpakPage(QWidget):
         action_bar.addWidget(refresh_btn)
 
         update_btn = QPushButton("Update All Flatpaks")
-        update_btn.setObjectName("primary_button")
+        update_btn.setObjectName("success_button")
         update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        update_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3fb950; color: #ffffff; border: none;
-                border-radius: 8px; padding: 10px 20px; font-size: 13px;
-                font-weight: 600; min-width: 120px;
-            }
-            QPushButton:hover { background-color: #56d364; }
-        """)
         update_btn.clicked.connect(self.update_all_clicked.emit)
         action_bar.addWidget(update_btn)
 
@@ -169,7 +165,7 @@ class FlatpakPage(QWidget):
         action_bar.addWidget(repair_btn)
 
         action_bar.addStretch()
-        layout.addLayout(action_bar)
+        body_layout.addLayout(action_bar)
 
         # ── Tabs: Installed / Search ──
         self._tabs = QTabWidget()
@@ -197,7 +193,7 @@ class FlatpakPage(QWidget):
         self._installed_container = QWidget()
         self._installed_layout = QVBoxLayout(self._installed_container)
         self._installed_layout.setContentsMargins(0, 0, 0, 0)
-        self._installed_layout.setSpacing(6)
+        self._installed_layout.setSpacing(12)
         self._installed_layout.addStretch()
 
         self._installed_scroll.setWidget(self._installed_container)
@@ -225,6 +221,7 @@ class FlatpakPage(QWidget):
 
         search_btn = QPushButton("Search")
         search_btn.setObjectName("primary_button")
+        search_btn.setProperty("compact", True)
         search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         search_btn.clicked.connect(self._do_search)
         search_bar.addWidget(search_btn)
@@ -241,7 +238,7 @@ class FlatpakPage(QWidget):
         self._search_container = QWidget()
         self._search_layout = QVBoxLayout(self._search_container)
         self._search_layout.setContentsMargins(0, 0, 0, 0)
-        self._search_layout.setSpacing(6)
+        self._search_layout.setSpacing(12)
         self._search_layout.addStretch()
 
         self._search_scroll.setWidget(self._search_container)
@@ -254,7 +251,7 @@ class FlatpakPage(QWidget):
 
         self._tabs.addTab(search_widget, "Search Flathub")
 
-        layout.addWidget(self._tabs, 1)
+        body_layout.addWidget(self._tabs, 1)
 
     def _do_search(self):
         query = self._search_input.text().strip()
@@ -333,3 +330,12 @@ class FlatpakPage(QWidget):
             "Install it with: sudo dnf install flatpak"
         )
         self._installed_status.show()
+
+    def focus_search(self) -> None:
+        """Focus the relevant search input (Ctrl+F target)."""
+        if self._tabs.currentIndex() == 0:
+            self._filter_input.setFocus()
+            self._filter_input.selectAll()
+        else:
+            self._search_input.setFocus()
+            self._search_input.selectAll()

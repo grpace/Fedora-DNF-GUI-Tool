@@ -101,6 +101,7 @@ class Sidebar(QWidget):
             ("Repositories", "Repositories"),
             ("History", "History"),
             ("Terminal", "Terminal"),
+            ("Settings", "Settings"),
         ]
 
         for _, text in system_items:

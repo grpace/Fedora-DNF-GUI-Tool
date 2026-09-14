@@ -85,7 +85,7 @@ def get_stylesheet() -> str:
         font-size: {f['size_xl']};
         font-weight: 800;
         color: {c['text_primary']};
-        padding: 36px 24px 20px 24px;
+        padding: 20px 24px 12px 24px;
         letter-spacing: -0.5px;
     }}
     
@@ -123,19 +123,20 @@ def get_stylesheet() -> str:
     }}
     
     #page_header {{
-        font-size: 32px;
+        font-size: 28px;
         font-weight: 800;
         color: {c['text_primary']};
         margin: 0px;
-        padding: 36px 0px 8px 0px;
+        padding: 16px 0px 2px 0px;
         letter-spacing: -0.5px;
     }}
     
     #page_subheader {{
-        font-size: {f['size_lg']};
-        color: {c['text_secondary']};
+        font-size: 15px;
+        font-weight: 500;
+        color: #a8b3c2;
         margin: 0px;
-        padding: 0px 0px 32px 0px;
+        padding: 2px 0px 20px 0px;
     }}
     
     /* ────────── Cards ────────── */
@@ -144,7 +145,7 @@ def get_stylesheet() -> str:
         background-color: {c['bg_card']};
         border: 1px solid {c['border_primary']};
         border-radius: 12px;
-        padding: 20px;
+        padding: 24px 28px;
     }}
     
     QFrame#card:hover {{
@@ -175,7 +176,16 @@ def get_stylesheet() -> str:
         font-weight: 600;
     }}
     
-    /* ────────── Buttons ────────── */
+    /* ────────── Buttons ──────────
+       One variant per intent — pages must use objectName only, never
+       inline stylesheets, so every button looks the same everywhere:
+         primary_button  teal fill    — the page's main action
+         success_button  green fill   — Upgrade All, Install
+         accent_button   blue fill    — Update Everything, secondary actions
+         warning_button  amber fill   — per-package Update, Reboot
+         danger_button   red outline  — Remove, Clean Up, destructive
+         ghost_button    grey outline — Details, neutral/tertiary
+       Add the dynamic property compact="true" for filter-bar buttons. */
     
     QPushButton#primary_button {{
         background-color: {c['bg_selected']};
@@ -202,6 +212,107 @@ def get_stylesheet() -> str:
         color: {c['text_tertiary']};
     }}
     
+    QPushButton#success_button {{
+        background-color: #3fb950;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 20px;
+        min-height: 36px;
+        font-size: {f['size_base']};
+        font-weight: 700;
+        min-width: 120px;
+    }}
+
+    QPushButton#success_button:hover {{
+        background-color: #56d364;
+    }}
+
+    QPushButton#success_button:pressed {{
+        background-color: #2ea043;
+    }}
+
+    QPushButton#success_button:disabled {{
+        background-color: {c['bg_tertiary']};
+        color: {c['text_tertiary']};
+    }}
+
+    QPushButton#accent_button {{
+        background-color: #1f6feb;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 20px;
+        min-height: 36px;
+        font-size: {f['size_base']};
+        font-weight: 700;
+        min-width: 120px;
+    }}
+
+    QPushButton#accent_button:hover {{
+        background-color: #388bfd;
+    }}
+
+    QPushButton#accent_button:pressed {{
+        background-color: #1a5fc4;
+    }}
+
+    QPushButton#accent_button:disabled {{
+        background-color: {c['bg_tertiary']};
+        color: {c['text_tertiary']};
+    }}
+
+    QPushButton#warning_button {{
+        background-color: #d29922;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 20px;
+        min-height: 36px;
+        font-size: {f['size_base']};
+        font-weight: 700;
+        min-width: 120px;
+    }}
+
+    QPushButton#warning_button:hover {{
+        background-color: #e5b94e;
+    }}
+
+    QPushButton#warning_button:pressed {{
+        background-color: #b07e1c;
+    }}
+
+    QPushButton#warning_button:disabled {{
+        background-color: {c['bg_tertiary']};
+        color: {c['text_tertiary']};
+    }}
+
+    QPushButton#ghost_button {{
+        background-color: transparent;
+        color: {c['text_secondary']};
+        border: 1px solid {c['border_primary']};
+        border-radius: 8px;
+        padding: 8px 20px;
+        min-height: 36px;
+        font-size: {f['size_base']};
+        font-weight: 600;
+        min-width: 80px;
+    }}
+
+    QPushButton#ghost_button:hover {{
+        color: {c['text_primary']};
+        border-color: {c['border_focus']};
+    }}
+
+    QPushButton#ghost_button:pressed {{
+        background-color: rgba(45, 212, 191, 0.1);
+    }}
+
+    QPushButton#ghost_button:disabled {{
+        color: {c['text_tertiary']};
+        border-color: {c['bg_tertiary']};
+    }}
+
     QPushButton#danger_button {{
         background-color: transparent;
         color: {c['accent_red']};
@@ -221,23 +332,157 @@ def get_stylesheet() -> str:
     QPushButton#danger_button:pressed {{
         background-color: rgba(239, 68, 68, 0.2);
     }}
-    
-    QPushButton#success_button {{
+
+    QPushButton#danger_button:disabled {{
+        color: {c['text_tertiary']};
+        border-color: {c['bg_tertiary']};
+    }}
+
+    /* Borderless icon button (dialog close ✕ etc.). */
+    QPushButton#icon_button {{
         background-color: transparent;
-        color: {c['accent_green']};
+        color: {c['text_secondary']};
+        border: none;
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 16px;
+    }}
+
+    QPushButton#icon_button:hover {{
+        color: {c['text_primary']};
+        background-color: {c['bg_tertiary']};
+    }}
+    
+    /* Compact buttons for filter bars (same look, smaller footprint). */
+    QPushButton#primary_button[compact="true"],
+    QPushButton#success_button[compact="true"],
+    QPushButton#accent_button[compact="true"],
+    QPushButton#warning_button[compact="true"],
+    QPushButton#danger_button[compact="true"],
+    QPushButton#ghost_button[compact="true"] {{
+        padding: 6px 14px;
+        min-height: 24px;
+        min-width: 0px;
+        font-size: {f['size_sm']};
+    }}
+    
+    /* ────────── Checkboxes ────────── */
+
+    QCheckBox {{
+        color: {c['text_primary']};
+        font-size: {f['size_base']};
+        spacing: 10px;
+        padding: 4px 0px;
+    }}
+
+    QCheckBox::indicator {{
+        width: 18px;
+        height: 18px;
+        border: 1px solid {c['border_secondary']};
+        border-radius: 5px;
+        background-color: {c['bg_input']};
+    }}
+
+    QCheckBox::indicator:hover {{
+        border-color: {c['border_focus']};
+    }}
+
+    QCheckBox::indicator:checked {{
+        background-color: {c['bg_selected']};
+        border-color: {c['bg_selected']};
+        image: none;
+    }}
+
+    QCheckBox::indicator:checked:hover {{
+        background-color: {c['bg_hover']};
+        border-color: {c['bg_hover']};
+    }}
+
+    QCheckBox::indicator:disabled {{
+        background-color: {c['bg_tertiary']};
+        border-color: {c['bg_tertiary']};
+    }}
+
+    QCheckBox:disabled {{
+        color: {c['text_tertiary']};
+    }}
+
+    /* ────────── Helper labels ────────── */
+
+    QLabel#hint {{
+        color: {c['text_secondary']};
+        font-size: {f['size_sm']};
+    }}
+
+    QLabel#section_label {{
+        font-size: {f['size_lg']};
+        font-weight: 700;
+        color: {c['text_primary']};
+        padding: 12px 0px 4px 0px;
+        border-bottom: 1px solid {c['border_primary']};
+    }}
+
+    QLabel#status_line {{
+        color: {c['text_primary']};
+        font-size: {f['size_base']};
+    }}
+
+    QLabel#caption {{
+        color: {c['text_tertiary']};
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 8px 0px 0px 0px;
+    }}
+
+    /* Status banner: tinted frame whose objectName is status_ok,
+       status_warn, or status_info. */
+    QFrame#status_ok, QFrame#status_warn, QFrame#status_info {{
+        border-radius: 10px;
+        padding: 12px 16px;
+    }}
+
+    QFrame#status_ok {{
+        background-color: rgba(63, 185, 80, 0.1);
+        border: 1px solid rgba(63, 185, 80, 0.4);
+    }}
+
+    QFrame#status_warn {{
+        background-color: rgba(210, 153, 34, 0.1);
+        border: 1px solid rgba(210, 153, 34, 0.45);
+    }}
+
+    QFrame#status_info {{
+        background-color: {c['bg_secondary']};
         border: 1px solid {c['border_primary']};
-        border-radius: 8px;
-        padding: 8px 20px;
-        min-height: 36px;
+    }}
+
+    QLabel#status_title {{
+        font-size: 14px;
+        font-weight: 700;
+        color: {c['text_primary']};
+    }}
+
+    QLabel#status_detail {{
+        font-size: 12px;
+        color: {c['text_secondary']};
+    }}
+
+    /* ────────── Reboot banner ────────── */
+
+    QFrame#reboot_banner {{
+        background-color: #3b2f0b;
+        border: 1px solid #d29922;
+        border-radius: 10px;
+    }}
+
+    QLabel#reboot_banner_text {{
+        color: #e5b94e;
         font-size: {f['size_base']};
         font-weight: 600;
     }}
-    
-    QPushButton#success_button:hover {{
-        border-color: {c['accent_green']};
-        background-color: rgba(16, 185, 129, 0.1);
-    }}
-    
+
     /* ────────── Search Input ────────── */
     
     QLineEdit#search_input {{

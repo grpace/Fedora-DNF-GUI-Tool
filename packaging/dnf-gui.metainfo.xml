@@ -5,8 +5,15 @@
   <summary>Modern GUI package manager for Fedora Linux</summary>
   <description>
     <p>A Discovery alternative that uses real DNF and Flatpak commands for reliable, terminal-grade updates.</p>
-    <p>Features: system updates, installed packages browser, Flatpak manager with Flathub search, system info dashboard, quick tools (RPM Fusion, codecs, dev tools, VS Code, fwupd), repository manager, transaction history with undo, and auto-update.</p>
+    <p>Features: combined DNF + Flatpak + security updates with download previews, package details, reboot reminders, Discover takeover, background update reminders, optional passwordless updates, Flatpak manager with Flathub search, system info dashboard, quick tools, repository manager, transaction history with undo, and auto-update.</p>
   </description>
+  <releases>
+    <release version="1.1.0" date="2026-09-14">
+      <description>
+        <p>Combined updates, upgrade previews, reboot banner, package details, Settings page (Discover takeover, reminders, passwordless updates), working Ctrl+F.</p>
+      </description>
+    </release>
+  </releases>
   <developer_name>Greg.Tech</developer_name>
   <url type="homepage">https://greg.tech</url>
   <url type="bugtracker">https://github.com/grpace/Fedora-DNF-GUI-Tool/issues</url>

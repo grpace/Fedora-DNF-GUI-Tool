@@ -53,18 +53,12 @@ class ToolCard(QFrame):
         layout.addLayout(text_layout, 1)
 
         self._btn = QPushButton(button_text)
+        # Uniform button language: icons carry the per-tool color,
+        # buttons stay consistent (teal primary, red outline if destructive).
         if danger:
             self._btn.setObjectName("danger_button")
         else:
             self._btn.setObjectName("primary_button")
-            self._btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color}; color: #ffffff; border: none;
-                    border-radius: 8px; padding: 10px 20px; font-size: 13px;
-                    font-weight: 600; min-width: 100px;
-                }}
-                QPushButton:hover {{ background-color: {color}cc; }}
-            """)
         self._btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn.clicked.connect(lambda: self.clicked.emit(self._tool_id))
         layout.addWidget(self._btn)
@@ -87,18 +81,21 @@ class ToolkitPage(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        from dnf_gui.ui.widgets.page_header import PageHeader
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # ── Header ──
-        header = QLabel("Quick Tools")
-        header.setObjectName("page_header")
-        layout.addWidget(header)
+        # ── Header (own left inset, closer to the sidebar) ──
+        layout.addWidget(PageHeader(
+            "Quick Tools", "One-click tools and common post-install tasks for Fedora KDE"))
 
-        subheader = QLabel("One-click tools and common post-install tasks for Fedora KDE")
-        subheader.setObjectName("page_subheader")
-        layout.addWidget(subheader)
+        # ── Body ──
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setSpacing(20)
+        layout.addWidget(body, 1)
 
         # ── Scrollable Content ──
         scroll = QScrollArea()
@@ -108,7 +105,7 @@ class ToolkitPage(QWidget):
         scroll_content = QWidget()
         content = QVBoxLayout(scroll_content)
         content.setContentsMargins(0, 0, 16, 0)
-        content.setSpacing(16)
+        content.setSpacing(20)
 
         # ─── Section: Repositories ───
         content.addWidget(self._section_label("Repositories & Sources"))
@@ -158,14 +155,14 @@ class ToolkitPage(QWidget):
         ]
 
         for args in tools_system:
-            card = ToolCard(*args)
+            card = ToolCard(*args, danger=(args[0] == "clean_cache"))
             card.clicked.connect(self.tool_clicked.emit)
             self._cards[args[0]] = card
             content.addWidget(card)
 
         content.addStretch()
         scroll.setWidget(scroll_content)
-        layout.addWidget(scroll, 1)
+        body_layout.addWidget(scroll, 1)
 
     def update_card_statuses(self, statuses: dict):
         """Update the UI based on whether tools are installed."""
@@ -183,11 +180,5 @@ class ToolkitPage(QWidget):
 
     def _section_label(self, text: str) -> QLabel:
         label = QLabel(text)
-        label.setStyleSheet("""
-            font-size: 16px;
-            font-weight: 700;
-            color: #e6edf3;
-            padding: 12px 0 4px 0;
-            border-bottom: 1px solid #30363d;
-        """)
+        label.setObjectName("section_label")
         return label

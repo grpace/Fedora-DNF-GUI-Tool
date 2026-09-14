@@ -65,19 +65,10 @@ class HistoryCard(QFrame):
 
         # Action buttons
         action_layout = QHBoxLayout()
-        action_layout.setSpacing(8)
+        action_layout.setSpacing(12)
 
         info_btn = QPushButton("Details")
-        info_btn.setObjectName("primary_button")
-        info_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent; color: #58a6ff;
-                border: 1px solid #58a6ff; border-radius: 8px;
-                padding: 8px 14px; font-size: 12px; font-weight: 600;
-                min-width: 70px;
-            }
-            QPushButton:hover { background-color: #58a6ff; color: #ffffff; }
-        """)
+        info_btn.setObjectName("ghost_button")
         info_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         info_btn.clicked.connect(lambda: self.info_clicked.emit(self._txn.get("id", "")))
         action_layout.addWidget(info_btn)
@@ -103,38 +94,38 @@ class HistoryPage(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        from dnf_gui.ui.widgets.page_header import PageHeader
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 16)
-        layout.setSpacing(16)
-
-        # ── Header ──
-        header_row = QHBoxLayout()
-        header = QLabel("Transaction History")
-        header.setObjectName("page_header")
-        header_row.addWidget(header)
-        header_row.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         self._refresh_btn = QPushButton("Refresh")
         self._refresh_btn.setObjectName("primary_button")
+        self._refresh_btn.setProperty("compact", True)
         self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._refresh_btn.setStyleSheet("QPushButton { margin-top: 24px; }")
         self._refresh_btn.clicked.connect(self.refresh_clicked.emit)
-        header_row.addWidget(self._refresh_btn)
-        layout.addLayout(header_row)
 
-        subheader = QLabel("View and undo recent DNF package operations")
-        subheader.setObjectName("page_subheader")
-        layout.addWidget(subheader)
+        # ── Header (own left inset, closer to the sidebar) ──
+        layout.addWidget(PageHeader(
+            "Transaction History", "View and undo recent DNF package operations",
+            action=self._refresh_btn))
+
+        # ── Body ──
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setSpacing(20)
+        layout.addWidget(body, 1)
 
         self._count_label = QLabel("")
         self._count_label.setStyleSheet("color: #8b949e; font-size: 13px;")
-        layout.addWidget(self._count_label)
+        body_layout.addWidget(self._count_label)
 
         # ── Separator ──
         sep = QFrame()
         sep.setObjectName("separator")
         sep.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(sep)
+        body_layout.addWidget(sep)
 
         # ── Info Detail Panel (hidden by default) ──
         self._detail_panel = QFrame()
@@ -149,13 +140,7 @@ class HistoryPage(QWidget):
         detail_header.addStretch()
 
         close_btn = QPushButton("✕")
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent; color: #8b949e; border: none;
-                font-size: 16px; padding: 4px 8px;
-            }
-            QPushButton:hover { color: #e6edf3; }
-        """)
+        close_btn.setObjectName("icon_button")
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.clicked.connect(lambda: self._detail_panel.hide())
         detail_header.addWidget(close_btn)
@@ -167,7 +152,7 @@ class HistoryPage(QWidget):
         self._detail_text.setMaximumHeight(200)
         detail_layout.addWidget(self._detail_text)
 
-        layout.addWidget(self._detail_panel)
+        body_layout.addWidget(self._detail_panel)
 
         # ── History List ──
         self._scroll = QScrollArea()
@@ -177,11 +162,11 @@ class HistoryPage(QWidget):
         self._list_container = QWidget()
         self._list_layout = QVBoxLayout(self._list_container)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.setSpacing(6)
+        self._list_layout.setSpacing(12)
         self._list_layout.addStretch()
 
         self._scroll.setWidget(self._list_container)
-        layout.addWidget(self._scroll, 1)
+        body_layout.addWidget(self._scroll, 1)
 
         # ── Empty State ──
         self._status_label = QLabel("Click 'Refresh' to load transaction history")

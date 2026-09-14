@@ -17,28 +17,28 @@ class SystemInfoPage(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        from dnf_gui.ui.widgets.page_header import PageHeader
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 16)
-        layout.setSpacing(16)
-
-        # ── Header ──
-        header_row = QHBoxLayout()
-        header = QLabel("System Overview")
-        header.setObjectName("page_header")
-        header_row.addWidget(header)
-        header_row.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("primary_button")
+        refresh_btn.setProperty("compact", True)
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        refresh_btn.setStyleSheet("QPushButton { margin-top: 24px; }")
         refresh_btn.clicked.connect(self.refresh_clicked.emit)
-        header_row.addWidget(refresh_btn)
-        layout.addLayout(header_row)
 
-        subheader = QLabel("Hardware, software, and system health at a glance")
-        subheader.setObjectName("page_subheader")
-        layout.addWidget(subheader)
+        # ── Header (own left inset, closer to the sidebar) ──
+        layout.addWidget(PageHeader(
+            "System Overview", "Hardware, software, and system health at a glance",
+            action=refresh_btn))
+
+        # ── Body ──
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setSpacing(20)
+        layout.addWidget(body, 1)
 
         # ── Scrollable Content ──
         scroll = QScrollArea()
@@ -48,7 +48,7 @@ class SystemInfoPage(QWidget):
         scroll_content = QWidget()
         self._content_layout = QVBoxLayout(scroll_content)
         self._content_layout.setContentsMargins(0, 0, 16, 0)
-        self._content_layout.setSpacing(16)
+        self._content_layout.setSpacing(20)
 
         # ── OS & Host Card ──
         os_card = QFrame()
@@ -289,7 +289,7 @@ class SystemInfoPage(QWidget):
 
         self._content_layout.addStretch()
         scroll.setWidget(scroll_content)
-        layout.addWidget(scroll, 1)
+        body_layout.addWidget(scroll, 1)
 
     def _create_count_card(self, title: str, value: str) -> QFrame:
         """Create a count card matching the style/size of other cards (CPU, GPU, RAM, Disk)."""

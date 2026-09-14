@@ -22,6 +22,10 @@ class PackageCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setup_ui()
 
+    def mouseDoubleClickEvent(self, event):
+        super().mouseDoubleClickEvent(event)
+        self.info_clicked.emit(self._package.name)
+
     def _setup_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
@@ -29,7 +33,7 @@ class PackageCard(QFrame):
 
         # ── Package info ──
         info_layout = QVBoxLayout()
-        info_layout.setSpacing(2)
+        info_layout.setSpacing(4)
 
         # Name row
         name_row = QHBoxLayout()
@@ -82,7 +86,16 @@ class PackageCard(QFrame):
 
         # ── Action buttons ──
         action_layout = QHBoxLayout()
-        action_layout.setSpacing(8)
+        action_layout.setSpacing(12)
+
+        details_btn = QPushButton("Details")
+        details_btn.setObjectName("ghost_button")
+        details_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        details_btn.setToolTip(f"Show details for {self._package.name}")
+        details_btn.clicked.connect(
+            lambda: self.info_clicked.emit(self._package.name)
+        )
+        action_layout.addWidget(details_btn)
 
         if self._package.status == PackageStatus.INSTALLED:
             remove_btn = QPushButton("Remove")
@@ -102,23 +115,8 @@ class PackageCard(QFrame):
             action_layout.addWidget(install_btn)
         elif self._package.status == PackageStatus.UPDATE_AVAILABLE:
             update_btn = QPushButton("Update")
-            update_btn.setObjectName("primary_button")
+            update_btn.setObjectName("warning_button")
             update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            update_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #d29922;
-                    color: #ffffff;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 8px 16px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    min-width: 80px;
-                }
-                QPushButton:hover {
-                    background-color: #e5b94e;
-                }
-            """)
             update_btn.clicked.connect(
                 lambda: self.install_clicked.emit(self._package.name)
             )

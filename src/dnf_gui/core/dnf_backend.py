@@ -1,5 +1,7 @@
 """DNF backend — handles all interaction with the DNF package manager via subprocess."""
 
+import os
+import platform
 import re
 import subprocess
 import shutil
@@ -8,7 +10,7 @@ from typing import Optional
 # COPR format: user/project or @group/project (alphanumeric, dots, hyphens)
 _COPR_PATTERN = re.compile(r"^[@]?[\w][\w.-]*/[\w.-]+$")
 
-from dnf_gui.core.package import Package, PackageStatus, UpdateInfo
+from dnf_gui.core.package import Package, PackageStatus, UpdateInfo, UpgradePreview
 
 
 class DNFBackend:
@@ -75,6 +77,87 @@ class DNFBackend:
         if result is None:
             return None
         return self._parse_package_info(result)
+
+    def get_upgrade_preview(self, security_only: bool = False) -> UpgradePreview:
+        """Preview an upgrade: package count + total download size.
+
+        Uses ``repoquery --upgrades`` (read-only, no root). Never raises —
+        on any failure returns an empty preview so callers can omit the
+        size line instead of blocking the upgrade flow.
+        """
+        preview = UpgradePreview()
+        cmd = [
+            self._dnf_path, "repoquery", "--upgrades",
+            "--queryformat", "%{name} %{evr} %{arch} %{downloadsize}",
+        ]
+        if security_only:
+            cmd.insert(2, "--security")
+        result = self._run(cmd, allow_nonzero=True)
+        if not result:
+            return preview
+        for line in result.strip().split("\n"):
+            line = line.strip()
+            if not line or line.startswith("Last metadata") or line.startswith("="):
+                continue
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            preview.count += 1
+            try:
+                preview.total_bytes += int(parts[-1])
+                preview.sizes_known = True
+            except ValueError:
+                # Unknown query tag echoed literally (older dnf) — count it,
+                # but don't claim a size.
+                pass
+        return preview
+
+    def reboot_required(self) -> bool:
+        """True if the system should be rebooted to finish updates.
+
+        Checks, in order: ``needs-restarting -r`` (dnf-utils-core, exit 1
+        means reboot needed), the ``/run/reboot-required`` sentinel some
+        stacks create, then kernel drift (running kernel is no longer the
+        newest installed one). Never raises.
+        """
+        try:
+            result = subprocess.run(
+                ["needs-restarting", "-r"],
+                capture_output=True, timeout=60,
+            )
+            if result.returncode == 1:
+                return True
+            if result.returncode == 0:
+                return False
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+        except Exception:
+            pass
+
+        try:
+            if os.path.exists("/run/reboot-required"):
+                return True
+        except Exception:
+            pass
+
+        try:
+            running = platform.release()
+            for pkg in ("kernel-core", "kernel"):
+                result = subprocess.run(
+                    ["rpm", "-q", pkg, "--queryformat", "%{VERSION}-%{RELEASE}.%{ARCH}\n"],
+                    capture_output=True, text=True, timeout=15,
+                )
+                if result.returncode != 0 or not result.stdout.strip():
+                    continue
+                installed = [l.strip() for l in result.stdout.split("\n") if l.strip()]
+                if installed and running not in installed:
+                    return True
+                return False
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+        except Exception:
+            pass
+        return False
 
     # ─── Privileged Operations (root via pkexec) ────────────────────
 
@@ -271,20 +354,6 @@ class DNFBackend:
             f"https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{self._get_fedora_release()}.noarch.rpm",
         ]
 
-    def build_install_multimedia_codecs_command(self) -> list[str]:
-        """Build command to install multimedia codecs (requires RPM Fusion)."""
-        return [
-            "pkexec", self._dnf_path, "install", "-y",
-            "gstreamer1-plugins-bad-free", "gstreamer1-plugins-bad-free-extras",
-            "gstreamer1-plugins-good", "gstreamer1-plugins-good-extras",
-            "gstreamer1-plugins-ugly", "gstreamer1-plugin-openh264",
-            "mozilla-openh264",
-        ]
-
-    def build_install_devtools_command(self) -> list[str]:
-        """Build command to install development tools group."""
-        return ["pkexec", self._dnf_path, "group", "install", "-y", "Development Tools"]
-
     def build_firmware_update_check_command(self) -> list[str]:
         """Build command to check for firmware updates."""
         return ["bash", "-c", "fwupdmgr get-updates; if [ $? -eq 2 ]; then exit 0; else exit $?; fi"]
@@ -292,16 +361,6 @@ class DNFBackend:
     def build_firmware_update_apply_command(self) -> list[str]:
         """Build command to apply firmware updates."""
         return ["pkexec", "fwupdmgr", "update", "-y"]
-
-    def build_install_vscode_command(self) -> list[str]:
-        """Build command to install VS Code via Microsoft repo."""
-        # This returns a shell script approach
-        return [
-            "pkexec", "bash", "-c",
-            'rpm --import https://packages.microsoft.com/keys/microsoft.asc && '
-            'echo -e "[code]\\nname=Visual Studio Code\\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\\nenabled=1\\ngpgcheck=1\\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo && '
-            f'{self._dnf_path} install -y code'
-        ]
 
     # ─── Private Helpers ────────────────────────────────────────────
 

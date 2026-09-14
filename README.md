@@ -5,12 +5,17 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Fedora%20Linux-informational.svg)
-![Version](https://img.shields.io/badge/version-1.0.1-orange.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-orange.svg)
 
 ## ✨ Features
 
 ### 📦 Package Management
-- **🔄 System Updates** — Check for and apply system updates with a single click
+- **🔄 System Updates** — DNF + Flatpak + security counts on one page
+- **⚡ Update Everything** — DNF upgrade and Flatpak update back-to-back in a single terminal session
+- **🛡️ Security Only** — Install just security advisories (`dnf upgrade --security`)
+- **📏 Upgrade previews** — Package count and download size in every upgrade confirmation
+- **↻ Reboot banner** — Tells you when a kernel/core-library update needs a reboot, with one-click reboot
+- **🔍 Package details** — Details button (or double-click) on any card for version, repo, size, license
 - **📦 Installed Packages** — Browse, search, and filter all installed RPM packages
 - **🗑️ Clean Uninstall** — Remove packages with proper dependency cleanup
 
@@ -27,12 +32,9 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 
 ### 🧰 Quick Tools (One-Click Actions)
 - **RPM Fusion** — Enable Free and Non-Free repositories
-- **Multimedia Codecs** — Install GStreamer plugins for MP3, MP4, H.264
-- **Development Tools** — Install gcc, make, autoconf, Python dev, Node.js, Git
-- **VS Code** — One-click install with Microsoft repo setup
+- **Flathub** — Add the Flathub remote to Flatpak
 - **Firmware Updates** — Check and apply BIOS/UEFI updates via fwupdmgr
 - **System Maintenance** — Clean cache, rebuild metadata, distro-sync
-- **Popular Apps** — Firefox, Thunderbird, GIMP, LibreOffice, Kdenlive, OBS Studio
 
 ### 🗂️ Repository Manager
 - **View all repositories** — Enabled and disabled, with status indicators
@@ -44,8 +46,17 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 - **Undo transactions** — Reverse any past install/remove/upgrade
 - **View details** — Expand any transaction for full package list
 
+### ⚙️ Settings
+- **Discover takeover** — Stop Discover's double updates: per-user notifier
+  takeover (no root, reversible) or system-wide PackageKit hardening
+- **Update reminders** — Background security reminders with configurable
+  interval, plus an optional login check (`dnf-gui --check`)
+- **Passwordless updates (opt-in)** — Make `dnf upgrade` passwordless via a
+  validated per-user sudoers rule; installs and removals still ask
+
 ### 💻 Live Terminal
 - **Real-time output** streaming from all package operations
+- **Multi-step chains** — Update Everything streams each step in one view
 - **Status indicator** — Idle / Running / Success / Error
 - **Auto-scroll** and clear functionality
 
@@ -57,9 +68,16 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+1..8` | Switch between pages |
+| `Ctrl+1..9` | Switch between pages |
 | `Ctrl+R` | Refresh current page |
-| `Ctrl+F` | Focus search input |
+| `Ctrl+F` | Focus search (Installed, Flatpak, Repositories pages) |
+
+**Update workflow:** the Updates page now shows DNF + Flatpak + Security counts
+together, with **Update Everything** (DNF upgrade + Flatpak update in one
+session) and **Security Only** (`dnf upgrade --security`). Open **Settings**
+to hand updates over from Discover (per-user takeover or system-wide
+PackageKit hardening) and to enable background security reminders
+(`dnf-gui --check` at login).
 
 ## 📋 Requirements
 
@@ -68,8 +86,11 @@ A modern, user-friendly graphical package manager for Fedora KDE — a Discovery
 - PyQt6 ≥ 6.6.0
 - DNF package manager
 - polkit (for privileged operations)
+- sudo (preinstalled on Fedora; used for the passwordless-updates option)
 - Flatpak (optional, for Flatpak features)
 - fwupd (optional, for firmware updates in Quick Tools)
+- libnotify / `notify-send` (optional, for login-time reminder popups)
+- dnf-utils-core / `needs-restarting` (optional, improves reboot detection)
 
 ## 🛠️ Installation
 
@@ -126,38 +147,48 @@ This will remove the application and its desktop entry. Any dependencies install
 # After install — from anywhere
 dnf-gui
 
+# Headless update check (used by the login reminder, exits 2 if updates pending)
+dnf-gui --check
+
 # Or find "DNF Package Manager" in your KDE application menu
 ```
 
-**Note:** Privileged operations (install, update, remove) use `pkexec` for polkit authentication — you'll be prompted for your password through the standard KDE dialog.
+**Note:** Privileged operations (install, update, remove) use `pkexec` for polkit authentication — you'll be prompted for your password through the standard KDE dialog. Tired of typing it for every update? Settings → Password prompts can make `dnf upgrade` passwordless (one-time authentication, installs/removals still ask).
 
 
 ## 🏗️ Architecture
 
 ```
 src/dnf_gui/
-├── app.py                  # Application entry point
+├── app.py                  # Application entry point (+ headless --check mode)
 ├── core/
-│   ├── dnf_backend.py      # DNF subprocess interface (40+ commands)
+│   ├── dnf_backend.py      # DNF subprocess interface (upgrade preview, reboot check)
 │   ├── flatpak_backend.py  # Flatpak subprocess interface
-│   ├── package.py          # Package data models
+│   ├── package.py          # Package data models (Package, UpdateInfo, UpgradePreview)
 │   ├── system_info.py      # System info collector (/proc, lspci)
 │   ├── updater.py          # App update checker (GitHub releases)
-│   └── worker.py           # QThread workers (14 worker types)
+│   ├── worker.py           # QThread workers (18 worker types)
+│   ├── security.py         # Security advisories (dnf updateinfo) + combined update
+│   ├── discover_manager.py # Discover/PackageKit takeover (per-user + system)
+│   ├── app_settings.py     # QSettings prefs + background reminder service
+│   └── passwordless.py     # Scoped passwordless-updates sudoers manager
 ├── ui/
 │   ├── main_window.py      # Main window orchestrator
-│   ├── sidebar.py          # Navigation sidebar (8 pages)
+│   ├── sidebar.py          # Navigation sidebar (9 pages)
 │   ├── pages/
-│   │   ├── updates_page.py       # System updates
+│   │   ├── updates_page.py       # System updates (combined, security, reboot banner)
 │   │   ├── installed_page.py     # Installed packages (with search/filter)
 │   │   ├── flatpak_page.py       # Flatpak manager (installed + Flathub search)
 │   │   ├── system_info_page.py   # System dashboard
 │   │   ├── toolkit_page.py       # Quick tools
 │   │   ├── repo_manager_page.py  # Repository manager
 │   │   ├── history_page.py       # Transaction history
-│   │   └── terminal_page.py      # Live terminal output
+│   │   ├── terminal_page.py      # Live terminal output
+│   │   └── settings_page.py      # Discover, reminders, password prompts
 │   ├── widgets/
-│   │   ├── package_card.py       # Package display card
+│   │   ├── page_header.py        # Shared title/subtitle header (own sidebar-side inset)
+│   │   ├── package_card.py       # Package display card (Details + double-click)
+│   │   ├── package_details.py    # Package details dialog
 │   │   └── progress_bar.py       # Animated progress bar
 │   └── styles/
 │       └── theme.py              # Dark theme QSS
@@ -169,6 +200,11 @@ src/dnf_gui/
 
 - **Read operations** — Run as normal user, no root needed
 - **Write operations** — Use `pkexec` for polkit authentication
+- **Passwordless updates (opt-in)** — Settings → Password prompts installs a
+  validated, per-user sudoers file (`/etc/sudoers.d/90-dnf-gui`) covering
+  only `dnf upgrade`/`update`. Installs, removals, repo changes and firmware
+  updates still ask for your password. Delete the file (or Disable in the
+  app) to restore prompts everywhere
 - **No shell injection** — Commands built as argument lists
 - **Confirmation dialogs** — Before every destructive operation
 - **COPR warning** — Users are warned about community repos

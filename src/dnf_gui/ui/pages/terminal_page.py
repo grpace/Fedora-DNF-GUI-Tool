@@ -20,34 +20,28 @@ class TerminalPage(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        from dnf_gui.ui.widgets.page_header import PageHeader
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 16)
-        layout.setSpacing(16)
-
-        # ── Header ──
-        header_row = QHBoxLayout()
-
-        header = QLabel("Terminal Output")
-        header.setObjectName("page_header")
-        header_row.addWidget(header)
-        header_row.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         clear_btn = QPushButton("Clear")
-        clear_btn.setObjectName("danger_button")
+        clear_btn.setObjectName("ghost_button")
+        clear_btn.setProperty("compact", True)
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(self._clear_terminal)
-        clear_btn.setStyleSheet("""
-            QPushButton {
-                margin-top: 24px;
-            }
-        """)
-        header_row.addWidget(clear_btn)
 
-        layout.addLayout(header_row)
+        # ── Header (own left inset, closer to the sidebar) ──
+        layout.addWidget(PageHeader(
+            "Terminal Output", "Real-time output from DNF package operations",
+            action=clear_btn))
 
-        subheader = QLabel("Real-time output from DNF package operations")
-        subheader.setObjectName("page_subheader")
-        layout.addWidget(subheader)
+        # ── Body ──
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setSpacing(20)
+        layout.addWidget(body, 1)
 
         # ── Status indicator ──
         self._status_row = QHBoxLayout()
@@ -60,13 +54,13 @@ class TerminalPage(QWidget):
         self._status_row.addWidget(self._status_text)
         self._status_row.addStretch()
 
-        layout.addLayout(self._status_row)
+        body_layout.addLayout(self._status_row)
 
         # ── Separator ──
         sep = QFrame()
         sep.setObjectName("separator")
         sep.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(sep)
+        body_layout.addWidget(sep)
 
         self._terminal = QPlainTextEdit()
         self._terminal.setObjectName("terminal")
@@ -76,7 +70,7 @@ class TerminalPage(QWidget):
             "upgrading packages, installing, or removing software.\n\n"
             "Try checking for updates or installing a package to get started!"
         )
-        layout.addWidget(self._terminal, 1)
+        body_layout.addWidget(self._terminal, 1)
 
         # ── Terminal Input ──
         self._input_row = QHBoxLayout()
@@ -96,7 +90,7 @@ class TerminalPage(QWidget):
         self._cancel_btn.setVisible(False)
         self._input_row.addWidget(self._cancel_btn)
         
-        layout.addLayout(self._input_row)
+        body_layout.addLayout(self._input_row)
 
     def append_line(self, line: str):
         """Append a line to the terminal output."""

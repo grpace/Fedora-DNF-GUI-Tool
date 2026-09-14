@@ -3,7 +3,7 @@
 %global install_dir /opt/%{app_name}
 
 Name:           %{app_name}
-Version:        1.0.1
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        Modern GUI package manager for Fedora Linux
 License:        GPL-3.0-or-later
@@ -88,6 +88,13 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 /usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
+* Mon Sep 14 2026 Greg.Tech <hello@greg.tech> - 1.1.0-1
+- Combined DNF + Flatpak + security view on Updates page (Update Everything, Security Only)
+- Upgrade previews (package count + download size) and reboot-required banner
+- Package details dialog (Details button / double-click, all pages)
+- New Settings page: Discover takeover, update reminders with login check, opt-in passwordless updates
+- Working Ctrl+F search focus; sidebar grows to 9 pages (Ctrl+1..9)
+
 * Thu Mar 12 2026 Greg.Tech <hello@greg.tech> - 1.0.1-1
 - Fix History page crash when rapidly clicking Refresh by preventing concurrent history loads
 

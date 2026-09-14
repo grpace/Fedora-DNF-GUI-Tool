@@ -104,3 +104,20 @@ class UpdateInfo:
     enhancements: int = 0
     packages: list = field(default_factory=list)
     last_checked: str = ""
+
+
+@dataclass
+class UpgradePreview:
+    """What an upgrade would download — for confirmation dialogs.
+
+    Built from ``dnf repoquery --upgrades`` (no root needed).
+    ``total_bytes`` is the download size; 0 with count > 0 means sizes
+    were unavailable (older repo metadata), not that it's free.
+    """
+    count: int = 0
+    total_bytes: int = 0
+    sizes_known: bool = False
+
+    @property
+    def has_preview(self) -> bool:
+        return self.count > 0

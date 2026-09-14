@@ -14,6 +14,7 @@ class InstalledPage(QWidget):
     """Page for browsing and managing installed packages."""
 
     remove_clicked = pyqtSignal(str)
+    details_requested = pyqtSignal(str)  # package name
     refresh_clicked = pyqtSignal()
     show_terminal = pyqtSignal()
 
@@ -28,23 +29,26 @@ class InstalledPage(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        from dnf_gui.ui.widgets.page_header import PageHeader
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # ── Header ──
-        header = QLabel("Installed Packages")
-        header.setObjectName("page_header")
-        layout.addWidget(header)
+        # ── Header (own left inset, closer to the sidebar) ──
+        layout.addWidget(PageHeader(
+            "Installed Packages", "Browse and manage all packages on your system"))
 
-        subheader = QLabel("Browse and manage all packages on your system")
-        subheader.setObjectName("page_subheader")
-        layout.addWidget(subheader)
+        # ── Body ──
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 16)
+        body_layout.setSpacing(20)
+        layout.addWidget(body, 1)
 
         # ── Stats ──
         self._count_label = QLabel("Loading...")
         self._count_label.setStyleSheet("color: #8b949e; font-size: 13px; padding: 0 0 8px 0;")
-        layout.addWidget(self._count_label)
+        body_layout.addWidget(self._count_label)
 
         # ── Search & Filter Bar ──
         filter_bar = QHBoxLayout()
@@ -63,17 +67,18 @@ class InstalledPage(QWidget):
 
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("primary_button")
+        refresh_btn.setProperty("compact", True)
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_btn.clicked.connect(self.refresh_clicked.emit)
         filter_bar.addWidget(refresh_btn)
 
-        layout.addLayout(filter_bar)
+        body_layout.addLayout(filter_bar)
 
         # ── Separator ──
         sep = QFrame()
         sep.setObjectName("separator")
         sep.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(sep)
+        body_layout.addWidget(sep)
 
         # ── Package List ──
         self._scroll = QScrollArea()
@@ -83,11 +88,11 @@ class InstalledPage(QWidget):
         self._list_container = QWidget()
         self._list_layout = QVBoxLayout(self._list_container)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.setSpacing(6)
+        self._list_layout.setSpacing(12)
         self._list_layout.addStretch()
 
         self._scroll.setWidget(self._list_container)
-        layout.addWidget(self._scroll, 1)
+        body_layout.addWidget(self._scroll, 1)
 
         # ── Loading / Empty State ──
         self._status_label = QLabel("Loading installed packages...")
@@ -140,6 +145,7 @@ class InstalledPage(QWidget):
             for pkg in display_list:
                 card = PackageCard(pkg)
                 card.remove_clicked.connect(self.remove_clicked.emit)
+                card.info_clicked.connect(self.details_requested.emit)
                 self._list_layout.insertWidget(self._list_layout.count() - 1, card)
 
         # Update count
@@ -166,3 +172,8 @@ class InstalledPage(QWidget):
         """Set the full package list and render."""
         self._all_packages = packages
         self._apply_filter()
+
+    def focus_search(self) -> None:
+        """Focus the search input (Ctrl+F target)."""
+        self._search_input.setFocus()
+        self._search_input.selectAll()

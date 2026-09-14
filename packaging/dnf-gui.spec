@@ -17,6 +17,7 @@ Requires:       python3-pyqt6
 Requires:       polkit
 Recommends:     flatpak
 Recommends:     fwupd
+Recommends:     libnotify
 
 %description
 A modern, user-friendly graphical package manager for Fedora KDE.

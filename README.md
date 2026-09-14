@@ -91,8 +91,6 @@ DNF Package Manager provides a desktop interface for maintaining Fedora systems 
 - sudo (standard on Fedora installations)
 - Flatpak (optional, for Flatpak features)
 - fwupd (optional, for firmware upgrades)
-- libnotify / `notify-send` (optional, for desktop alerts)
-- dnf-utils-core / `needs-restarting` (optional, for enhanced reboot detection)
 
 ---
 

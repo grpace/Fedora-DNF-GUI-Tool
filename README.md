@@ -1,117 +1,113 @@
-# 🚀 Fedora DNF GUI Tool
+# Fedora DNF GUI Tool
 
-A modern, user-friendly graphical package manager for Fedora KDE — a Discovery alternative that uses real DNF and Flatpak commands under the hood for reliable, terminal-grade updates.
+Fedora DNF GUI Tool is a graphical package manager for Fedora Linux and KDE Plasma. It runs native DNF and Flatpak commands directly, displaying live terminal output for all system changes.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.12%2B-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Fedora%20Linux-informational.svg)
 ![Version](https://img.shields.io/badge/version-1.1.1-orange.svg)
 
-## ✨ Features
+## Features
 
-### 📦 Package Management
-- **🔄 System Updates** — DNF + Flatpak + security counts on one page
-- **⚡ Update Everything** — DNF upgrade and Flatpak update back-to-back in a single terminal session
-- **🛡️ Security Only** — Install just security advisories (`dnf upgrade --security`)
-- **📏 Upgrade previews** — Package count and download size in every upgrade confirmation
-- **↺ Reboot banner** — Tells you when a kernel/core-library update needs a reboot, with one-click reboot
-- **🔍 Package details** — Details button (or double-click) on any card for version, repo, size, license
-- **📦 Installed Packages** — Browse, search, and filter all installed RPM packages
-- **🗑️ Clean Uninstall** — Remove packages with proper dependency cleanup
+### Package Management
 
-### 📱 Flatpak Manager
-- **Browse installed Flatpak apps** with filter
-- **Search Flathub** for new apps — search the entire Flathub catalog from the GUI
-- **Install/Remove/Update** Flatpak applications
-- **Clean up** unused runtimes and repair installations
+- **System updates.** View DNF, Flatpak, and security advisory counts on a single screen.
+- **Combined upgrades.** Run DNF upgrade and Flatpak update sequentially in one terminal session.
+- **Security advisories.** Apply security-specific updates via `dnf upgrade --security`.
+- **Upgrade previews.** Review package counts and total download sizes before confirming an upgrade.
+- **Reboot reminders.** Displays an alert with a reboot button when an update modifies the kernel or core system libraries.
+- **Package details.** Inspect package version, architecture, repository, size, and license by selecting Details or double-clicking any package card.
+- **Installed packages.** Search and filter installed RPM packages.
+- **Clean removal.** Remove packages alongside orphaned dependencies.
 
-### 🖥️ System Overview
-- **Live system dashboard** — Fedora version, kernel, KDE Plasma version
-- **Hardware info** — CPU, GPU, RAM usage, disk space with visual progress bars
-- **Package counts** — RPM and Flatpak totals at a glance
+### Flatpak Management
 
-### 🧰 Quick Tools (One-Click Actions)
-- **RPM Fusion** — Enable Free and Non-Free repositories
-- **Flathub** — Add the Flathub remote to Flatpak
-- **Firmware Updates** — Check and apply BIOS/UEFI updates via fwupdmgr
-- **System Maintenance** — Clean cache, rebuild metadata, distro-sync
+- **Installed applications.** Browse, filter, update, and uninstall installed Flatpaks.
+- **Flathub catalog search.** Query and install apps directly from Flathub.
+- **System maintenance.** Remove unused runtimes and repair installations with one click.
 
-### 📁 Repository Manager
-- **View all repositories** — Enabled and disabled, with status indicators
-- **Enable/Disable repos** with one click
-- **Add COPR** — Community repositories via input dialog
+### System Overview
 
-### 📜 Transaction History
-- **Browse DNF history** — See all past package operations
-- **Undo transactions** — Reverse any past install/remove/upgrade
-- **View details** — Expand any transaction for full package list
+- **Environment details.** Displays Fedora release, Linux kernel, and KDE Plasma versions.
+- **Hardware metrics.** Tracks CPU, GPU, memory, and disk usage.
+- **Package totals.** Displays RPM and Flatpak package counts.
 
-### ⚙️ Settings
-- **Discover takeover** — Stop Discover's double updates: per-user notifier
-  takeover (no root, reversible) or system-wide PackageKit hardening
-- **Update reminders** — Background update reminders with configurable
-  schedule, automatic login autostart check (`dnf-gui --check`), and
-  independent Flatpak update notifications
-- **Passwordless updates (opt-in)** — Make `dnf upgrade` passwordless via a
-  validated per-user sudoers rule; installs and removals still ask
+### Quick Tools
 
-### 🎨 Theme & Appearance
-- **Light & Dark Themes** — Seamless switching between modern dark mode and clean light mode
-- **Adaptive Vector Icons** — Dynamic stroke icons that automatically harmonize with the active theme
+- **RPM Fusion.** Enable Free and Non-Free repositories.
+- **Flathub.** Add the Flathub remote to Flatpak.
+- **Firmware updates.** Query and install device firmware updates via `fwupdmgr`.
+- **Maintenance.** Clear DNF cache, rebuild metadata, or run distribution synchronization.
 
-### 💻 Live Terminal
-- **Real-time output** streaming from all package operations
-- **Multi-step chains** — Update Everything streams each step in one view
-- **Status indicator** — Idle / Running / Success / Error
-- **Auto-scroll** and clear functionality
+### Repository Manager
 
-### 🔄 Auto-Update
-- **Check for updates** on startup from GitHub releases
-- **One-click install** — Download and install new versions from within the app
+- **Repository status.** List all system repositories with enabled and disabled states.
+- **Toggle repositories.** Enable or disable software sources with a single toggle.
+- **COPR repositories.** Add Fedora Community Outer Package Repositories by name.
 
-## ⌨️ Keyboard Shortcuts
+### Transaction History
+
+- **Audit history.** Review past DNF transactions and package changes.
+- **Undo operations.** Roll back past installs, removals, or upgrades.
+- **Transaction inspection.** View affected packages and execution timestamps.
+
+### Settings
+
+- **Discover coordination.** Disable KDE Discover notifier popups to avoid duplicate update alerts, with optional system-wide PackageKit masking.
+- **Background reminders.** Schedule update checks at configurable intervals with automatic login autostart (`dnf-gui --check`).
+- **Independent Flatpak alerts.** Choose whether to receive Flatpak notifications when routine RPM alerts are silenced.
+- **Passwordless updates.** Optionally install a validated sudoers drop-in (`/etc/sudoers.d/90-dnf-gui`) allowing passwordless `dnf upgrade`. Package installations, removals, and repository modifications continue to require polkit authorization.
+
+### Appearance
+
+- **Themes.** Choose between dark and light modes matching KDE Plasma styling.
+- **Adaptive icons.** Scalable vector icons adjust stroke and fill to match the active color palette.
+
+### Live Terminal
+
+- **Streaming output.** Standard output and standard error stream live during execution.
+- **Process control.** Cancel running commands immediately with process group termination.
+- **Status indicators.** Clear states for idle, running, completed, cancelled, and failed tasks.
+
+### Application Updates
+
+- **Automatic checks.** Checks GitHub releases on startup for new versions.
+- **Integrated installer.** Downloads the release RPM and applies the upgrade via DNF.
+
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+1..9` | Switch between pages |
-| `Ctrl+R` | Refresh current page |
-| `Ctrl+F` | Focus search (Installed, Flatpak, Repositories pages) |
+| `Ctrl+1` through `Ctrl+9` | Switch pages |
+| `Ctrl+R` | Refresh active page |
+| `Ctrl+F` | Focus search field on Installed, Flatpak, and Repositories pages |
 
-**Update workflow:** the Updates page now shows DNF + Flatpak + Security counts
-together, with **Update Everything** (DNF upgrade + Flatpak update in one
-session) and **Security Only** (`dnf upgrade --security`). Open **Settings**
-to hand updates over from Discover (per-user takeover or system-wide
-PackageKit hardening) and to enable background security reminders
-(`dnf-gui --check` at login).
+## Requirements
 
-## 📋 Requirements
-
-- Fedora Linux 40+ (tested on Fedora 43 KDE)
-- Python 3.12+
-- PyQt6 ≥ 6.6.0
+- Fedora Linux 40 or newer
+- Python 3.12 or newer
+- PyQt6 6.6.0 or newer
 - DNF package manager
-- polkit (for privileged operations)
-- sudo (preinstalled on Fedora; used for the passwordless-updates option)
-- Flatpak (optional, for Flatpak features)
-- fwupd (optional, for firmware updates in Quick Tools)
-- libnotify / `notify-send` (optional, for login-time reminder popups)
-- dnf-utils-core / `needs-restarting` (optional, improves reboot detection)
+- polkit
+- sudo
+- Flatpak (optional)
+- fwupd (optional)
+- libnotify / `notify-send` (optional, for desktop notifications)
+- dnf-utils-core / `needs-restarting` (optional, for kernel reboot detection)
 
-## 🛠️ Installation
+## Installation
 
-### Download RPM (Recommended)
+### RPM Package (Recommended)
 
-**Easiest way** — download and install:
-
-1. **[Download the RPM](https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/latest)** — click `DNF-Package-Manager-vX.Y.Z.rpm` on the Releases page
-2. Double-click the downloaded file to open in Software, or run:
+1. Download `DNF-Package-Manager-v1.1.1.rpm` from [GitHub Releases](https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/latest).
+2. Install the package:
    ```bash
    sudo dnf install ~/Downloads/DNF-Package-Manager-*.rpm
    ```
 
-Dependencies (PyQt6, polkit) are installed automatically. Updates via `dnf update dnf-gui`.
+DNF resolves required dependencies automatically.
 
-### Install from Source
+### Source Installation
 
 ```bash
 git clone https://github.com/grpace/Fedora-DNF-GUI-Tool.git
@@ -119,9 +115,9 @@ cd Fedora-DNF-GUI-Tool
 sudo ./install.sh
 ```
 
-The installer will install PyQt6, copy the app to `/opt/dnf-gui`, create the `dnf-gui` command, and add a desktop entry.
+`install.sh` installs Python dependencies, copies application files to `/opt/dnf-gui`, configures `/usr/bin/dnf-gui`, and registers the desktop launcher.
 
-### Development Mode (No Install Needed)
+### Development Run
 
 ```bash
 git clone https://github.com/grpace/Fedora-DNF-GUI-Tool.git
@@ -129,116 +125,59 @@ cd Fedora-DNF-GUI-Tool
 PYTHONPATH=src python3 -m dnf_gui
 ```
 
-### Build an RPM (Maintainers)
+### Build RPM
 
 ```bash
 ./build-rpm.sh
 sudo dnf install ~/rpmbuild/RPMS/noarch/dnf-gui-*.noarch.rpm
 ```
 
-## 🗑️ Uninstall
-
-To uninstall the Fedora DNF GUI Tool from your system, use the terminal:
+## Uninstallation
 
 ```bash
 sudo dnf remove dnf-gui
 ```
 
-This will remove the application and its desktop entry. Any dependencies installed solely for this app may also be removed depending on your DNF configuration.
-
-## 🚀 Usage
+To remove source installations:
 
 ```bash
-# After install — from anywhere
+sudo ./install.sh remove
+```
+
+## Usage
+
+Launch DNF Package Manager from the application menu or terminal:
+
+```bash
 dnf-gui
+```
 
-# Headless update check (used by the login reminder, exits 2 if updates pending)
+Run a headless check (returns exit code 2 when updates are pending):
+
+```bash
 dnf-gui --check
-
-# Or find "DNF Package Manager" in your KDE application menu
 ```
 
-**Note:** Privileged operations (install, update, remove) use `pkexec` for polkit authentication — you'll be prompted for your password through the standard KDE dialog. Tired of typing it for every update? Settings → Password prompts can make `dnf upgrade` passwordless (one-time authentication, installs/removals still ask).
+Privileged actions use polkit (`pkexec`) and prompt through standard system dialogs. If you enable the passwordless update setting in Settings, `dnf upgrade` commands run through sudo without a password prompt.
 
+## Security
 
-## 🏗️ Architecture
+- **Unprivileged queries.** Search, inspection, and update checks run under user privileges without root access.
+- **Polkit authentication.** Modifications invoke `pkexec` directly.
+- **Scoped sudoers rule.** When enabled, the sudoers drop-in (`/etc/sudoers.d/90-dnf-gui`) restricts passwordless execution exclusively to `dnf upgrade` and `dnf update`.
+- **Structured arguments.** Commands execute with explicit argument lists rather than raw shell strings.
+- **Confirmation dialogs.** Potentially destructive operations require user confirmation before execution.
 
-```
-src/dnf_gui/
-├── app.py                  # Application entry point (+ headless --check mode)
-├── core/
-│   ├── dnf_backend.py      # DNF subprocess interface (upgrade preview, reboot check)
-│   ├── flatpak_backend.py  # Flatpak subprocess interface
-│   ├── package.py          # Package data models (Package, UpdateInfo, UpgradePreview)
-│   ├── system_info.py      # System info collector (/proc, lspci)
-│   ├── updater.py          # App update checker (GitHub releases)
-│   ├── worker.py           # QThread workers (18 worker types)
-│   ├── security.py         # Security advisories (dnf updateinfo) + combined update
-│   ├── discover_manager.py # Discover/PackageKit takeover (per-user + system)
-│   ├── app_settings.py     # QSettings prefs + background reminder service
-│   └── passwordless.py     # Scoped passwordless-updates sudoers manager
-├── ui/
-│   ├── main_window.py      # Main window orchestrator
-│   ├── sidebar.py          # Navigation sidebar (9 pages)
-│   ├── pages/
-│   │   ├── updates_page.py       # System updates (combined, security, reboot banner)
-│   │   ├── installed_page.py     # Installed packages (with search/filter)
-│   │   ├── flatpak_page.py       # Flatpak manager (installed + Flathub search)
-│   │   ├── system_info_page.py   # System dashboard
-│   │   ├── toolkit_page.py       # Quick tools
-│   │   ├── repo_manager_page.py  # Repository manager
-│   │   ├── history_page.py       # Transaction history
-│   │   ├── terminal_page.py      # Live terminal output
-│   │   └── settings_page.py      # Discover, reminders, password prompts
-│   ├── widgets/
-│   │   ├── page_header.py        # Shared hero header with balanced grid alignment
-│   │   ├── package_card.py       # Package display card (Details + double-click)
-│   │   ├── package_details.py    # Package details dialog
-│   │   └── progress_bar.py       # Animated progress bar
-│   ├── styles/
-│   │   └── theme.py              # KDE Plasma 6 Breeze theme (Dark & Light, WCAG AA)
-│   └── icons.py                  # Crisp scalable vector icon engine (theme-reactive)
-└── utils/
-    └── helpers.py                # Utility functions
-```
+## Contributing
 
-## 🔐 Security
+Submit pull requests and issue reports on [GitHub](https://github.com/grpace/Fedora-DNF-GUI-Tool).
 
-- **Read operations** — Run as normal user, no root needed
-- **Write operations** — Use `pkexec` for polkit authentication
-- **Passwordless updates (opt-in)** — Settings → Password prompts installs a
-  validated, per-user sudoers file (`/etc/sudoers.d/90-dnf-gui`) covering
-  only `dnf upgrade`/`update`. Installs, removals, repo changes and firmware
-  updates still ask for your password. Delete the file (or Disable in the
-  app) to restore prompts everywhere
-- **No shell injection** — Commands built as argument lists
-- **Confirmation dialogs** — Before every destructive operation
-- **COPR warning** — Users are warned about community repos
+Maintainers can refer to [RELEASING.md](RELEASING.md) for version bumping, packaging, and release steps.
 
-## 🤝 Contributing
+## License
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+This project is licensed under the GPL-3.0 License. See [LICENSE](LICENSE) for details.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## Author
 
-**Maintainers:** See [RELEASING.md](RELEASING.md) for the release checklist.
-
-## 📋 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
-
-## 📄 License
-
-This project is licensed under the GPL-3.0 License — see the [LICENSE](LICENSE) file for details.
-
-## 👤 Author
-
-**Greg.Tech** — [https://greg.tech](https://greg.tech)
-
----
-
-*Built ❤️ in Chicago*
+Greg.Tech — <https://greg.tech>

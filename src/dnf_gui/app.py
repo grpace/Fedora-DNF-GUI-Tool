@@ -58,7 +58,7 @@ def main():
 
     from dnf_gui import __version__
     from dnf_gui.ui.main_window import MainWindow
-    from dnf_gui.ui.styles.theme import get_stylesheet
+    from dnf_gui.ui.styles.theme import get_stylesheet, resolve_mode
 
     # Enable high-DPI scaling
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -78,8 +78,8 @@ def main():
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
 
-    # Apply theme
-    app.setStyleSheet(get_stylesheet())
+    # Apply theme (follows KDE light/dark unless the user toggled it)
+    app.setStyleSheet(get_stylesheet(resolve_mode()))
 
     # Create and show main window
     window = MainWindow()

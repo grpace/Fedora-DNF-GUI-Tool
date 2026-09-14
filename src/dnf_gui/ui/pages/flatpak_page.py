@@ -36,12 +36,12 @@ class FlatpakCard(QFrame):
         name_row.setSpacing(8)
 
         name = QLabel(self._app.name or self._app.application_id)
-        name.setStyleSheet("font-size: 14px; font-weight: 600; color: #e6edf3;")
+        name.setObjectName("card_title")
         name_row.addWidget(name)
 
         if self._installed:
             badge = QLabel("Installed")
-            badge.setObjectName("badge_installed")
+            badge.setObjectName("badge_ok")
             name_row.addWidget(badge)
 
         name_row.addStretch()
@@ -49,7 +49,7 @@ class FlatpakCard(QFrame):
 
         # App ID
         id_label = QLabel(self._app.application_id)
-        id_label.setStyleSheet("color: #6e7681; font-size: 11px; font-family: monospace;")
+        id_label.setObjectName("card_mono")
         info_layout.addWidget(id_label)
 
         # Details
@@ -65,12 +65,12 @@ class FlatpakCard(QFrame):
 
         if details:
             detail_label = QLabel(" · ".join(details))
-            detail_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+            detail_label.setObjectName("card_detail")
             info_layout.addWidget(detail_label)
 
         if self._app.description:
             desc = QLabel(self._app.description)
-            desc.setStyleSheet("color: #8b949e; font-size: 12px;")
+            desc.setObjectName("card_summary")
             desc.setWordWrap(True)
             desc.setMaximumWidth(450)
             info_layout.addWidget(desc)
@@ -176,7 +176,7 @@ class FlatpakPage(QWidget):
         installed_layout.setContentsMargins(0, 12, 0, 0)
 
         self._installed_count = QLabel("")
-        self._installed_count.setStyleSheet("color: #8b949e; font-size: 13px;")
+        self._installed_count.setObjectName("hint")
         installed_layout.addWidget(self._installed_count)
 
         # Filter
@@ -228,7 +228,7 @@ class FlatpakPage(QWidget):
         search_layout.addLayout(search_bar)
 
         self._search_count = QLabel("")
-        self._search_count.setStyleSheet("color: #8b949e; font-size: 13px;")
+        self._search_count.setObjectName("hint")
         search_layout.addWidget(self._search_count)
 
         self._search_scroll = QScrollArea()

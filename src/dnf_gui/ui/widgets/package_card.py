@@ -1,7 +1,7 @@
-"""Reusable package card widget for displaying package information."""
+"""Reusable package card — theme-driven, no inline styles."""
 
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QSizePolicy
+    QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -35,19 +35,13 @@ class PackageCard(QFrame):
         info_layout = QVBoxLayout()
         info_layout.setSpacing(4)
 
-        # Name row
         name_row = QHBoxLayout()
         name_row.setSpacing(8)
 
         name_label = QLabel(self._package.name)
-        name_label.setStyleSheet("""
-            font-size: 14px;
-            font-weight: 600;
-            color: #e6edf3;
-        """)
+        name_label.setObjectName("card_title")
         name_row.addWidget(name_label)
 
-        # Status badge
         if self._package.status == PackageStatus.INSTALLED:
             badge = QLabel("Installed")
             badge.setObjectName("badge_installed")
@@ -60,7 +54,6 @@ class PackageCard(QFrame):
         name_row.addStretch()
         info_layout.addLayout(name_row)
 
-        # Version + repo
         detail_parts = []
         if self._package.version:
             detail_parts.append(self._package.full_version)
@@ -68,28 +61,27 @@ class PackageCard(QFrame):
             detail_parts.append(self._package.arch)
         if self._package.repo:
             detail_parts.append(self._package.repo)
-        
+
         if detail_parts:
             detail_label = QLabel(" · ".join(detail_parts))
-            detail_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+            detail_label.setObjectName("card_detail")
             info_layout.addWidget(detail_label)
 
-        # Summary
         if self._package.summary:
             summary_label = QLabel(self._package.summary)
-            summary_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+            summary_label.setObjectName("card_summary")
             summary_label.setWordWrap(True)
-            summary_label.setMaximumWidth(500)
             info_layout.addWidget(summary_label)
 
         layout.addLayout(info_layout, 1)
 
         # ── Action buttons ──
         action_layout = QHBoxLayout()
-        action_layout.setSpacing(12)
+        action_layout.setSpacing(8)
 
         details_btn = QPushButton("Details")
         details_btn.setObjectName("ghost_button")
+        details_btn.setProperty("compact", True)
         details_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         details_btn.setToolTip(f"Show details for {self._package.name}")
         details_btn.clicked.connect(
@@ -100,6 +92,7 @@ class PackageCard(QFrame):
         if self._package.status == PackageStatus.INSTALLED:
             remove_btn = QPushButton("Remove")
             remove_btn.setObjectName("danger_button")
+            remove_btn.setProperty("compact", True)
             remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             remove_btn.clicked.connect(
                 lambda: self.remove_clicked.emit(self._package.name)
@@ -108,6 +101,7 @@ class PackageCard(QFrame):
         elif self._package.status == PackageStatus.AVAILABLE:
             install_btn = QPushButton("Install")
             install_btn.setObjectName("success_button")
+            install_btn.setProperty("compact", True)
             install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             install_btn.clicked.connect(
                 lambda: self.install_clicked.emit(self._package.name)
@@ -116,6 +110,7 @@ class PackageCard(QFrame):
         elif self._package.status == PackageStatus.UPDATE_AVAILABLE:
             update_btn = QPushButton("Update")
             update_btn.setObjectName("warning_button")
+            update_btn.setProperty("compact", True)
             update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             update_btn.clicked.connect(
                 lambda: self.install_clicked.emit(self._package.name)

@@ -36,25 +36,23 @@ class UpdatesPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Header (own left inset, closer to the sidebar) ──
         layout.addWidget(PageHeader(
             "System Updates", "Keep your system secure and up to date"))
 
-        # ── Body ──
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(16, 0, 16, 16)
-        body_layout.setSpacing(20)
+        body_layout.setSpacing(14)
         layout.addWidget(body, 1)
 
         # ── Stats Row ──
         stats_row = QHBoxLayout()
-        stats_row.setSpacing(16)
+        stats_row.setSpacing(12)
 
-        self._total_card = self._create_stat_card("...", "Available Updates", "#3fb950")
-        self._security_card = self._create_stat_card("—", "Security", "#f85149")
-        self._flatpak_card = self._create_stat_card("—", "Flatpak Updates", "#bc8cff")
-        self._last_check_card = self._create_stat_card("—", "Last Checked", "#58a6ff")
+        self._total_card = self._create_stat_card("...", "Available Updates")
+        self._security_card = self._create_stat_card("—", "Security")
+        self._flatpak_card = self._create_stat_card("—", "Flatpak Updates")
+        self._last_check_card = self._create_stat_card("—", "Last Checked")
 
         stats_row.addWidget(self._total_card, 1)
         stats_row.addWidget(self._security_card, 1)
@@ -65,7 +63,7 @@ class UpdatesPage(QWidget):
 
         # ── Action Bar ──
         action_bar = QHBoxLayout()
-        action_bar.setSpacing(16)
+        action_bar.setSpacing(8)
 
         self._check_btn = QPushButton("Check for Updates")
         self._check_btn.setObjectName("primary_button")
@@ -117,20 +115,21 @@ class UpdatesPage(QWidget):
         banner_layout.setContentsMargins(16, 10, 16, 10)
         banner_layout.setSpacing(12)
         banner_label = QLabel(
-            "↻  Reboot required — a kernel or core library was updated. "
+            "Reboot required — a kernel or core library was updated. "
             "Reboot to finish applying updates.")
         banner_label.setObjectName("reboot_banner_text")
         banner_label.setWordWrap(True)
         banner_layout.addWidget(banner_label, 1)
         self._reboot_btn = QPushButton("Reboot Now")
         self._reboot_btn.setObjectName("warning_button")
+        self._reboot_btn.setProperty("compact", True)
         self._reboot_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._reboot_btn.clicked.connect(self.reboot_requested.emit)
         banner_layout.addWidget(self._reboot_btn)
         self._reboot_dismiss = QPushButton("Later")
         self._reboot_dismiss.setObjectName("ghost_button")
+        self._reboot_dismiss.setProperty("compact", True)
         self._reboot_dismiss.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._reboot_dismiss.clicked.connect(self._dismiss_reboot_banner)
         self._reboot_dismiss.clicked.connect(self._dismiss_reboot_banner)
         banner_layout.addWidget(self._reboot_dismiss)
         body_layout.addWidget(self._reboot_banner)
@@ -150,7 +149,7 @@ class UpdatesPage(QWidget):
         self._list_container = QWidget()
         self._list_layout = QVBoxLayout(self._list_container)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.setSpacing(12)
+        self._list_layout.setSpacing(8)
         self._list_layout.addStretch()
 
         self._scroll.setWidget(self._list_container)
@@ -166,39 +165,26 @@ class UpdatesPage(QWidget):
         body_layout.addWidget(self._empty_label, 1)
         self._scroll.hide()
 
-    def _create_stat_card(self, value: str, label: str, color: str) -> QFrame:
-        """Create a prominent, modern statistics card widget."""
+    def _create_stat_card(self, value: str, label: str) -> QFrame:
+        """Theme-driven stat card (no inline styles — lightweight)."""
         card = QFrame()
         card.setObjectName("stats_card")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        card.setStyleSheet("""
-            QFrame#stats_card {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 12px;
-                padding: 16px 20px;
-            }
-            QFrame#stats_card:hover {
-                border-color: #475569;
-                background-color: #212e42;
-            }
-        """)
-        
+
         card_layout = QVBoxLayout(card)
-        card_layout.setSpacing(8)
+        card_layout.setSpacing(2)
         card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         val_label = QLabel(value)
+        val_label.setObjectName("stats_number")
         val_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        val_label.setStyleSheet(f"font-size: 32px; font-weight: 800; color: {color};")
         card_layout.addWidget(val_label)
 
         desc_label = QLabel(label)
+        desc_label.setObjectName("stats_label")
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc_label.setStyleSheet("color: #8b949e; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;")
         card_layout.addWidget(desc_label)
 
-        # Store reference for updates
         card._value_label = val_label
         return card
 
@@ -210,10 +196,6 @@ class UpdatesPage(QWidget):
         self._security_btn.setEnabled(False)
         if loading:
             self._empty_label.setText("Checking repositories for system updates...\n(This might take a minute)")
-            self._empty_label.setStyleSheet("""
-                color: #58a6ff; font-size: 16px; font-weight: 600;
-                background-color: #1e293b; border-radius: 12px; border: 1px solid #334155;
-            """)
             self._empty_label.show()
             self._scroll.hide()
         else:
@@ -224,19 +206,15 @@ class UpdatesPage(QWidget):
         """Display the update check results."""
         self._update_info = info
 
-        # Update stats
         self._total_card._value_label.setText(str(info.total_updates))
         if info.last_checked:
-            # last_checked format is "%Y-%m-%d %I:%M %p". Split by space and take the time and AM/PM parts.
             parts = info.last_checked.split(" ")
             time_str = " ".join(parts[1:]) if len(parts) > 1 else info.last_checked
             self._last_check_card._value_label.setText(time_str)
 
-        # Enable/disable upgrade button
         self._upgrade_btn.setEnabled(info.total_updates > 0)
         self._everything_btn.setEnabled(info.total_updates > 0)
 
-        # Clear existing cards safely without removing the stretch
         while self._list_layout.count() > 1:
             item = self._list_layout.takeAt(0)
             if item.widget():
@@ -244,10 +222,6 @@ class UpdatesPage(QWidget):
 
         if info.total_updates == 0:
             self._empty_label.setText("Your system is completely up to date!")
-            self._empty_label.setStyleSheet("""
-                color: #3fb950; font-size: 20px; font-weight: 700;
-                background-color: #1e293b; border-radius: 12px; border: 1px solid #334155;
-            """)
             self._empty_label.show()
             self._scroll.hide()
         else:
@@ -282,10 +256,6 @@ class UpdatesPage(QWidget):
         if security is not None:
             self._security_card._value_label.setText(str(security.total))
             self._security_btn.setEnabled(security.total > 0)
-            if security.urgent:
-                self._security_card._value_label.setStyleSheet(
-                    "font-size: 32px; font-weight: 800; color: #f85149;"
-                )
         total = dnf_info.total_updates + flatpak_count
         self._everything_btn.setEnabled(total > 0)
         if total == 0:

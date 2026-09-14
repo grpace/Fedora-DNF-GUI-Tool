@@ -46,11 +46,11 @@ class TerminalPage(QWidget):
         # ── Status indicator ──
         self._status_row = QHBoxLayout()
         self._status_indicator = QLabel("●")
-        self._status_indicator.setStyleSheet("color: #6e7681; font-size: 10px;")
+        self._status_indicator.setObjectName("term_dot_idle")
         self._status_row.addWidget(self._status_indicator)
 
         self._status_text = QLabel("Idle — No operations running")
-        self._status_text.setStyleSheet("color: #8b949e; font-size: 12px;")
+        self._status_text.setObjectName("hint")
         self._status_row.addWidget(self._status_text)
         self._status_row.addStretch()
 
@@ -108,30 +108,38 @@ class TerminalPage(QWidget):
         self.append_line(f"> {text}")
         self.input_submitted.emit(text)
 
+    def _set_dot(self, name: str):
+        self._status_indicator.setObjectName(name)
+        try:
+            self._status_indicator.style().unpolish(self._status_indicator)
+            self._status_indicator.style().polish(self._status_indicator)
+        except Exception:
+            pass
+
     def set_running(self, running: bool, operation: str = ""):
         """Update the running status indicator."""
         self._input_field.setVisible(running)
         self._cancel_btn.setVisible(running)
         if running:
             self._input_field.setFocus()
-            self._status_indicator.setStyleSheet("color: #3fb950; font-size: 10px;")
+            self._set_dot("term_dot_run")
             self._status_text.setText(f"Running — {operation}")
         else:
-            self._status_indicator.setStyleSheet("color: #6e7681; font-size: 10px;")
+            self._set_dot("term_dot_idle")
             self._status_text.setText("Idle — No operations running")
 
     def set_error(self):
         """Set error status."""
         self._input_field.setVisible(False)
         self._cancel_btn.setVisible(False)
-        self._status_indicator.setStyleSheet("color: #f85149; font-size: 10px;")
+        self._set_dot("term_dot_err")
         self._status_text.setText("Error — Operation failed")
 
     def set_success(self):
         """Set success status."""
         self._input_field.setVisible(False)
         self._cancel_btn.setVisible(False)
-        self._status_indicator.setStyleSheet("color: #3fb950; font-size: 10px;")
+        self._set_dot("term_dot_ok")
         self._status_text.setText("Complete — Operation finished successfully")
 
     def _clear_terminal(self):

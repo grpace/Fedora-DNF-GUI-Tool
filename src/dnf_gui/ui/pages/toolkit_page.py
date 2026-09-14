@@ -29,12 +29,7 @@ class ToolCard(QFrame):
         icon_label = QLabel(icon)
         icon_label.setFixedSize(48, 48)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet(f"""
-            font-size: 26px;
-            background-color: {color}20;
-            border: 1px solid {color}40;
-            border-radius: 10px;
-        """)
+        icon_label.setObjectName("tool_icon")
         layout.addWidget(icon_label)
 
         # Text
@@ -42,11 +37,11 @@ class ToolCard(QFrame):
         text_layout.setSpacing(2)
 
         title_label = QLabel(title)
-        title_label.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {color};")
+        title_label.setObjectName("tool_title")
         text_layout.addWidget(title_label)
 
         desc_label = QLabel(description)
-        desc_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+        desc_label.setObjectName("tool_desc")
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
 
@@ -111,7 +106,7 @@ class ToolkitPage(QWidget):
         content.addWidget(self._section_label("Repositories & Sources"))
 
         self._repos_empty_label = QLabel("You already have all tools in this section installed or enabled.")
-        self._repos_empty_label.setStyleSheet("color: #8b949e; font-size: 13px; font-style: italic; padding: 12px 16px;")
+        self._repos_empty_label.setObjectName("hint")
         self._repos_empty_label.hide()
         content.addWidget(self._repos_empty_label)
 

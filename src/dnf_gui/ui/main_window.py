@@ -160,6 +160,7 @@ class MainWindow(QMainWindow):
         # Sidebar
         self._sidebar.page_changed.connect(self._on_page_changed)
         self._sidebar.update_clicked.connect(self._on_update_clicked)
+        self._sidebar.theme_toggle_requested.connect(self._toggle_theme)
 
         # Updates page
         self._updates_page.check_updates_clicked.connect(self._check_updates)
@@ -266,6 +267,25 @@ class MainWindow(QMainWindow):
     def _switch_page(self, index: int):
         self._sidebar.set_active_page(index)
         self._on_page_changed(index)
+
+    def _toggle_theme(self):
+        """Cycle dark -> light -> dark, persist, and re-apply stylesheet."""
+        try:
+            from PyQt6.QtWidgets import QApplication
+            from dnf_gui.ui.styles.theme import (
+                get_stylesheet, get_saved_theme_mode,
+                save_theme_mode, resolve_mode,
+            )
+            current = resolve_mode()
+            new_mode = "light" if current == "dark" else "dark"
+            save_theme_mode(new_mode)
+            app = QApplication.instance()
+            if app is not None:
+                app.setStyleSheet(get_stylesheet(new_mode))
+            self._sidebar.apply_theme(new_mode)
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
     def _refresh_current(self):
         try:

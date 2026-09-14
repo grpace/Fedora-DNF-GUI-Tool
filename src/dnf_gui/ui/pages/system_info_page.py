@@ -56,7 +56,7 @@ class SystemInfoPage(QWidget):
         os_layout = QVBoxLayout(os_card)
 
         os_title = QLabel("Operating System")
-        os_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        os_title.setObjectName("tool_title")
         os_layout.addWidget(os_title)
 
         self._os_grid = QGridLayout()
@@ -80,9 +80,9 @@ class SystemInfoPage(QWidget):
         ]
         for row, (label, key, optional) in enumerate(os_items):
             lbl = QLabel(label)
-            lbl.setStyleSheet("color: #A1A1AA; font-size: 13px; font-weight: 500;")
+            lbl.setObjectName("card_detail")
             val = QLabel("—")
-            val.setStyleSheet("color: #EDEDED; font-size: 13px;")
+            val.setObjectName("card_title")
             val.setWordWrap(True)
             self._os_grid.addWidget(lbl, row, 0)
             self._os_grid.addWidget(val, row, 1)
@@ -103,16 +103,16 @@ class SystemInfoPage(QWidget):
         cpu_layout = QVBoxLayout(cpu_card)
 
         cpu_title = QLabel("Processor")
-        cpu_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        cpu_title.setObjectName("tool_title")
         cpu_layout.addWidget(cpu_title)
 
         self._cpu_model = QLabel("—")
-        self._cpu_model.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        self._cpu_model.setObjectName("card_title")
         self._cpu_model.setWordWrap(True)
         cpu_layout.addWidget(self._cpu_model)
 
         self._cpu_cores = QLabel("")
-        self._cpu_cores.setStyleSheet("color: #A1A1AA; font-size: 12px;")
+        self._cpu_cores.setObjectName("card_detail")
         cpu_layout.addWidget(self._cpu_cores)
         cpu_layout.addStretch()
 
@@ -124,11 +124,11 @@ class SystemInfoPage(QWidget):
         gpu_layout = QVBoxLayout(gpu_card)
 
         gpu_title = QLabel("Graphics")
-        gpu_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        gpu_title.setObjectName("tool_title")
         gpu_layout.addWidget(gpu_title)
 
         self._gpu_model = QLabel("—")
-        self._gpu_model.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        self._gpu_model.setObjectName("card_title")
         self._gpu_model.setWordWrap(True)
         gpu_layout.addWidget(self._gpu_model)
         gpu_layout.addStretch()
@@ -146,24 +146,21 @@ class SystemInfoPage(QWidget):
         ram_layout = QVBoxLayout(ram_card)
 
         ram_title = QLabel("Memory (RAM)")
-        ram_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        ram_title.setObjectName("tool_title")
         ram_layout.addWidget(ram_title)
 
         self._ram_bar = QProgressBar()
         self._ram_bar.setFixedHeight(8)
         self._ram_bar.setTextVisible(False)
-        self._ram_bar.setStyleSheet("""
-            QProgressBar { background-color: #222222; border: none; border-radius: 4px; }
-            QProgressBar::chunk { background-color: #EDEDED; border-radius: 4px; }
-        """)
+        self._ram_bar.setObjectName("resource_bar")
         ram_layout.addWidget(self._ram_bar)
 
         self._ram_label = QLabel("— / —")
-        self._ram_label.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        self._ram_label.setObjectName("card_title")
         ram_layout.addWidget(self._ram_label)
 
         self._ram_percent = QLabel("")
-        self._ram_percent.setStyleSheet("color: #A1A1AA; font-size: 12px;")
+        self._ram_percent.setObjectName("card_detail")
         ram_layout.addWidget(self._ram_percent)
         ram_layout.addStretch()
 
@@ -175,24 +172,21 @@ class SystemInfoPage(QWidget):
         disk_layout = QVBoxLayout(disk_card)
 
         disk_title = QLabel("Disk (Root)")
-        disk_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        disk_title.setObjectName("tool_title")
         disk_layout.addWidget(disk_title)
 
         self._disk_bar = QProgressBar()
         self._disk_bar.setFixedHeight(8)
         self._disk_bar.setTextVisible(False)
-        self._disk_bar.setStyleSheet("""
-            QProgressBar { background-color: #222222; border: none; border-radius: 4px; }
-            QProgressBar::chunk { background-color: #EDEDED; border-radius: 4px; }
-        """)
+        self._disk_bar.setObjectName("resource_bar")
         disk_layout.addWidget(self._disk_bar)
 
         self._disk_label = QLabel("— / —")
-        self._disk_label.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        self._disk_label.setObjectName("card_title")
         disk_layout.addWidget(self._disk_label)
 
         self._disk_free_label = QLabel("")
-        self._disk_free_label.setStyleSheet("color: #A1A1AA; font-size: 12px;")
+        self._disk_free_label.setObjectName("card_detail")
         disk_layout.addWidget(self._disk_free_label)
         disk_layout.addStretch()
 
@@ -210,18 +204,15 @@ class SystemInfoPage(QWidget):
         swap_card.hide()
         swap_layout = QVBoxLayout(swap_card)
         swap_title = QLabel("Swap")
-        swap_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        swap_title.setObjectName("tool_title")
         swap_layout.addWidget(swap_title)
         self._swap_bar = QProgressBar()
         self._swap_bar.setFixedHeight(8)
         self._swap_bar.setTextVisible(False)
-        self._swap_bar.setStyleSheet("""
-            QProgressBar { background-color: #222222; border: none; border-radius: 4px; }
-            QProgressBar::chunk { background-color: #EDEDED; border-radius: 4px; }
-        """)
+        self._swap_bar.setObjectName("resource_bar")
         swap_layout.addWidget(self._swap_bar)
         self._swap_label = QLabel("— / —")
-        self._swap_label.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        self._swap_label.setObjectName("card_title")
         swap_layout.addWidget(self._swap_label)
         swap_layout.addStretch()
         self._swap_card = swap_card
@@ -232,10 +223,10 @@ class SystemInfoPage(QWidget):
         battery_card.hide()
         battery_layout = QVBoxLayout(battery_card)
         battery_title = QLabel("Battery")
-        battery_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        battery_title.setObjectName("tool_title")
         battery_layout.addWidget(battery_title)
         self._battery_label = QLabel("—")
-        self._battery_label.setStyleSheet("color: #EDEDED; font-size: 13px;")
+        self._battery_label.setObjectName("card_title")
         self._battery_label.setWordWrap(True)
         battery_layout.addWidget(self._battery_label)
         battery_layout.addStretch()
@@ -246,7 +237,7 @@ class SystemInfoPage(QWidget):
         env_card.setObjectName("card")
         env_layout = QVBoxLayout(env_card)
         env_title = QLabel("Environment")
-        env_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        env_title.setObjectName("tool_title")
         env_layout.addWidget(env_title)
         self._env_grid = QGridLayout()
         self._env_grid.setSpacing(8)
@@ -258,9 +249,9 @@ class SystemInfoPage(QWidget):
             ("IP Address", "primary_ip"),
         ]):
             lbl = QLabel(label)
-            lbl.setStyleSheet("color: #A1A1AA; font-size: 13px; font-weight: 500;")
+            lbl.setObjectName("card_detail")
             val = QLabel("—")
-            val.setStyleSheet("color: #EDEDED; font-size: 13px;")
+            val.setObjectName("card_title")
             val.setWordWrap(True)
             self._env_grid.addWidget(lbl, row, 0)
             self._env_grid.addWidget(val, row, 1)
@@ -300,11 +291,11 @@ class SystemInfoPage(QWidget):
         card_layout.setSpacing(4)
 
         title_label = QLabel(f"{title}")
-        title_label.setStyleSheet("font-size: 16px; font-weight: 600;")
+        title_label.setObjectName("tool_title")
         card_layout.addWidget(title_label)
 
         val_label = QLabel(value)
-        val_label.setStyleSheet("color: #14b8a6; font-size: 28px; font-weight: 800; letter-spacing: -1px;")
+        val_label.setObjectName("stats_number")
         card_layout.addWidget(val_label)
         card_layout.addStretch()
 

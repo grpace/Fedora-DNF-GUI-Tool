@@ -28,14 +28,7 @@ class HistoryCard(QFrame):
         id_label = QLabel(f"#{self._txn.get('id', '?')}")
         id_label.setFixedWidth(60)
         id_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        id_label.setStyleSheet("""
-            background-color: #1a3a5c;
-            color: #58a6ff;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 700;
-            padding: 6px 8px;
-        """)
+        id_label.setObjectName("txn_badge")
         layout.addWidget(id_label)
 
         # Info
@@ -44,7 +37,7 @@ class HistoryCard(QFrame):
 
         command = self._txn.get("command", "Unknown operation")
         cmd_label = QLabel(command)
-        cmd_label.setStyleSheet("font-size: 13px; font-weight: 600; color: #e6edf3;")
+        cmd_label.setObjectName("card_title")
         cmd_label.setWordWrap(True)
         info_layout.addWidget(cmd_label)
 
@@ -58,7 +51,7 @@ class HistoryCard(QFrame):
 
         if detail_parts:
             detail = QLabel(" · ".join(detail_parts))
-            detail.setStyleSheet("color: #8b949e; font-size: 12px;")
+            detail.setObjectName("card_detail")
             info_layout.addWidget(detail)
 
         layout.addLayout(info_layout, 1)
@@ -118,7 +111,7 @@ class HistoryPage(QWidget):
         layout.addWidget(body, 1)
 
         self._count_label = QLabel("")
-        self._count_label.setStyleSheet("color: #8b949e; font-size: 13px;")
+        self._count_label.setObjectName("hint")
         body_layout.addWidget(self._count_label)
 
         # ── Separator ──
@@ -135,7 +128,7 @@ class HistoryPage(QWidget):
 
         detail_header = QHBoxLayout()
         detail_title = QLabel("📋  Transaction Details")
-        detail_title.setStyleSheet("font-size: 14px; font-weight: 700; color: #58a6ff;")
+        detail_title.setObjectName("status_title")
         detail_header.addWidget(detail_title)
         detail_header.addStretch()
 

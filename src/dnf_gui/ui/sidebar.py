@@ -1,10 +1,37 @@
-"""Navigation sidebar with animated active state — expanded with all feature pages."""
+"""Navigation sidebar — Breeze-style rail with code-drawn icons.
+
+Design notes:
+- Every row is ONE QPushButton (icon + label + count badge inside), so the
+  update-count pill can never detach from its row.
+- Icons are painted in code (see dnf_gui.ui.icons) with the theme's
+  foreground color — distro icon themes have fixed colors that vanish or
+  clash on light/dark surfaces, so QIcon.fromTheme is deliberately avoided.
+- Text/icon colors are driven in code for base/hover/active states because
+  QSS cannot target child widgets by parent state.
+"""
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QMouseEvent, QColor
+
+from dnf_gui.ui.icons import paint_icon
+
+_NAV_ITEMS: list[tuple[str, str, str]] = [
+    # (label, section, icon kind)
+    ("Updates", "PACKAGE MANAGEMENT", "updates"),
+    ("Installed", "PACKAGE MANAGEMENT", "installed"),
+    ("Flatpak", "PACKAGE MANAGEMENT", "flatpak"),
+    ("System Info", "SYSTEM", "sysinfo"),
+    ("Quick Tools", "SYSTEM", "tools"),
+    ("Repositories", "SYSTEM", "repos"),
+    ("History", "SYSTEM", "history"),
+    ("Terminal", "SYSTEM", "terminal"),
+    ("Settings", "SYSTEM", "settings"),
+]
+
+MAX_BADGE_COUNT = 999
 
 
 class ClickableLabel(QLabel):
@@ -18,21 +45,110 @@ class ClickableLabel(QLabel):
 
 
 class SidebarButton(QPushButton):
-    """A sidebar navigation button with icon and active state."""
+    """One unified nav row: icon + label + optional count badge inside."""
 
-    def __init__(self, text: str, parent=None):
-        super().__init__(text, parent)
+    def __init__(self, text: str, icon_kind: str = "", parent=None):
+        super().__init__(parent)
         self.setObjectName("nav_button")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setCheckable(True)
-        self.setProperty("active", False)
+        self._icon_kind = icon_kind
+        self._active = False
+        self._hover = False
+        self._fg = QColor("#aeb4c2")
+        self._fg_active = QColor("#3daee9")
 
+        row = QHBoxLayout(self)
+        # Explicit margins: a child layout on QPushButton does not reliably
+        # honor QSS padding for positioning, so the left inset clears the
+        # 3px active-indicator bar deterministically.
+        row.setContentsMargins(14, 0, 12, 0)
+        row.setSpacing(10)
+
+        self._icon_label = QLabel()
+        self._icon_label.setFixedSize(20, 20)
+        # Safety net: whatever the pixmap size, it always fits the label —
+        # a wrong-sized pixmap can never overflow/crop again.
+        self._icon_label.setScaledContents(True)
+        self._icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(self._icon_label)
+
+        self._text_label = QLabel(text)
+        self._text_label.setObjectName("nav_label")
+        row.addWidget(self._text_label, 1)
+
+        self._badge = QLabel("")
+        self._badge.setObjectName("nav_badge")
+        self._badge.hide()
+        row.addWidget(self._badge)
+
+        self._repaint()
+
+    # ── state ──
     def set_active(self, active: bool):
-        """Set the active/selected state."""
-        self.setProperty("active", active)
+        self._active = active
         self.setChecked(active)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        self.setProperty("active", active)
+        self._polish()
+        self._repaint()
+
+    def is_active(self) -> bool:
+        return self._active
+
+    def enterEvent(self, event):
+        super().enterEvent(event)
+        self._hover = True
+        self.setProperty("hovered", True)
+        self._polish()
+        self._repaint()
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self._hover = False
+        self.setProperty("hovered", False)
+        self._polish()
+        self._repaint()
+
+    def _polish(self):
+        try:
+            self.style().unpolish(self)
+            self.style().polish(self)
+        except Exception:
+            pass
+
+    def _repaint(self):
+        """Recolor the icon pixmap for the current state.
+
+        Text color/weight is handled by QSS (nav_label rules keyed off
+        the button's hover/active state); only the pixmap needs code.
+        The pixmap is painted at the label's exact device size because
+        QLabel blits pixmaps 1:1 in device pixels.
+        """
+        color = QColor(self._fg_active if (self._active or self._hover)
+                       else self._fg)
+        if self._icon_kind:
+            self._icon_label.setPixmap(
+                paint_icon(self._icon_kind, color, 20))
+
+    def apply_theme_colors(self, fg: str, fg_active: str):
+        self._fg = QColor(fg)
+        self._fg_active = QColor(fg_active)
+        self._repaint()
+
+    # ── compat / badge ──
+    def setText(self, text: str):
+        self._text_label.setText(text)
+
+    def text(self) -> str:
+        return self._text_label.text()
+
+    def set_count(self, count: int):
+        if count > 0:
+            shown = str(count) if count <= MAX_BADGE_COUNT else f"{MAX_BADGE_COUNT}+"
+            self._badge.setText(shown)
+            self._badge.show()
+        else:
+            self._badge.hide()
 
 
 class Sidebar(QWidget):
@@ -40,10 +156,13 @@ class Sidebar(QWidget):
 
     page_changed = pyqtSignal(int)  # page index
     update_clicked = pyqtSignal()  # when version/update area is clicked
+    theme_toggle_requested = pyqtSignal()  # footer theme button
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("sidebar")
+        # Plain QWidget needs this for QSS background-color to paint.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._buttons: list[SidebarButton] = []
         self._setup_ui()
 
@@ -52,85 +171,65 @@ class Sidebar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── App Title ──
-        title = QLabel("DNF Package\nManager")
+        title = QLabel("DNF Manager")
         title.setObjectName("sidebar_title")
         layout.addWidget(title)
 
-        # No subtitle
+        subtitle = QLabel("Fedora KDE package center")
+        subtitle.setObjectName("sidebar_subtitle")
+        layout.addWidget(subtitle)
 
-        # ── Separator ──
         sep = QFrame()
         sep.setObjectName("separator")
         sep.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(sep)
 
-        # ── Navigation — grouped by category ──
-
-        # Package Management section label
-        section1 = QLabel("PACKAGE MANAGEMENT")
-        section1.setStyleSheet("""
-            color: #64748b; font-size: 11px; font-weight: 700;
-            letter-spacing: 1px; padding: 16px 16px 8px 16px;
-        """)
-        layout.addWidget(section1)
-
-        pm_items = [
-            ("Updates", "Updates"),
-            ("Installed", "Installed"),
-            ("Flatpak", "Flatpak"),
-        ]
-
-        for _, text in pm_items:
-            btn = SidebarButton(text)
-            btn.clicked.connect(lambda checked, idx=len(self._buttons): self._on_button_clicked(idx))
+        current_section: str | None = None
+        for idx, (label, section, icon_kind) in enumerate(_NAV_ITEMS):
+            if section != current_section:
+                sec = QLabel(section)
+                sec.setObjectName("nav_section")
+                layout.addWidget(sec)
+                current_section = section
+            btn = SidebarButton(label, icon_kind)
+            btn.clicked.connect(
+                lambda checked=False, i=idx: self._on_button_clicked(i))
             self._buttons.append(btn)
             layout.addWidget(btn)
-
-        # System section label
-        section2 = QLabel("SYSTEM")
-        section2.setStyleSheet("""
-            color: #64748b; font-size: 11px; font-weight: 700;
-            letter-spacing: 1px; padding: 16px 16px 8px 16px;
-        """)
-        layout.addWidget(section2)
-
-        system_items = [
-            ("System Info", "System Info"),
-            ("Quick Tools", "Quick Tools"),
-            ("Repositories", "Repositories"),
-            ("History", "History"),
-            ("Terminal", "Terminal"),
-            ("Settings", "Settings"),
-        ]
-
-        for _, text in system_items:
-            btn = SidebarButton(text)
-            btn.clicked.connect(lambda checked, idx=len(self._buttons): self._on_button_clicked(idx))
-            self._buttons.append(btn)
-            layout.addWidget(btn)
-
 
         layout.addStretch(1)
 
-        # ── Bottom section ──
-        sep2 = QFrame()
-        sep2.setObjectName("separator")
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(sep2)
+        # ── Footer ──
+        footer = QWidget()
+        footer.setObjectName("sidebar_footer")
+        footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(0, 8, 0, 0)
+        footer_layout.setSpacing(0)
 
         from dnf_gui import __version__
+        from dnf_gui.ui.styles.theme import get_saved_theme_mode, resolve_mode
+        saved = get_saved_theme_mode()
+        current = resolve_mode(saved if saved != "auto" else None)
+        self._theme_btn = QPushButton(
+            "Light mode" if current == "dark" else "Dark mode")
+        self._theme_btn.setObjectName("theme_toggle")
+        self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._theme_btn.setToolTip("Toggle light / dark theme")
+        self._theme_btn.clicked.connect(self.theme_toggle_requested.emit)
+        footer_layout.addWidget(self._theme_btn)
+
         self._version_label = ClickableLabel(f"v{__version__} — Greg.Tech")
-        self._version_label.setStyleSheet("""
-            color: #64748b; font-size: 12px; padding: 16px;
-        """)
+        self._version_label.setObjectName("sidebar_version")
         self._version_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self._version_label.clicked.connect(self.update_clicked.emit)
-        layout.addWidget(self._version_label)
+        footer_layout.addWidget(self._version_label)
+        layout.addWidget(footer)
 
-        # Set first button active
         if self._buttons:
             self._buttons[0].set_active(True)
+
+        self.apply_theme(current)
 
     def _on_button_clicked(self, index: int):
         """Handle button click — update active state and emit signal."""
@@ -138,16 +237,14 @@ class Sidebar(QWidget):
             for i, btn in enumerate(self._buttons):
                 btn.set_active(i == index)
             self.page_changed.emit(index)
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
 
     def set_update_badge(self, count: int):
         """Update the Updates button with a count badge."""
-        if count > 0:
-            self._buttons[0].setText(f"Updates ({count})")
-        else:
-            self._buttons[0].setText("Updates")
+        if self._buttons:
+            self._buttons[0].set_count(count)
 
     def set_active_page(self, index: int):
         """Programmatically set the active page."""
@@ -156,8 +253,19 @@ class Sidebar(QWidget):
 
     def set_update_available(self, latest_version: str):
         """Show that an update is available in the version label."""
-        self._version_label.setText(f"New version v{latest_version} available — Click to update")
-        self._version_label.setToolTip(f"Open the GitHub releases page for v{latest_version}")
-        self._version_label.setStyleSheet("""
-            color: #22c55e; font-size: 12px; padding: 16px;
-        """)
+        self._version_label.setText(
+            f"v{latest_version} available — click to update")
+        self._version_label.setToolTip(
+            f"Open the GitHub releases page for v{latest_version}")
+
+    def refresh_theme_button(self, mode: str):
+        """Update the footer toggle label after a theme change."""
+        self._theme_btn.setText("Light mode" if mode == "dark" else "Dark mode")
+
+    def apply_theme(self, mode: str):
+        """Apply icon/text colors for a theme mode (called on toggle)."""
+        from dnf_gui.ui.styles.theme import get_palette
+        pal = get_palette(mode)
+        for btn in self._buttons:
+            btn.apply_theme_colors(pal["text_dim"], pal["accent"])
+        self.refresh_theme_button(mode)

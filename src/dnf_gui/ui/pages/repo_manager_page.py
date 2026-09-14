@@ -24,11 +24,12 @@ class RepoCard(QFrame):
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(12)
 
-        # Status indicator  
+        # Status dot (plain colored dot — never a pill, so it can't squish)
         enabled = self._repo.get("enabled", True)
         status = QLabel("●")
-        status.setFixedWidth(20)
-        status.setStyleSheet(f"color: {'#3fb950' if enabled else '#6e7681'}; font-size: 14px;")
+        status.setFixedWidth(22)
+        status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status.setObjectName("repo_dot_on" if enabled else "repo_dot_off")
         layout.addWidget(status)
 
         # Info
@@ -37,40 +38,36 @@ class RepoCard(QFrame):
 
         repo_id = self._repo.get("id", "unknown")
         id_label = QLabel(repo_id)
-        id_label.setStyleSheet("font-size: 14px; font-weight: 600; color: #e6edf3;")
+        id_label.setObjectName("card_title")
         info_layout.addWidget(id_label)
 
         name = self._repo.get("name", "")
         if name and name != repo_id:
             name_label = QLabel(name)
-            name_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+            name_label.setObjectName("card_detail")
             name_label.setWordWrap(True)
             info_layout.addWidget(name_label)
 
         layout.addLayout(info_layout, 1)
 
-        # Badge
+        # Badge (fixed width so the column lines up across rows)
         badge = QLabel("Enabled" if enabled else "Disabled")
-        badge.setStyleSheet(f"""
-            background-color: {'#3fb95020' if enabled else '#6e768120'};
-            color: {'#3fb950' if enabled else '#6e7681'};
-            border: 1px solid {'#3fb95040' if enabled else '#6e768140'};
-            border-radius: 10px;
-            padding: 4px 10px;
-            font-size: 11px;
-            font-weight: 600;
-        """)
+        badge.setObjectName("badge_ok" if enabled else "badge_muted")
+        badge.setMinimumWidth(84)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(badge)
 
-        # Toggle button
+        # Toggle button (fixed width so the badge column never shifts)
         if enabled:
             btn = QPushButton("Disable")
             btn.setObjectName("danger_button")
+            btn.setMinimumWidth(88)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self.disable_clicked.emit(repo_id))
         else:
             btn = QPushButton("Enable")
             btn.setObjectName("success_button")
+            btn.setMinimumWidth(88)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self.enable_clicked.emit(repo_id))
 
@@ -136,7 +133,7 @@ class RepoManagerPage(QWidget):
         body_layout.addWidget(self._filter_input)
 
         self._count_label = QLabel("")
-        self._count_label.setStyleSheet("color: #8b949e; font-size: 13px;")
+        self._count_label.setObjectName("hint")
         body_layout.addWidget(self._count_label)
 
         # ── Separator ──

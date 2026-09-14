@@ -47,7 +47,7 @@ class InstalledPage(QWidget):
 
         # ── Stats ──
         self._count_label = QLabel("Loading...")
-        self._count_label.setStyleSheet("color: #8b949e; font-size: 13px; padding: 0 0 8px 0;")
+        self._count_label.setObjectName("hint")
         body_layout.addWidget(self._count_label)
 
         # ── Search & Filter Bar ──

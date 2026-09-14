@@ -1,8 +1,8 @@
-"""Shared page header — title + subtitle with their own left inset.
+"""Shared page header — kicker + title + subtitle with fixed left inset.
 
-Every page puts its headings at 8px from the content edge while the body
-below stays at 16px. That small deliberate offset is what keeps headings
-feeling anchored to the sidebar instead of floating mid-panel.
+Contract (covered by tests): the ``page_header`` QLabel sits at x=8 within
+the page. Body content on every page stays at 16px, so headings feel
+anchored to the sidebar.
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
@@ -13,11 +13,17 @@ class PageHeader(QWidget):
     """Title/subtitle block. Optional action button sits next to the title."""
 
     def __init__(self, title: str, subtitle: str = "",
-                 action: QPushButton | None = None, parent=None):
+                 action: QPushButton | None = None,
+                 kicker: str = "", parent=None):
         super().__init__(parent)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(8, 0, 16, 0)
         outer.setSpacing(0)
+
+        if kicker:
+            kick = QLabel(kicker.upper())
+            kick.setObjectName("page_kicker")
+            outer.addWidget(kick)
 
         title_label = QLabel(title)
         title_label.setObjectName("page_header")

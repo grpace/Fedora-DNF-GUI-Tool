@@ -29,12 +29,12 @@ class PackageDetailsDialog(QDialog):
         layout.setSpacing(12)
 
         title = QLabel(package_name)
-        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #e6edf3;")
+        title.setObjectName("card_title")
         title.setWordWrap(True)
         layout.addWidget(title)
 
         self._status = QLabel("Loading package details…")
-        self._status.setStyleSheet("color: #8b949e; font-size: 13px;")
+        self._status.setObjectName("hint")
         layout.addWidget(self._status)
 
         scroll = QScrollArea()
@@ -50,7 +50,7 @@ class PackageDetailsDialog(QDialog):
 
         self._desc_label = QLabel("")
         self._desc_label.setWordWrap(True)
-        self._desc_label.setStyleSheet("color: #8b949e; font-size: 12px;")
+        self._desc_label.setObjectName("card_summary")
         self._desc_label.hide()
         layout.addWidget(self._desc_label)
 
@@ -68,7 +68,6 @@ class PackageDetailsDialog(QDialog):
 
     def display_package(self, pkg) -> None:
         """Fill the dialog from a Package (or show 'not found')."""
-        # Clear previous rows
         while self._grid.count():
             item = self._grid.takeAt(0)
             if item.widget():
@@ -91,9 +90,9 @@ class PackageDetailsDialog(QDialog):
             if not value:
                 continue
             key = QLabel(label)
-            key.setStyleSheet("color: #8b949e; font-size: 13px;")
+            key.setObjectName("card_detail")
             val = QLabel(str(value))
-            val.setStyleSheet("color: #e6edf3; font-size: 13px;")
+            val.setObjectName("card_title")
             val.setWordWrap(True)
             val.setTextInteractionFlags(
                 Qt.TextInteractionFlag.TextSelectableByMouse)

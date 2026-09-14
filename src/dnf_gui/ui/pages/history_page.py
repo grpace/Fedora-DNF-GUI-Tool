@@ -2,7 +2,7 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QScrollArea, QFrame,
+    QPushButton, QScrollArea, QFrame, QPlainTextEdit,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -175,9 +175,12 @@ class HistoryPage(QWidget):
         drawer_hdr.addWidget(close_btn)
         drawer_layout.addLayout(drawer_hdr)
 
-        self._detail_text = QLabel("")
-        self._detail_text.setObjectName("card_mono")
-        self._detail_text.setWordWrap(True)
+        self._detail_text = QPlainTextEdit()
+        self._detail_text.setObjectName("terminal_view")
+        self._detail_text.setReadOnly(True)
+        self._detail_text.setMinimumHeight(220)
+        self._detail_text.setMaximumHeight(360)
+        self._detail_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         drawer_layout.addWidget(self._detail_text)
 
         body_layout.addWidget(self._detail_drawer)
@@ -208,7 +211,8 @@ class HistoryPage(QWidget):
             self._drawer_title.setText(f"Transaction #{txn_id} Details")
         else:
             self._drawer_title.setText("Transaction Details")
-        self._detail_text.setText(text)
+        self._detail_text.setPlainText(text)
+        self._detail_text.verticalScrollBar().setValue(0)
         self._detail_drawer.show()
 
     def set_loading(self, loading: bool = True):

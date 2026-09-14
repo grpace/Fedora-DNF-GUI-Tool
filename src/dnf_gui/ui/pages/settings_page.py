@@ -7,10 +7,20 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, Qt
 
 
-class _Section(QLabel):
-    def __init__(self, text: str, parent=None):
-        super().__init__(text, parent)
-        self.setObjectName("section_label")
+def _section_header(title: str, description: str = "") -> QWidget:
+    header = QWidget()
+    layout = QVBoxLayout(header)
+    layout.setContentsMargins(0, 12, 0, 4)
+    layout.setSpacing(3)
+    title_lbl = QLabel(title)
+    title_lbl.setObjectName("section_label")
+    layout.addWidget(title_lbl)
+    if description:
+        desc_lbl = QLabel(description)
+        desc_lbl.setObjectName("hint")
+        desc_lbl.setWordWrap(True)
+        layout.addWidget(desc_lbl)
+    return header
 
 
 class _Card(QFrame):
@@ -18,14 +28,18 @@ class _Card(QFrame):
         super().__init__(parent)
         self.setObjectName("card")
         self._layout = QVBoxLayout(self)
-        self._layout.setSpacing(10)
+        self._layout.setContentsMargins(20, 18, 20, 18)
+        self._layout.setSpacing(14)
 
     def add_row(self, widget) -> None:
-        self._layout.addWidget(widget)
+        if isinstance(widget, QWidget):
+            self._layout.addWidget(widget)
+        else:
+            self._layout.addLayout(widget)
 
     def add_button_row(self, *buttons) -> None:
         row = QHBoxLayout()
-        row.setSpacing(12)
+        row.setSpacing(10)
         for btn in buttons:
             row.addWidget(btn)
         row.addStretch()
@@ -100,23 +114,21 @@ class SettingsPage(QWidget):
         content_w = QWidget()
         content = QVBoxLayout(content_w)
         content.setContentsMargins(0, 0, 16, 0)
-        content.setSpacing(20)
+        content.setSpacing(24)
 
-        # ── Discover ──
-        content.addWidget(_Section("Discover Update Checks"))
-        content.addWidget(_hint(
-            "Fedora KDE comes with Discover, a software store that checks for "
-            "updates on its own. Running both apps at once means double "
-            "notifications, and Discover can even start updating while you "
-            "restart. Hand updates over to this app to keep things simple."
+        # ── Discover Update Checks ──
+        content.addWidget(_section_header(
+            "Discover Update Checks",
+            "Fedora KDE comes with Discover, which checks for updates in the background. "
+            "Hand updates over to this app to avoid duplicate notifications and unwanted restart-time updates."
         ))
         disc_card = _Card()
 
-        # Status banner: tinted frame with a headline + detail line.
+        # Status banner: tinted frame with headline + detail line.
         banner = QFrame()
         banner.setObjectName("status_info")
         banner_layout = QVBoxLayout(banner)
-        banner_layout.setContentsMargins(0, 0, 0, 0)
+        banner_layout.setContentsMargins(16, 12, 16, 12)
         banner_layout.setSpacing(4)
         self._discover_title = QLabel("Checking Discover status...")
         self._discover_title.setObjectName("status_title")
@@ -129,7 +141,7 @@ class SettingsPage(QWidget):
         disc_card.add_row(banner)
         self._discover_banner = banner
 
-        # One contextual action: use this app, or restore when active.
+        # Contextual actions in one clean row
         self._btn_takeover = _make_button("Use This App Instead", "primary_button")
         self._btn_takeover.setToolTip(
             "Stop Discover's automatic checks for your user. Safe and reversible, no password needed.")
@@ -140,28 +152,28 @@ class SettingsPage(QWidget):
         self._btn_restore.clicked.connect(self.discover_restore_requested.emit)
         self._btn_disc_refresh = _make_button("Refresh", "ghost_button")
         self._btn_disc_refresh.clicked.connect(self.discover_refresh_requested.emit)
-        disc_card.add_button_row(
-            self._btn_takeover, self._btn_restore, self._btn_disc_refresh)
 
-        # Advanced options, hidden by default to keep things simple.
+        # Advanced options disclosure toggle
         self._btn_disc_advanced = _make_button("Advanced Options", "ghost_button")
         self._btn_disc_advanced.setProperty("compact", True)
         self._btn_disc_advanced.setCheckable(True)
         self._btn_disc_advanced.setChecked(False)
         self._btn_disc_advanced.toggled.connect(self._toggle_disc_advanced)
-        disc_card.add_button_row(self._btn_disc_advanced)
+        disc_card.add_button_row(
+            self._btn_takeover, self._btn_restore, self._btn_disc_refresh, self._btn_disc_advanced)
 
+        # Advanced options container
         self._disc_advanced = QWidget()
         adv_layout = QVBoxLayout(self._disc_advanced)
-        adv_layout.setContentsMargins(0, 4, 0, 0)
-        adv_layout.setSpacing(8)
+        adv_layout.setContentsMargins(14, 12, 14, 12)
+        adv_layout.setSpacing(10)
         adv_layout.addWidget(_hint(
-            "These apply to every user on this PC and need your password. "
-            "Most people never need them."
+            "These options apply to every user on this PC and require administrative privileges. "
+            "Most users never need them."
         ))
-        adv_layout.addWidget(_caption("For everyone on this PC"))
+        adv_layout.addWidget(_caption("System-Wide Policies"))
         adv_row1 = QHBoxLayout()
-        adv_row1.setSpacing(12)
+        adv_row1.setSpacing(10)
         self._btn_sys_disable = _make_button("Turn Off for All Users", "danger_button")
         self._btn_sys_disable.setToolTip(
             "Remove Discover's autostart entry and stop reboot-time updates system wide.")
@@ -172,9 +184,10 @@ class SettingsPage(QWidget):
         adv_row1.addWidget(self._btn_sys_enable)
         adv_row1.addStretch()
         adv_layout.addLayout(adv_row1)
-        adv_layout.addWidget(_caption("If something is stuck"))
+
+        adv_layout.addWidget(_caption("Process Control"))
         adv_row2 = QHBoxLayout()
-        adv_row2.setSpacing(12)
+        adv_row2.setSpacing(10)
         self._btn_kill = _make_button("Stop Checker Now", "ghost_button")
         self._btn_kill.setToolTip(
             "Stop Discover's background checker until your next login.")
@@ -192,17 +205,37 @@ class SettingsPage(QWidget):
         disc_card.add_row(self._disc_advanced)
         content.addWidget(disc_card)
 
-        # ── Reminders ──
-        content.addWidget(_Section("Update Reminders"))
+        # ── Update Reminders ──
+        content.addWidget(_section_header(
+            "Update Reminders",
+            "Configure background desktop notifications for pending package and security updates."
+        ))
         rem_card = _Card()
         rem_card._layout.setSpacing(12)
+
         self._rem_enabled = QCheckBox("Remind Me About Pending Updates")
+        self._rem_enabled.setStyleSheet("font-weight: 600;")
+        rem_card.add_row(self._rem_enabled)
+
+        # Indented secondary options
+        child_options = QWidget()
+        child_layout = QVBoxLayout(child_options)
+        child_layout.setContentsMargins(24, 0, 0, 0)
+        child_layout.setSpacing(10)
+
         self._rem_security_only = QCheckBox("Security Updates Only (Quiet Otherwise)")
         self._rem_flatpak = QCheckBox("Include Flatpak Updates in Reminders")
         self._rem_flatpak.setChecked(True)
-        for cb in (self._rem_enabled, self._rem_security_only, self._rem_flatpak):
-            rem_card.add_row(cb)
+        self._checker_box = QCheckBox("Run Reminder Check at Login (Installs Autostart Entry)")
+        self._checker_box.toggled.connect(self.checker_toggle_requested.emit)
+
+        child_layout.addWidget(self._rem_security_only)
+        child_layout.addWidget(self._rem_flatpak)
+        child_layout.addWidget(self._checker_box)
+        rem_card.add_row(child_options)
+
         interval_row = QHBoxLayout()
+        interval_row.setSpacing(10)
         interval_row.addWidget(QLabel("Check Every:"))
         self._interval_combo = QComboBox()
         self._interval_combo.setFixedWidth(200)
@@ -213,16 +246,16 @@ class SettingsPage(QWidget):
         interval_row.addWidget(self._interval_combo)
         interval_row.addStretch()
         rem_card._layout.addLayout(interval_row)
+
         self._rem_last = _hint("Background checks have never run.")
         rem_card.add_row(self._rem_last)
-        self._checker_box = QCheckBox("Run Reminder Check at Login (Installs Autostart Entry)")
-        self._checker_box.toggled.connect(self.checker_toggle_requested.emit)
-        rem_card.add_row(self._checker_box)
-        self._btn_rem_save = _make_button("Save Reminder Settings")
+
+        self._btn_rem_save = _make_button("Save Reminder Settings", "primary_button")
         self._btn_rem_save.clicked.connect(self._emit_save)
         self._btn_rem_test = _make_button("Send Test Notification", "ghost_button")
         self._btn_rem_test.clicked.connect(self.reminders_test_requested.emit)
         rem_card.add_button_row(self._btn_rem_save, self._btn_rem_test)
+
         rem_card.add_row(_hint(
             "Login checks run quietly in the background and only notify when "
             "something is actually pending. Critical and Important security "
@@ -230,15 +263,27 @@ class SettingsPage(QWidget):
         ))
         content.addWidget(rem_card)
 
-        # ── Password prompts ──
-        content.addWidget(_Section("Password Prompts"))
+        # ── Password Prompts ──
+        content.addWidget(_section_header(
+            "Password Prompts",
+            "Grant permission for routine package updates so they run seamlessly without repeated password prompts."
+        ))
         pw_card = _Card()
+        pw_card._layout.setSpacing(14)
+
+        pw_status_frame = QFrame()
+        pw_status_frame.setObjectName("status_info")
+        pw_status_layout = QVBoxLayout(pw_status_frame)
+        pw_status_layout.setContentsMargins(14, 10, 14, 10)
+        pw_status_layout.setSpacing(4)
         self._pw_status = QLabel("Passwordless updates: off.")
-        self._pw_status.setObjectName("status_line")
+        self._pw_status.setObjectName("status_title")
         self._pw_status.setWordWrap(True)
-        pw_card.add_row(self._pw_status)
+        pw_status_layout.addWidget(self._pw_status)
+        pw_card.add_row(pw_status_frame)
+
         pw_card.add_row(_hint(
-            "'Updates only' (recommended) makes `dnf upgrade` passwordless, so "
+            "'Updates only' (recommended) makes  passwordless, so "
             "daily updates just run. Installs, removals, repo changes and "
             "firmware updates still ask for your password. 'All DNF operations' "
             "removes every prompt but lets any program running as you change "
@@ -247,8 +292,10 @@ class SettingsPage(QWidget):
             "sudoers file (/etc/sudoers.d/90-dnf-gui); disabling restores "
             "prompts immediately."
         ))
+
         scope_row = QHBoxLayout()
-        scope_row.addWidget(QLabel("Scope:"))
+        scope_row.setSpacing(10)
+        scope_row.addWidget(QLabel("Privilege Scope:"))
         self._pw_scope_combo = QComboBox()
         self._pw_scope_combo.setFixedWidth(260)
         self._pw_scope_combo.addItem("Updates Only (Recommended)", "updates")
@@ -256,16 +303,17 @@ class SettingsPage(QWidget):
         scope_row.addWidget(self._pw_scope_combo)
         scope_row.addStretch()
         pw_card._layout.addLayout(scope_row)
-        self._btn_pw_refresh = _make_button("Refresh", "ghost_button")
-        self._btn_pw_refresh.clicked.connect(self.passwordless_refresh_requested.emit)
+
         self._btn_pw_enable = _make_button("Enable Passwordless", "primary_button")
         self._btn_pw_enable.clicked.connect(
             lambda: self.passwordless_enable_requested.emit(
                 self._pw_scope_combo.currentData()))
         self._btn_pw_disable = _make_button("Disable (Restore Prompts)", "ghost_button")
         self._btn_pw_disable.clicked.connect(self.passwordless_disable_requested.emit)
+        self._btn_pw_refresh = _make_button("Refresh", "ghost_button")
+        self._btn_pw_refresh.clicked.connect(self.passwordless_refresh_requested.emit)
         pw_card.add_button_row(
-            self._btn_pw_refresh, self._btn_pw_enable, self._btn_pw_disable)
+            self._btn_pw_enable, self._btn_pw_disable, self._btn_pw_refresh)
         content.addWidget(pw_card)
 
         content.addStretch()

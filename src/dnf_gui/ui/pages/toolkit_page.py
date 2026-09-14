@@ -56,7 +56,7 @@ class ToolCard(QFrame):
             self._btn.setObjectName("danger_button")
         else:
             self._btn.setObjectName("ghost_button")
-        self._btn.setFixedWidth(100)
+        self._btn.setFixedWidth(120)
         self._btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn.clicked.connect(lambda: self.clicked.emit(self._tool_id))
         layout.addWidget(self._btn)

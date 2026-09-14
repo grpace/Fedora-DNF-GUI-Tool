@@ -50,25 +50,22 @@ class RepoCard(QFrame):
 
         layout.addLayout(info_layout, 1)
 
-        # Badge (fixed width so the column lines up across rows)
-        badge = QLabel("Enabled" if enabled else "Disabled")
+        # Status badge (fixed 96px width so status column aligns perfectly)
+        badge = QLabel("● Enabled" if enabled else "○ Disabled")
         badge.setObjectName("badge_ok" if enabled else "badge_muted")
-        badge.setMinimumWidth(84)
+        badge.setFixedWidth(96)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(badge)
 
-        # Toggle button (fixed width so the badge column never shifts)
+        # Toggle button (fixed 84px width, compact height matching across both states)
+        btn = QPushButton("Disable" if enabled else "Enable")
+        btn.setObjectName("danger_button" if enabled else "ghost_button")
+        btn.setProperty("compact", True)
+        btn.setFixedWidth(84)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
         if enabled:
-            btn = QPushButton("Disable")
-            btn.setObjectName("danger_button")
-            btn.setMinimumWidth(88)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self.disable_clicked.emit(repo_id))
         else:
-            btn = QPushButton("Enable")
-            btn.setObjectName("success_button")
-            btn.setMinimumWidth(88)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda: self.enable_clicked.emit(repo_id))
 
         layout.addWidget(btn)

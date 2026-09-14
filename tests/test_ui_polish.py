@@ -298,7 +298,7 @@ class TestAlignmentAndPolish(unittest.TestCase):
         for card in cards:
             btn = card.findChild(QPushButton)
             self.assertIsNotNone(btn)
-            self.assertEqual(btn.width(), 100)
+            self.assertEqual(btn.width(), 120)
 
     def test_history_card_altered_alignment(self):
         from dnf_gui.ui.pages.history_page import HistoryCard
@@ -313,6 +313,41 @@ class TestAlignmentAndPolish(unittest.TestCase):
         self.assertIsNotNone(altered_label)
         self.assertEqual(altered_label.width(), 160)
         self.assertTrue(altered_label.alignment() & Qt.AlignmentFlag.AlignRight)
+
+
+    def test_repo_card_uniform_dimensions(self):
+        from dnf_gui.ui.pages.repo_manager_page import RepoCard
+        from PyQt6.QtWidgets import QPushButton, QLabel
+        card_on = RepoCard({'id': 'fedora', 'name': 'Fedora', 'enabled': True})
+        card_off = RepoCard({'id': 'copr:bar', 'name': 'Bar', 'enabled': False})
+        for c in (card_on, card_off):
+            c.show()
+            self.addCleanup(c.close)
+            self.addCleanup(c.deleteLater)
+        btn_on = card_on.findChild(QPushButton)
+        btn_off = card_off.findChild(QPushButton)
+        badge_on = card_on.findChild(QLabel, 'badge_ok')
+        badge_off = card_off.findChild(QLabel, 'badge_muted')
+        self.assertEqual(btn_on.width(), 84)
+        self.assertEqual(btn_off.width(), 84)
+        self.assertEqual(btn_on.height(), btn_off.height())
+        self.assertEqual(badge_on.width(), 96)
+        self.assertEqual(badge_off.width(), 96)
+        self.assertIn('Enabled', badge_on.text())
+        self.assertIn('Disabled', badge_off.text())
+
+    def test_history_detail_is_scrollable_text_edit(self):
+        from dnf_gui.ui.pages.history_page import HistoryPage
+        from PyQt6.QtWidgets import QPlainTextEdit
+        page = HistoryPage()
+        page.show()
+        self.addCleanup(page.close)
+        self.addCleanup(page.deleteLater)
+        self.assertIsInstance(page._detail_text, QPlainTextEdit)
+        self.assertTrue(page._detail_text.isReadOnly())
+        page.show_detail("Line 1\nLine 2", txn_id="42")
+        self.assertEqual(page._drawer_title.text(), 'Transaction #42 Details')
+        self.assertEqual(page._detail_text.toPlainText(), "Line 1\nLine 2")
 
     def test_sidebar_brand_alignment(self):
         from dnf_gui.ui.sidebar import Sidebar

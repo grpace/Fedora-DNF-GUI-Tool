@@ -50,6 +50,29 @@ _DARK = {
     "amber": "#f67400",            # Plasma amber
     "amber_bg": "#2a1c0d",
     "violet": "#9b59b6",           # Plasma purple
+    # Badges
+    "badge_ok_bg": "#122a1b",
+    "badge_ok_text": "#4ade80",
+    "badge_ok_border": "#1b4d2e",
+    "badge_muted_bg": "#1c2028",
+    "badge_muted_text": "#8892b0",
+    "badge_muted_border": "#2b3240",
+    # Status Banners
+    "banner_warn_bg": "#251a0e",
+    "banner_warn_border": "#78350f",
+    "banner_warn_accent": "#f59e0b",
+    "banner_warn_title": "#fbbf24",
+    "banner_warn_text": "#e2e8f0",
+    "banner_ok_bg": "#0d2315",
+    "banner_ok_border": "#166534",
+    "banner_ok_accent": "#22c55e",
+    "banner_ok_title": "#4ade80",
+    "banner_ok_text": "#e2e8f0",
+    "banner_info_bg": "#101b2b",
+    "banner_info_border": "#1e3a5f",
+    "banner_info_accent": "#3daee9",
+    "banner_info_title": "#67e8f9",
+    "banner_info_text": "#cbd5e1",
     # Buttons Neutral / Secondary
     "btn_neutral_bg": "#222630",
     "btn_neutral_border": "#363d4e",
@@ -98,6 +121,29 @@ _LIGHT = {
     "amber": "#c85a00",            # Deep amber
     "amber_bg": "#fff3e0",
     "violet": "#7b1fa2",
+    # Badges
+    "badge_ok_bg": "#eafaf1",
+    "badge_ok_text": "#1b7a42",
+    "badge_ok_border": "#b7ebc9",
+    "badge_muted_bg": "#f1f3f5",
+    "badge_muted_text": "#5c6574",
+    "badge_muted_border": "#d2d8e0",
+    # Status Banners
+    "banner_warn_bg": "#fffbeb",
+    "banner_warn_border": "#fed7aa",
+    "banner_warn_accent": "#f59e0b",
+    "banner_warn_title": "#92400e",
+    "banner_warn_text": "#78350f",
+    "banner_ok_bg": "#f0fdf4",
+    "banner_ok_border": "#bbf7d0",
+    "banner_ok_accent": "#16a34a",
+    "banner_ok_title": "#166534",
+    "banner_ok_text": "#1f2937",
+    "banner_info_bg": "#f0f7ff",
+    "banner_info_border": "#bae6fd",
+    "banner_info_accent": "#0284c7",
+    "banner_info_title": "#0369a1",
+    "banner_info_text": "#1e293b",
     # Buttons Neutral / Secondary
     "btn_neutral_bg": "#ffffff",
     "btn_neutral_border": "#c8d0dc",
@@ -406,9 +452,9 @@ def get_stylesheet(mode: str | None = None) -> str:
         font-weight: 600;
     }}
     QLabel#badge_installed {{
-        background-color: {c['green']}22;
+        background-color: {c['badge_ok_bg']};
         color: {c['badge_ok_text']};
-        border: 1px solid {c['green']}44;
+        border: 1px solid {c['badge_ok_border']};
     }}
     QLabel#badge_update {{
         background-color: {c['badge_update_bg']};
@@ -416,14 +462,14 @@ def get_stylesheet(mode: str | None = None) -> str:
         border: 1px solid {c['badge_update_bg']};
     }}
     QLabel#badge_ok {{
-        background-color: {c['green']}22;
+        background-color: {c['badge_ok_bg']};
         color: {c['badge_ok_text']};
-        border: 1px solid {c['green']}44;
+        border: 1px solid {c['badge_ok_border']};
     }}
     QLabel#badge_muted {{
-        background-color: transparent;
-        color: {c['text_dim']};
-        border: 1px solid {c['border']};
+        background-color: {c['badge_muted_bg']};
+        color: {c['badge_muted_text']};
+        border: 1px solid {c['badge_muted_border']};
     }}
     QLabel#repo_dot_on, QLabel#repo_dot_off {{
         background-color: transparent;
@@ -778,24 +824,60 @@ def get_stylesheet(mode: str | None = None) -> str:
     /* ── Settings Status Banners ── */
     QFrame#status_info, QFrame#status_ok, QFrame#status_warn {{
         border-radius: 8px;
-        padding: 12px 14px;
-        margin: 2px 0px 4px 0px;
+        padding: 14px 16px;
+        margin: 2px 0px 8px 0px;
     }}
     QFrame#status_info {{
-        background-color: {c['bg_input']};
-        border: 1px solid {c['border_soft']};
+        background-color: {c['banner_info_bg']};
+        border: 1px solid {c['banner_info_border']};
+        border-left: 4px solid {c['banner_info_accent']};
     }}
     QFrame#status_ok {{
-        background-color: {c['bg_input']};
-        border: 1px solid {c['badge_ok_text']};
+        background-color: {c['banner_ok_bg']};
+        border: 1px solid {c['banner_ok_border']};
+        border-left: 4px solid {c['banner_ok_accent']};
     }}
     QFrame#status_warn {{
-        background-color: {c['badge_update_bg']};
-        border: 1px solid {c['badge_update_bg']};
+        background-color: {c['banner_warn_bg']};
+        border: 1px solid {c['banner_warn_border']};
+        border-left: 4px solid {c['banner_warn_accent']};
+    }}
+    QFrame#status_info QLabel#status_title,
+    QFrame#status_info QLabel#card_title {{
+        font-size: {f['size_base']};
+        font-weight: 700;
+        color: {c['banner_info_title']};
+    }}
+    QFrame#status_info QLabel#status_detail,
+    QFrame#status_info QLabel#card_detail {{
+        font-size: {f['size_sm']};
+        color: {c['banner_info_text']};
+    }}
+    QFrame#status_ok QLabel#status_title,
+    QFrame#status_ok QLabel#card_title {{
+        font-size: {f['size_base']};
+        font-weight: 700;
+        color: {c['banner_ok_title']};
+    }}
+    QFrame#status_ok QLabel#status_detail,
+    QFrame#status_ok QLabel#card_detail {{
+        font-size: {f['size_sm']};
+        color: {c['banner_ok_text']};
+    }}
+    QFrame#status_warn QLabel#status_title,
+    QFrame#status_warn QLabel#card_title {{
+        font-size: {f['size_base']};
+        font-weight: 700;
+        color: {c['banner_warn_title']};
+    }}
+    QFrame#status_warn QLabel#status_detail,
+    QFrame#status_warn QLabel#card_detail {{
+        font-size: {f['size_sm']};
+        color: {c['banner_warn_text']};
     }}
     QLabel#status_title {{
         font-size: {f['size_base']};
-        font-weight: 600;
+        font-weight: 700;
         color: {c['text']};
     }}
     QLabel#status_detail {{

@@ -867,7 +867,7 @@ class MainWindow(QMainWindow):
     def _history_info(self, txn_id: str):
         """Get and show detailed info for a history transaction."""
         detail = self._backend.history_info(txn_id)
-        self._history_page.show_detail(detail)
+        self._history_page.show_detail(detail, txn_id)
 
     # ═══════════════════════════════════════════════════════════════
     #  App Auto-Update

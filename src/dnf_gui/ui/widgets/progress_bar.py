@@ -1,7 +1,6 @@
 """Custom animated progress bar widget."""
 
 from PyQt6.QtWidgets import QProgressBar
-from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
 
 
 class AnimatedProgressBar(QProgressBar):
@@ -23,18 +22,3 @@ class AnimatedProgressBar(QProgressBar):
         self.setRange(0, 100)
         self.setValue(0)
         self.hide()
-
-    def set_progress(self, value: int):
-        """Smoothly animate to a progress value."""
-        self.setRange(0, 100)
-        self.show()
-
-        if self._animation:
-            self._animation.stop()
-
-        self._animation = QPropertyAnimation(self, b"value")
-        self._animation.setDuration(300)
-        self._animation.setStartValue(self.value())
-        self._animation.setEndValue(value)
-        self._animation.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._animation.start()

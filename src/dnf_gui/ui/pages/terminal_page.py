@@ -51,6 +51,14 @@ class TerminalPage(QWidget):
         self._status_row.addWidget(self._status_text)
         self._status_row.addStretch()
 
+        self._copy_btn = QPushButton("Copy Output")
+        self._copy_btn.setObjectName("ghost_button")
+        self._copy_btn.setProperty("compact", True)
+        self._copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._copy_btn.setToolTip("Copy the full log, e.g. to paste into a bug report")
+        self._copy_btn.clicked.connect(self._copy_output)
+        self._status_row.addWidget(self._copy_btn)
+
         body_layout.addLayout(self._status_row)
 
         # ── Separator ──
@@ -66,7 +74,7 @@ class TerminalPage(QWidget):
             "Terminal output will appear here when you run operations like\n"
             "upgrading packages, installing, or removing software.\n\n"
             "Use keyboard shortcuts to quickly navigate:\n"
-            "Ctrl+1 Updates · Ctrl+2 Installed · Ctrl+3 Flatpak · Ctrl+4 System Info"
+            "Ctrl+1 Updates · Ctrl+2 Packages · Ctrl+3 Flatpak · Ctrl+4 System Info"
         )
         body_layout.addWidget(self._terminal, 1)
 
@@ -119,6 +127,13 @@ class TerminalPage(QWidget):
         self._status_text.setText(message or "Operation Failed")
         self._status_indicator.style().unpolish(self._status_indicator)
         self._status_indicator.style().polish(self._status_indicator)
+
+    def _copy_output(self):
+        from PyQt6.QtWidgets import QApplication
+        QApplication.clipboard().setText(self._terminal.toPlainText())
+        self._copy_btn.setText("Copied")
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(1500, lambda: self._copy_btn.setText("Copy Output"))
 
     def _clear_terminal(self):
         self._terminal.clear()

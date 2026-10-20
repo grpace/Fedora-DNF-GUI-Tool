@@ -11,7 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication
 
 from dnf_gui.core.app_settings import (
-    AppSettings, ReminderResult, perform_background_check,
+    AppSettings, perform_background_check,
 )
 from dnf_gui.core.security import SecuritySummary
 from dnf_gui.core.package import UpdateInfo

@@ -29,7 +29,7 @@ class Package:
     url: str = ""
     license: str = ""
     status: PackageStatus = PackageStatus.AVAILABLE
-    update_version: str = ""
+    installed_version: str = ""  # for updates: the EVR being replaced
 
     @property
     def full_version(self) -> str:
@@ -37,21 +37,6 @@ class Package:
         if self.release:
             return f"{self.version}-{self.release}"
         return self.version
-
-    @property
-    def nevra(self) -> str:
-        """Return name-epoch:version-release.arch identifier."""
-        parts = [self.name]
-        if self.version:
-            parts.append(f"-{self.full_version}")
-        if self.arch:
-            parts.append(f".{self.arch}")
-        return "".join(parts)
-
-    @property
-    def display_name(self) -> str:
-        """Return a clean display name for the package."""
-        return self.name.replace("-", " ").title()
 
     @classmethod
     def from_dnf_line(cls, line: str, status: PackageStatus = PackageStatus.INSTALLED) -> "Package":
@@ -99,9 +84,6 @@ class Package:
 class UpdateInfo:
     """Summary of available system updates."""
     total_updates: int = 0
-    security_updates: int = 0
-    bug_fixes: int = 0
-    enhancements: int = 0
     packages: list = field(default_factory=list)
     last_checked: str = ""
 
@@ -117,7 +99,22 @@ class UpgradePreview:
     count: int = 0
     total_bytes: int = 0
     sizes_known: bool = False
+    entries: list = field(default_factory=list)  # [(name, bytes | None)]
 
     @property
     def has_preview(self) -> bool:
         return self.count > 0
+
+    def excluding(self, patterns) -> "UpgradePreview":
+        """Preview with packages matching any held-back glob removed."""
+        from dnf_gui.core.dnf_backend import is_held_back
+        kept = UpgradePreview()
+        for name, size in self.entries:
+            if is_held_back(name, patterns):
+                continue
+            kept.entries.append((name, size))
+            kept.count += 1
+            if size is not None:
+                kept.total_bytes += size
+                kept.sizes_known = True
+        return kept

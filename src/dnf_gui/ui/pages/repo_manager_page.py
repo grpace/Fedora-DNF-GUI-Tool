@@ -108,7 +108,7 @@ class RepoManagerPage(QWidget):
         action_bar.setSpacing(16)
 
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setObjectName("primary_button")
+        refresh_btn.setObjectName("ghost_button")
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_btn.clicked.connect(self.refresh_clicked.emit)
         action_bar.addWidget(refresh_btn)

@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 _SEVERITY_RE = re.compile(r"(critical|important|moderate|low)", re.IGNORECASE)
+_SEVERITY_RANK = {"critical": 4, "important": 3, "moderate": 2, "low": 1, "": 0}
+_NEVRA_RE = re.compile(r"^(?P<name>.+)-[^-]+-[^-]+\.(x86_64|i686|noarch|aarch64|ppc64le|s390x)$")
 
 
 @dataclass
@@ -44,11 +46,9 @@ class SecuritySummary:
     low: int = 0
     advisories: list[str] = field(default_factory=list)
     packages: list[str] = field(default_factory=list)
+    # package name -> most severe pending advisory ("critical", ..., or "")
+    package_severity: dict[str, str] = field(default_factory=dict)
     raw_summary: str = ""
-
-    @property
-    def has_security_updates(self) -> bool:
-        return self.total > 0
 
     @property
     def urgent(self) -> bool:
@@ -73,72 +73,97 @@ def _run(args: list[str], timeout: int = 90) -> Optional[str]:
         return None
 
 
+_ADVISORY_ID_RE = re.compile(r"^[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9:]+)+$")
+# dnf4: "2 Critical Security notice(s)"   dnf5: "  Critical  : 3"
+_SUMMARY_RES = (
+    re.compile(r"(\d+)\s+(Critical|Important|Moderate|Low)\b", re.IGNORECASE),
+    re.compile(r"^\s*(Critical|Important|Moderate|Low)\s*:\s*(\d+)", re.IGNORECASE),
+)
+
+
+def _add_severity(summary: SecuritySummary, severity: str, count: int = 1) -> None:
+    severity = severity.lower()
+    if severity in ("critical", "important", "moderate", "low"):
+        setattr(summary, severity, getattr(summary, severity) + count)
+
+
+def _parse_list(output: str, summary: SecuritySummary) -> None:
+    """Parse ``updateinfo list`` rows (one row per *package*, not advisory)."""
+    severities: dict[str, str] = {}
+    for line in output.strip().split("\n"):
+        parts = line.split()
+        if len(parts) < 2 or not _ADVISORY_ID_RE.match(parts[0]):
+            continue
+        advisory = parts[0]
+        if advisory not in severities:
+            match = _SEVERITY_RE.search(line)
+            severities[advisory] = match.group(1) if match else ""
+            summary.advisories.append(advisory)
+        # Package NEVRA is the token that ends in .<arch>
+        for token in parts[1:]:
+            if re.search(r"-\d.*\.(x86_64|i686|noarch|aarch64|ppc64le|s390x)$", token):
+                if token not in summary.packages:
+                    summary.packages.append(token)
+                name_match = _NEVRA_RE.match(token)
+                if name_match:
+                    name = name_match.group("name")
+                    severity = severities[advisory].lower()
+                    current = summary.package_severity.get(name)
+                    if current is None or _SEVERITY_RANK[severity] > _SEVERITY_RANK[current]:
+                        summary.package_severity[name] = severity
+                break
+    summary.total = len(severities)
+    for severity in severities.values():
+        _add_severity(summary, severity)
+
+
+def _parse_summary(raw: str, summary: SecuritySummary) -> None:
+    """Fallback counts from ``updateinfo summary`` (security section only)."""
+    in_security = False
+    for line in raw.split("\n"):
+        stripped = line.strip()
+        if re.match(r"^(\d+\s+)?Security\b", stripped, re.IGNORECASE):
+            in_security = True  # dnf5 "Security : N" section header
+            continue
+        if re.match(r"^(\d+\s+)?(Bugfix|Enhancement|Other)\b", stripped, re.IGNORECASE):
+            in_security = False
+        for pattern in _SUMMARY_RES:
+            m = pattern.search(line)
+            if not m:
+                continue
+            count, sev = ((int(m.group(1)), m.group(2)) if m.group(1).isdigit()
+                          else (int(m.group(2)), m.group(1)))
+            # dnf4 lines say "Security notice(s)"; dnf5 lines sit under the
+            # Security header.
+            if in_security or "security" in line.lower():
+                summary.total += count
+                _add_severity(summary, sev, count)
+            break
+
+
 def get_security_summary(refresh: bool = False) -> SecuritySummary:
     """Query pending security advisories. Never needs root."""
     summary = SecuritySummary()
     dnf = _dnf_binary()
 
-    # 1. Detailed list — gives per-advisory severity + package names.
-    output = _run([dnf, "updateinfo", "list", "updates"])
-    if output is None:
-        # dnf5 sometimes wants explicit --updates flag ordering
-        output = _run([dnf, "updateinfo", "list", "--updates"])
+    if refresh:
+        # Best-effort metadata refresh so security counts aren't stale.
+        # Failures are ignored — stale data is better than no data.
+        _run([dnf, "makecache", "-q"], timeout=120)
+
+    # 1. Detailed list — per-advisory severity + package names. Same flags
+    #    work on dnf4 and dnf5 (dnf5 treats a bare "updates" as an advisory
+    #    name and silently returns nothing).
+    output = _run([dnf, "updateinfo", "list", "--updates", "--security"])
     if output:
-        for line in output.strip().split("\n"):
-            line = line.strip()
-            if not line or line.startswith("Last metadata") or line.startswith("="):
-                continue
-            # Skip header lines like "Advisory  Type  Package"
-            if line.lower().startswith("advisory"):
-                continue
-            match = _SEVERITY_RE.search(line)
-            if not match:
-                continue
-            severity = match.group(1).lower()
-            summary.total += 1
-            if severity == "critical":
-                summary.critical += 1
-            elif severity == "important":
-                summary.important += 1
-            elif severity == "moderate":
-                summary.moderate += 1
-            elif severity == "low":
-                summary.low += 1
-            parts = line.split()
-            if parts:
-                advisory = parts[0]
-                if advisory not in summary.advisories:
-                    summary.advisories.append(advisory)
-                # Package is usually the last token (nevra)
-                pkg = parts[-1]
-                if "." in pkg or "-" in pkg:
-                    summary.packages.append(pkg)
+        _parse_list(output, summary)
 
     # 2. Summary text — keep raw for display, and use as fallback counts.
     raw = _run([dnf, "updateinfo", "summary"])
     if raw:
         summary.raw_summary = raw
         if summary.total == 0:
-            # Fall back to parsing "N Critical Security notice(s)" lines
-            for line in raw.split("\n"):
-                m = re.search(r"(\d+)\s+(Critical|Important|Moderate|Low)", line, re.IGNORECASE)
-                if m:
-                    count = int(m.group(1))
-                    sev = m.group(2).lower()
-                    summary.total += count
-                    if sev == "critical":
-                        summary.critical += count
-                    elif sev == "important":
-                        summary.important += count
-                    elif sev == "moderate":
-                        summary.moderate += count
-                    elif sev == "low":
-                        summary.low += count
-
-    if refresh:
-        # Best-effort metadata refresh so security counts aren't stale.
-        # Failures are ignored — stale data is better than no data.
-        _run([dnf, "makecache", "-q"], timeout=120)
+            _parse_summary(raw, summary)
 
     return summary
 
@@ -147,27 +172,3 @@ def build_security_update_command() -> list[str]:
     """Upgrade security updates only (pkexec, DNF-compatible)."""
     dnf = _dnf_binary()
     return ["pkexec", dnf, "upgrade", "-y", "--security"]
-
-
-def build_update_everything_command() -> list[str]:
-    """Single chained command: DNF system upgrade + Flatpak update.
-
-    Runs DNF first (needs root via pkexec), then Flatpak as the invoking
-    user so both user and system remotes are handled. ``set -o pipefail``
-    is avoided on purpose — Flatpak should still run even if DNF had
-    nothing to do. Exit code reflects overall success.
-    """
-    dnf = _dnf_binary()
-    flatpak = shutil.which("flatpak") or "flatpak"
-    # NOTE: pkexec runs the whole bash as root; flatpak system update as
-    # root is correct for system remotes. User remotes are updated on next
-    # regular Flatpak refresh. We chain with ';' so one failure doesn't
-    # skip the other, then report a combined status line.
-    script = (
-        f"{dnf} upgrade -y --refresh; DNF_CODE=$?; "
-        f"{flatpak} update -y; FLATPAK_CODE=$?; "
-        'echo ""; echo "── Update-Everything summary ──"; '
-        'echo "DNF exit: $DNF_CODE, Flatpak exit: $FLATPAK_CODE"; '
-        "exit $DNF_CODE"
-    )
-    return ["pkexec", "bash", "-c", script]

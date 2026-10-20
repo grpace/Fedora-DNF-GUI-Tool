@@ -31,14 +31,21 @@ def ratio(fg: str, bg: str) -> float:
     return (hi + 0.05) / (lo + 0.05)
 
 
+def blend(fg: str, alpha: float, bg: str) -> str:
+    """Flatten a translucent fill (QSS #rrggbbaa) over its background."""
+    f = [int(fg.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
+    b = [int(bg.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
+    return "#" + "".join(f"{round(fc * alpha + bc * (1 - alpha)):02x}"
+                         for fc, bc in zip(f, b, strict=True))
+
+
 # (name, fg_key, bg_key, min_ratio)
 PAIRS = [
     # nav
     ("nav idle", "text_dim", "bg_sidebar", 4.5),
     ("nav idle on card", "text_dim", "bg_card", 4.5),
-    ("nav active", "accent", "bg_sidebar", 4.5),
-    ("nav active on card", "accent", "bg_card", 4.5),
-    ("count badge", "on_bright", "accent", 4.5),
+    ("nav active", "accent", "bg_card", 4.5),  # active item sits on a card
+    ("count badge", "on_accent", "accent", 4.5),
     ("section/version", "text_dim", "bg_sidebar", 4.5),
     # content
     ("card title", "text", "bg_card", 4.5),
@@ -49,9 +56,9 @@ PAIRS = [
     ("header", "text", "bg_app", 3.0),
     ("subheader", "text_dim", "bg_app", 4.5),
     # buttons
-    ("primary", "on_bright", "accent", 4.5),
-    ("success", "on_bright", "green", 4.5),
-    ("warning", "on_bright", "amber", 4.5),
+    ("primary", "on_accent", "accent", 4.5),
+    ("success", "on_fill", "green", 4.5),
+    ("warning", "on_fill", "amber", 4.5),
     ("accent btn", "accent", "bg_card", 4.5),
     ("ghost", "text_dim", "bg_card", 4.5),
     ("danger", "danger", "bg_card", 4.5),
@@ -60,6 +67,7 @@ PAIRS = [
     ("ok pill", "badge_ok_text", "bg_card", 4.5),
     ("muted pill", "text_dim", "bg_card", 4.5),
     ("txn badge", "accent", "bg_card", 4.5),
+    ("security badge", "danger", "badge_security_bg", 4.5),
     # banners / status
     ("reboot banner", "amber", "amber_bg", 4.5),
     ("status title", "text", "bg_banner", 4.5),
@@ -72,7 +80,9 @@ PAIRS = [
 def main() -> int:
     failures = 0
     for mode in ("dark", "light"):
-        pal = dict(get_palette(mode), terminal_text="#fcfcfc")
+        pal = get_palette(mode)
+        # badge_security: danger text on a danger fill at 0x10 alpha
+        pal["badge_security_bg"] = blend(pal["danger"], 0x10 / 255, pal["bg_card"])
         print(f"--- {mode} ---")
         for name, fgk, bgk, minimum in PAIRS:
             r = ratio(pal[fgk], pal[bgk])

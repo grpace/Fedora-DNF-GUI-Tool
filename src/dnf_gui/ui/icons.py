@@ -326,6 +326,32 @@ def _draw(p: QPainter, kind: str, s: float, color: QColor):
         p.drawPath(path)
         p.setBrush(Qt.BrushStyle.NoBrush)
 
+    elif kind in ("star", "star_filled"):
+        # Five-point star; outlined for "not favorite", filled for favorite
+        import math
+        path = QPainterPath()
+        outer, inner = s * 0.40, s * 0.17
+        for i in range(10):
+            r = outer if i % 2 == 0 else inner
+            angle = math.radians(-90 + i * 36)
+            point = QPointF(cx + r * math.cos(angle), cy + 0.03 * s + r * math.sin(angle))
+            if i == 0:
+                path.moveTo(point)
+            else:
+                path.lineTo(point)
+        path.closeSubpath()
+        if kind == "star_filled":
+            p.setBrush(color)
+        p.drawPath(path)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+
+    elif kind == "chevron_down":
+        path = QPainterPath()
+        path.moveTo(cx - s * 0.22, cy - s * 0.09)
+        path.lineTo(cx, cy + s * 0.13)
+        path.lineTo(cx + s * 0.22, cy - s * 0.09)
+        p.drawPath(path)
+
     else:
         # Graceful fallback: clean rounded rectangle with center bullet
         p.drawRoundedRect(QRectF(s * 0.2, s * 0.2, s * 0.6, s * 0.6), s * 0.1, s * 0.1)

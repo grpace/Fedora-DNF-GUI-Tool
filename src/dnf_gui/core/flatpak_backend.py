@@ -47,18 +47,6 @@ class FlatpakBackend:
             return []
         return self._parse_list(result)
 
-    def list_runtimes(self) -> list[FlatpakApp]:
-        """List installed Flatpak runtimes."""
-        result = self._run([
-            self._flatpak, "list", "--runtime",
-            "--columns=name,application,version,branch,origin,size",
-        ])
-        if result is None:
-            return []
-        apps = self._parse_list(result)
-        for app in apps:
-            app.is_runtime = True
-        return apps
 
     def check_updates(self) -> list[FlatpakApp]:
         """Check for Flatpak updates."""

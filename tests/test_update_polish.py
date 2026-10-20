@@ -25,7 +25,7 @@ class TestGetUpgradePreview(unittest.TestCase):
         backend = _backend()
         output = ("firefox 125.0-1.fc44 x86_64 842853\n"
                   "kernel-core 6.18.5-200.fc44 x86_64 168236\n")
-        with patch.object(DNFBackend, "_run", return_value=output) as mock_run:
+        with patch.object(DNFBackend, "_run", return_value=output):
             preview = backend.get_upgrade_preview()
         self.assertEqual(preview.count, 2)
         self.assertEqual(preview.total_bytes, 842853 + 168236)
@@ -99,7 +99,8 @@ class TestRebootRequired(unittest.TestCase):
                 raise FileNotFoundError()
             if cmd[0] == "rpm":
                 return MagicMock(returncode=0,
-                                 stdout="6.18.5-200.fc44.x86_64\n")
+                                 stdout="1760000000 6.18.5-200.fc44.x86_64\n"
+                                        "1750000000 6.17.1-100.fc44.x86_64\n")
             raise AssertionError(f"unexpected {cmd}")
 
         with patch("dnf_gui.core.dnf_backend.subprocess.run", side_effect=fake_run):
@@ -117,7 +118,8 @@ class TestRebootRequired(unittest.TestCase):
                 raise FileNotFoundError()
             if cmd[0] == "rpm":
                 return MagicMock(returncode=0,
-                                 stdout="6.18.5-200.fc44.x86_64\n")
+                                 stdout="1760000000 6.18.5-200.fc44.x86_64\n"
+                                        "1750000000 6.17.1-100.fc44.x86_64\n")
             raise AssertionError(f"unexpected {cmd}")
 
         with patch("dnf_gui.core.dnf_backend.subprocess.run", side_effect=fake_run):

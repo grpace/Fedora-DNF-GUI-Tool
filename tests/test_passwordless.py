@@ -11,9 +11,19 @@ class TestCoverageMatching(unittest.TestCase):
         self.assertTrue(pw.is_covered(
             ["pkexec", "/usr/bin/dnf5", "upgrade", "-y", "--refresh"], "updates"))
         self.assertTrue(pw.is_covered(
-            ["pkexec", "/usr/bin/dnf", "update", "-y"], "updates"))
+            ["pkexec", "/usr/bin/dnf", "upgrade", "-y", "--security"], "updates"))
         self.assertTrue(pw.is_covered(
-            ["pkexec", "/usr/bin/dnf", "upgrade", "--security"], "updates"))
+            ["pkexec", "/usr/bin/dnf5", "upgrade", "-y", "--refresh",
+             "--exclude=kernel*,mesa-*"], "updates"))
+
+    def test_updates_scope_rejects_extra_upgrade_args(self):
+        for extra in (["./evil.rpm"], ["--nogpgcheck"],
+                      ["--refresh", "--setopt=pluginpath=/tmp"]):
+            self.assertFalse(pw.is_covered(
+                ["pkexec", "/usr/bin/dnf5", "upgrade", "-y"] + extra, "updates"))
+        self.assertFalse(pw.is_covered(
+            ["pkexec", "/usr/bin/dnf5", "upgrade", "-y", "--refresh",
+             "--exclude=x", "./evil.rpm"], "updates"))
 
     def test_updates_scope_rejects_risky_verbs(self):
         for verb in ("install", "remove", "autoremove", "distro-sync",
@@ -62,13 +72,37 @@ class TestRewrite(unittest.TestCase):
 
 
 class TestRuleContent(unittest.TestCase):
-    def test_updates_rule_lists_upgrade_verbs(self):
+    def test_updates_rule_lists_exact_commands(self):
         content = pw.build_rule_content("alice", "updates")
         self.assertIn("alice ALL=(root) NOPASSWD:", content)
-        self.assertIn("/usr/bin/dnf5 upgrade *", content)
+        self.assertIn("/usr/bin/dnf5 upgrade -y --refresh,", content)
+        self.assertIn("/usr/bin/dnf5 upgrade -y --security", content)
         self.assertIn("scope=updates", content)
-        # Must not grant bare dnf or install
+        # Must not grant bare dnf, install, or any unescaped wildcard
         self.assertNotIn("install", content)
+        rule = content.splitlines()[-1]
+        self.assertNotIn(" *", rule)
+
+    def test_updates_rule_escapes_held_back_globs(self):
+        content = pw.build_rule_content("alice", "updates", ["kernel*", "mesa-*"])
+        self.assertIn(
+            r"/usr/bin/dnf5 upgrade -y --refresh --exclude\=kernel\*\,mesa-\*",
+            content)
+
+    def test_escaped_rule_matches_only_literal_argument(self):
+        # sudo matches args with libc fnmatch after its parser strips the
+        # escapes for , : = — emulate that and check wildcards stay literal.
+        import ctypes
+        import ctypes.util
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+        arg = "--exclude=kernel*,mesa-*"
+        pattern = pw._sudoers_escape(arg)
+        for ch in ",:=":
+            pattern = pattern.replace("\\" + ch, ch)
+        self.assertEqual(libc.fnmatch(pattern.encode(), arg.encode(), 0), 0)
+        self.assertNotEqual(libc.fnmatch(
+            pattern.encode(),
+            b"--exclude=kernel --nogpgcheck ./evil.rpm,mesa-*", 0), 0)
 
     def test_full_rule_is_broad_but_dnf_only(self):
         content = pw.build_rule_content("alice", "full")
@@ -80,6 +114,9 @@ class TestRuleContent(unittest.TestCase):
         if not shutil.which("visudo"):
             self.skipTest("visudo not available here")
         ok, msg = pw.validate_content(pw.build_rule_content("alice", "updates"))
+        self.assertTrue(ok, msg)
+        ok, msg = pw.validate_content(pw.build_rule_content(
+            "alice", "updates", ["kernel*", "*nvidia*", "[ab]c?"]))
         self.assertTrue(ok, msg)
         bad_ok, _ = pw.validate_content("this is not valid sudoers {{{")
         self.assertFalse(bad_ok)
@@ -96,6 +133,14 @@ class TestSudoListParsing(unittest.TestCase):
         out = ("User alice may run the following commands on host:\n"
                "    (root) NOPASSWD: /usr/bin/dnf *, /usr/bin/dnf5 *\n")
         self.assertEqual(pw.parse_sudo_list(out), "full")
+
+    def test_detects_legacy_wildcard_rule(self):
+        legacy = "    (root) NOPASSWD: /usr/bin/dnf5 upgrade *, /usr/bin/dnf5 update *\n"
+        self.assertTrue(pw.has_legacy_wildcard_rule(legacy))
+        exact = ("    (root) NOPASSWD: /usr/bin/dnf5 upgrade -y --refresh, "
+                 "/usr/bin/dnf5 upgrade -y --refresh --exclude\\=kernel\\*\n")
+        self.assertFalse(pw.has_legacy_wildcard_rule(exact))
+        self.assertEqual(pw.parse_sudo_list(exact), "updates")
 
     def test_parses_off(self):
         self.assertEqual(pw.parse_sudo_list(""), "off")

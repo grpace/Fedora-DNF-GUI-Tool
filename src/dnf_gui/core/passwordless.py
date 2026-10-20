@@ -11,8 +11,11 @@ Why sudoers instead of a polkit rule?
   ``dnf install`` / ``remove`` / repo edits.
 
 Scopes:
-  * ``updates`` (recommended) — passwordless ``dnf upgrade`` / ``dnf update``
-    only. Daily updates stop prompting; installs, removals, autoremove,
+  * ``updates`` (recommended) — passwordless for the *exact* upgrade
+    command lines this app runs (Upgrade All, Security Only, Update without
+    Major). No wildcards: sudoers ``*`` matches across argument boundaries,
+    so ``dnf upgrade *`` would also allow ``dnf upgrade ./evil.rpm
+    --nogpgcheck`` and hand out root. Installs, removals, autoremove,
     distro-sync, repo/COPR changes and firmware updates still ask.
   * ``full`` — passwordless for any dnf/dnf5 invocation from this app.
     Convenient, but any local process running as you could then install or
@@ -51,10 +54,24 @@ SCOPE_FULL = "full"
 # list both spellings; harmless if one doesn't exist).
 DNF_PATHS = ("/usr/bin/dnf", "/usr/bin/dnf5", "/bin/dnf", "/bin/dnf5")
 
-# argv[1] verbs covered by the "updates" scope. Read-only verbs need no
-# privilege at all; risky verbs (install, remove, autoremove, distro-sync,
-# group, config-manager, copr, history undo, clean) stay behind a prompt.
-UPDATE_VERBS = ("upgrade", "update")
+# Exact argument vectors (after the dnf path) covered by the "updates"
+# scope. Must stay in sync with DNFBackend.build_upgrade_command and
+# security.build_security_update_command.
+UPDATE_ARGVS = (
+    ("upgrade", "-y", "--refresh"),
+    ("upgrade", "-y", "--security"),
+)
+# Update without Major = first argv + one --exclude=<globs> argument.
+_EXCLUDE_PREFIX = "--exclude="
+
+# Characters sudoers treats specially inside command arguments: its own
+# separators (, : = \) plus fnmatch wildcards (* ? [ ]).
+_SUDOERS_SPECIAL = set(",:=\\*?[]")
+
+
+def _sudoers_escape(arg: str) -> str:
+    """Escape one argument so sudoers matches it literally."""
+    return "".join(f"\\{c}" if c in _SUDOERS_SPECIAL else c for c in arg)
 
 
 def current_user() -> str:
@@ -69,21 +86,32 @@ def current_user() -> str:
         return ""
 
 
-def _rule_commands(scope: str) -> list[str]:
+def _updates_argvs(held_back: list[str] | tuple = ()) -> list[tuple[str, ...]]:
+    argvs = list(UPDATE_ARGVS)
+    if held_back:
+        from dnf_gui.core.dnf_backend import build_exclude_arg
+        exclude = build_exclude_arg(held_back)
+        if exclude:
+            argvs.append(UPDATE_ARGVS[0] + (exclude,))
+    return argvs
+
+
+def _rule_commands(scope: str, held_back: list[str] | tuple = ()) -> list[str]:
     """Render the RHS command list for a sudoers rule line."""
     if scope == SCOPE_FULL:
         return [f"{path} *" for path in DNF_PATHS]
-    # updates scope: only the upgrade verbs, any flags/packages after them
+    # updates scope: exact command lines only — every argument literal.
     cmds: list[str] = []
     for path in DNF_PATHS:
-        for verb in UPDATE_VERBS:
-            cmds.append(f"{path} {verb} *")
+        for argv in _updates_argvs(held_back):
+            cmds.append(" ".join([path] + [_sudoers_escape(a) for a in argv]))
     return cmds
 
 
-def build_rule_content(user: str, scope: str) -> str:
+def build_rule_content(user: str, scope: str,
+                       held_back: list[str] | tuple = ()) -> str:
     """Build the full sudoers drop-in text (caller must validate+install)."""
-    cmds = ", ".join(_rule_commands(scope))
+    cmds = ", ".join(_rule_commands(scope, held_back))
     return (
         f"# DNF Package Manager — passwordless {scope} (scope={scope})\n"
         "# Managed by the app (Settings > Password prompts).\n"
@@ -133,12 +161,17 @@ def is_covered(argv: list[str], scope: str) -> bool:
     rest = argv[1:] if argv[0] == "pkexec" else argv[:]
     if len(rest) < 2 or rest[0] == "sudo":
         return False
-    program, verb = rest[0], rest[1]
+    program, args = rest[0], tuple(rest[1:])
     if program not in DNF_PATHS:
         return False
     if scope == SCOPE_FULL:
         return True
-    return verb in UPDATE_VERBS
+    if args in UPDATE_ARGVS:
+        return True
+    # Update without Major. Whether the installed rule lists *these* globs
+    # is up to sudo; on mismatch the caller falls back to pkexec.
+    return (len(args) == 4 and args[:3] == UPDATE_ARGVS[0]
+            and args[3].startswith(_EXCLUDE_PREFIX))
 
 
 def maybe_passwordless(cmd: list[str], scope: str) -> list[str]:
@@ -169,21 +202,46 @@ def parse_sudo_list(output: str) -> str:
     return SCOPE_OFF
 
 
-def live_scope() -> str:
-    """Best-effort detection of what's actually in effect (no root needed)."""
+def has_legacy_wildcard_rule(output: str) -> bool:
+    """True for the pre-1.2 ``dnf upgrade *`` rule (passwordless root)."""
+    return bool(re.search(r"dnf5?\s+(upgrade|update)\s+\*", output))
+
+
+def covers_held_back(output: str, held_back: list[str] | tuple) -> bool:
+    """True if the installed rule lists Update without Major for these globs.
+
+    ``sudo -l`` may print the rule with or without its escaping
+    backslashes, so compare with them stripped.
+    """
+    from dnf_gui.core.dnf_backend import build_exclude_arg
+    exclude = build_exclude_arg(held_back)
+    if not exclude:
+        return True
+    wanted = " ".join(UPDATE_ARGVS[0] + (exclude,))
+    plain = output.replace("\\", "")
+    # Commands in a sudo -l rule line are separated by ", ".
+    return any(entry.strip().endswith(" " + wanted)
+               for entry in re.split(r",\s+|\n", plain))
+
+
+def live_status(held_back: list[str] | tuple = ()) -> tuple[str, bool, bool]:
+    """(scope in effect, legacy wildcard rule present, rule covers the
+    current held-back list). No root needed."""
     sudo = shutil.which("sudo")
     if not sudo:
-        return SCOPE_OFF
+        return SCOPE_OFF, False, True
     try:
         result = subprocess.run(
             [sudo, "-n", "-l"],
             capture_output=True, text=True, timeout=10,
         )
         if result.returncode != 0:
-            return SCOPE_OFF
-        return parse_sudo_list(result.stdout)
+            return SCOPE_OFF, False, True
+        scope = parse_sudo_list(result.stdout)
+        covered = scope != SCOPE_UPDATES or covers_held_back(result.stdout, held_back)
+        return scope, has_legacy_wildcard_rule(result.stdout), covered
     except (subprocess.TimeoutExpired, OSError):
-        return SCOPE_OFF
+        return SCOPE_OFF, False, True
 
 
 def build_install_commands(content: str) -> list[str]:

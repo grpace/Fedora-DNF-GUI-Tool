@@ -101,8 +101,10 @@ install_app() {
     # Create install directory
     mkdir -p "${INSTALL_DIR}"
 
-    # Copy application files
+    # Copy application files (replace, so files removed upstream don't linger)
+    rm -rf "${INSTALL_DIR}/dnf_gui"
     cp -r src/dnf_gui "${INSTALL_DIR}/"
+    find "${INSTALL_DIR}/dnf_gui" -name __pycache__ -type d -prune -exec rm -rf {} +
 
     echo -e "  ${GREEN}✓${NC} Application files copied"
 }
@@ -134,22 +136,8 @@ install_desktop() {
         echo -e "  ${GREEN}✓${NC} Icon installed"
     fi
 
-    # Create desktop entry
-    cat > "${DESKTOP_FILE}" << EOF
-[Desktop Entry]
-Type=Application
-Name=DNF Package Manager
-GenericName=Package Manager
-Comment=Modern GUI package manager for Fedora Linux — by Greg.Tech
-Exec=${BIN_LINK}
-Icon=dnf-gui
-Terminal=false
-Categories=System;PackageManager;Settings;
-Keywords=dnf;package;manager;update;install;remove;fedora;flatpak;
-StartupNotify=true
-StartupWMClass=dnf-package-manager
-X-GNOME-UsesNotifications=true
-EOF
+    # Desktop entry (shared with the RPM; Exec resolves dnf-gui via PATH)
+    install -Dm644 assets/dnf-gui.desktop "${DESKTOP_FILE}"
 
     echo -e "  ${GREEN}✓${NC} Desktop entry installed"
 }

@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from dnf_gui.core.package import Package, PackageStatus, UpdateInfo
+from dnf_gui.core.package import Package
 from dnf_gui.core.dnf_backend import DNFBackend
 
 
@@ -43,11 +43,6 @@ class TestPackageModel(unittest.TestCase):
         """Test full_version without release."""
         pkg = Package(name="test", version="1.0")
         self.assertEqual(pkg.full_version, "1.0")
-
-    def test_display_name(self):
-        """Test the display_name property."""
-        pkg = Package(name="my-cool-package", version="1.0")
-        self.assertEqual(pkg.display_name, "My Cool Package")
 
 
 class TestDNFBackend(unittest.TestCase):

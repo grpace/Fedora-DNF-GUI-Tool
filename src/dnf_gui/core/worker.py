@@ -3,15 +3,30 @@
 import os
 import signal
 import subprocess
-import threading
-import time
 import tempfile
 import urllib.request
 import urllib.parse
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal
 
 from dnf_gui.core.dnf_backend import DNFBackend
-from dnf_gui.core.package import Package, UpdateInfo
+
+
+class CallWorker(QThread):
+    """Run one callable off the UI thread and emit its return value."""
+
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, fn, *args, parent=None):
+        super().__init__(parent)
+        self._fn = fn
+        self._args = args
+
+    def run(self):
+        try:
+            self.finished.emit(self._fn(*self._args))
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class PackageListWorker(QThread):
@@ -29,47 +44,6 @@ class PackageListWorker(QThread):
         try:
             self.progress.emit("Loading installed packages...")
             packages = self._backend.list_installed()
-            self.finished.emit(packages)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class UpdateCheckWorker(QThread):
-    """Worker thread to check for available updates."""
-    
-    finished = pyqtSignal(object)  # UpdateInfo
-    error = pyqtSignal(str)
-    progress = pyqtSignal(str)
-
-    def __init__(self, backend: DNFBackend, parent=None):
-        super().__init__(parent)
-        self._backend = backend
-
-    def run(self):
-        try:
-            self.progress.emit("Checking for updates (refreshing metadata)...")
-            info = self._backend.check_updates()
-            self.finished.emit(info)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class SearchWorker(QThread):
-    """Worker thread to search for packages."""
-    
-    finished = pyqtSignal(list)   # list[Package]
-    error = pyqtSignal(str)
-    progress = pyqtSignal(str)
-
-    def __init__(self, backend: DNFBackend, query: str, parent=None):
-        super().__init__(parent)
-        self._backend = backend
-        self._query = query
-
-    def run(self):
-        try:
-            self.progress.emit(f"Searching for '{self._query}'...")
-            packages = self._backend.search(self._query)
             self.finished.emit(packages)
         except Exception as e:
             self.error.emit(str(e))
@@ -117,9 +91,11 @@ class CommandWorker(QThread):
             self.output_line.emit(f"$ {' '.join(self._command)}")
             self.output_line.emit("")
 
+            # stdin is /dev/null: there is no input box, so a command that
+            # asks a question must fail fast instead of hanging forever.
             self._process = subprocess.Popen(
                 self._command,
-                stdin=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -127,8 +103,9 @@ class CommandWorker(QThread):
                 start_new_session=True,
             )
 
-            for line in iter(self._process.stdout.readline, ""):
-                self.output_line.emit(line.rstrip())
+            with self._process.stdout:
+                for line in iter(self._process.stdout.readline, ""):
+                    self.output_line.emit(line.rstrip())
 
             self._process.wait()
             exit_code = self._process.returncode
@@ -148,39 +125,50 @@ class CommandWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
-    def write_input(self, text: str):
-        """Write user input to the running process standard input."""
-        if self._process and self._process.stdin and self._process.poll() is None:
+    def cancel(self):
+        """Terminate the process group, escalating to SIGKILL if needed.
+
+        Escalation runs on QTimers owned by this worker (in the GUI thread),
+        so it's cancelled automatically if the worker is destroyed. A
+        plain background thread would emit on a deleted object and crash.
+        """
+        if not self._process_running():
+            return
+        self._signal_group(signal.SIGTERM)
+        self._after(600, self._escalate_kill)
+
+    def _process_running(self) -> bool:
+        return self._process is not None and self._process.poll() is None
+
+    def _signal_group(self, sig) -> None:
+        try:
+            os.killpg(os.getpgid(self._process.pid), sig)
+        except Exception:
             try:
-                self._process.stdin.write(text + "\n")
-                self._process.stdin.flush()
+                self._process.send_signal(sig)
             except Exception:
                 pass
 
-    def cancel(self):
-        """Attempt to terminate the running process group cleanly, escalating if needed."""
-        if self._process and self._process.poll() is None:
-            pid = self._process.pid
-            try:
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except Exception:
-                try:
-                    self._process.terminate()
-                except Exception:
-                    pass
+    def _after(self, msec: int, slot) -> None:
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.timeout.connect(slot)
+        timer.timeout.connect(timer.deleteLater)
+        timer.start(msec)
 
-            def _escalate_kill():
-                time.sleep(0.6)
-                if self._process and self._process.poll() is None:
-                    try:
-                        os.killpg(os.getpgid(pid), signal.SIGKILL)
-                    except Exception:
-                        try:
-                            self._process.kill()
-                        except Exception:
-                            pass
+    def _escalate_kill(self) -> None:
+        if self._process_running():
+            self._signal_group(signal.SIGKILL)
+            self._after(1500, self._report_if_unstoppable)
 
-            threading.Thread(target=_escalate_kill, daemon=True).start()
+    def _report_if_unstoppable(self) -> None:
+        if self._process_running():
+            # Once pkexec has authenticated, dnf runs as root and a normal
+            # user can't signal it. Say so instead of pretending it worked.
+            self.output_line.emit(
+                "⚠ Could not stop this operation: it is running as "
+                "root. It will finish on its own (interrupting a DNF "
+                "transaction midway is unsafe anyway).")
 
 
 class SystemInfoWorker(QThread):
@@ -272,24 +260,6 @@ class RepoListWorker(QThread):
             self.error.emit(str(e))
 
 
-class GroupListWorker(QThread):
-    """Worker thread to list package groups."""
-
-    finished = pyqtSignal(list)
-    error = pyqtSignal(str)
-
-    def __init__(self, backend: DNFBackend, parent=None):
-        super().__init__(parent)
-        self._backend = backend
-
-    def run(self):
-        try:
-            groups = self._backend.list_groups()
-            self.finished.emit(groups)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
 class AppUpdateWorker(QThread):
     """Worker thread to check for app updates from GitHub releases."""
 
@@ -310,21 +280,30 @@ class AppUpdateWorker(QThread):
 
 
 class AppUpdateDownloadWorker(QThread):
-    """Worker thread to download an RPM file from URL."""
+    """Download a release RPM and verify it against its published SHA-256."""
 
     finished = pyqtSignal(str)  # path to downloaded file
     error = pyqtSignal(str)
     progress = pyqtSignal(str)
 
-    def __init__(self, url: str, parent=None):
+    MAX_BYTES = 100 * 1024 * 1024
+
+    def __init__(self, url: str, sha256: str = "", parent=None):
         super().__init__(parent)
         self._url = url
+        self._sha256 = (sha256 or "").lower()
 
     def run(self):
         try:
+            import hashlib
             from dnf_gui.core.updater import _is_safe_download_url
             if not _is_safe_download_url(self._url):
                 self.error.emit("Invalid or untrusted download URL")
+                return
+            if not self._sha256:
+                self.error.emit(
+                    "This release has no published SHA-256 checksum, so it "
+                    "can't be verified for automatic install.")
                 return
             self.progress.emit("Downloading update...")
             req = urllib.request.Request(
@@ -332,11 +311,25 @@ class AppUpdateDownloadWorker(QThread):
                 headers={"User-Agent": "dnf-gui"},
             )
             with urllib.request.urlopen(req, timeout=60) as resp:
-                data = resp.read()
-            # Extract filename from URL or use default
-            url_path = urllib.parse.urlparse(self._url).path
-            filename = os.path.basename(url_path) if url_path else "dnf-gui-update.noarch.rpm"
-            path = os.path.join(tempfile.gettempdir(), filename)
+                # Redirects must also land on a trusted GitHub host.
+                if not _is_safe_download_url(resp.geturl()):
+                    self.error.emit("Download redirected to an untrusted host")
+                    return
+                data = resp.read(self.MAX_BYTES + 1)
+            if len(data) > self.MAX_BYTES:
+                self.error.emit("Download is unexpectedly large; aborting")
+                return
+            actual = hashlib.sha256(data).hexdigest()
+            if actual != self._sha256:
+                self.error.emit(
+                    f"Checksum mismatch: expected {self._sha256}, got {actual}")
+                return
+            self.progress.emit("SHA-256 checksum verified.")
+            # Fresh private directory: no predictable /tmp path to race.
+            url_name = os.path.basename(urllib.parse.urlparse(self._url).path)
+            if not url_name.endswith(".rpm") or url_name.startswith("."):
+                url_name = "dnf-gui-update.noarch.rpm"
+            path = os.path.join(tempfile.mkdtemp(prefix="dnf-gui-update-"), url_name)
             with open(path, "wb") as f:
                 f.write(data)
             self.finished.emit(path)
@@ -370,25 +363,10 @@ class ToolkitCheckWorker(QThread):
         self.finished.emit(status)
 
 
-class SecurityCheckWorker(QThread):
-    """Worker thread to query pending security advisories (no root)."""
-
-    finished = pyqtSignal(object)  # SecuritySummary
-    error = pyqtSignal(str)
-
-    def run(self):
-        try:
-            from dnf_gui.core.security import get_security_summary
-            summary = get_security_summary()
-            self.finished.emit(summary)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
 class CombinedUpdateCheckWorker(QThread):
     """Check DNF + Flatpak + security in one pass for the Updates page."""
 
-    finished = pyqtSignal(dict)  # {"dnf": UpdateInfo, "flatpak": [...], "security": ..., "preview": ..., "security_preview": ..., "reboot": bool}
+    finished = pyqtSignal(dict)  # dnf, flatpak, security, preview, security_preview, reboot, release_upgrade
     error = pyqtSignal(str)
 
     def __init__(self, dnf_backend, flatpak_backend, parent=None):
@@ -423,11 +401,34 @@ class CombinedUpdateCheckWorker(QThread):
                 reboot = self._dnf_backend.reboot_required()
             except Exception:
                 reboot = False
+            try:
+                from dnf_gui.core.release_upgrade import check_release_upgrade
+                release_upgrade = check_release_upgrade()
+            except Exception:
+                release_upgrade = None
             self.finished.emit(
                 {"dnf": dnf_info, "flatpak": flatpak_updates,
                  "security": security, "preview": preview,
-                 "security_preview": security_preview, "reboot": reboot}
+                 "security_preview": security_preview, "reboot": reboot,
+                 "release_upgrade": release_upgrade}
             )
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class ReminderCheckWorker(QThread):
+    """Run the periodic update-reminder check off the UI thread."""
+
+    finished = pyqtSignal(object)  # ReminderResult
+    error = pyqtSignal(str)
+
+    def run(self):
+        try:
+            from dnf_gui.core.app_settings import (
+                AppSettings, perform_background_check,
+            )
+            # Own QSettings instance: never share one across threads.
+            self.finished.emit(perform_background_check(AppSettings()))
         except Exception as e:
             self.error.emit(str(e))
 

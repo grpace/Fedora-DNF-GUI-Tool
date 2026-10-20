@@ -35,7 +35,7 @@
   <releases>
     <release version="1.2.0" date="2026-10-20">
       <description>
-        <p>Adds Update without Major (upgrade everything except kernel, graphics drivers, firmware and bootloader), guided Fedora release upgrades, per-package Hold Back, repository search and install, a single update button with a favorite mode, security tags and version changes on every update, and a Clean Up preview. Security fixes: the passwordless rule now covers only exact upgrade commands, and app self-updates are verified against a SHA-256 checksum. Fixes security advisory counts on dnf5, crashes when closing during background work, and many smaller issues.</p>
+        <p>Adds Update without Major (upgrade everything except kernel, graphics drivers, firmware and bootloader), guided Fedora release upgrades, per-package Mark Major, repository search and install, a single update button with a favorite mode, security tags and version changes on every update, and a Clean Up preview. Security fixes: the passwordless rule now covers only exact upgrade commands, and app self-updates are verified against a SHA-256 checksum. Fixes security advisory counts on dnf5, crashes when closing during background work, and many smaller issues.</p>
       </description>
     </release>
     <release version="1.1.1" date="2026-09-14">

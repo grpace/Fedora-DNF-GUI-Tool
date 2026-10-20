@@ -2,7 +2,7 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QCheckBox, QComboBox, QSizePolicy
+    QScrollArea, QFrame, QCheckBox, QComboBox, QLineEdit
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -73,6 +73,7 @@ class SettingsPage(QWidget):
     discover_refresh_requested = pyqtSignal()
     discover_takeover_requested = pyqtSignal()   # per-user disable
     discover_restore_requested = pyqtSignal()    # per-user re-enable
+    discover_cancel_restart_update_requested = pyqtSignal()
     discover_system_disable_requested = pyqtSignal()
     discover_system_enable_requested = pyqtSignal()
     discover_kill_requested = pyqtSignal()
@@ -85,6 +86,8 @@ class SettingsPage(QWidget):
     passwordless_enable_requested = pyqtSignal(str)  # scope
     passwordless_disable_requested = pyqtSignal()
     passwordless_refresh_requested = pyqtSignal()
+    # Update without Major
+    held_back_save_requested = pyqtSignal(str)  # raw comma-separated globs
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -150,17 +153,24 @@ class SettingsPage(QWidget):
         self._btn_restore.setToolTip(
             "Let Discover check for updates again.")
         self._btn_restore.clicked.connect(self.discover_restore_requested.emit)
+        self._btn_cancel_restart = _make_button("Cancel Restart Update", "ghost_button")
+        self._btn_cancel_restart.setToolTip(
+            "Stop Discover from installing its scheduled updates at your next "
+            "restart (pkcon offline-cancel). Install updates from this app instead.")
+        self._btn_cancel_restart.clicked.connect(
+            self.discover_cancel_restart_update_requested.emit)
+        self._btn_cancel_restart.hide()
         self._btn_disc_refresh = _make_button("Refresh", "ghost_button")
         self._btn_disc_refresh.clicked.connect(self.discover_refresh_requested.emit)
 
         # Advanced options disclosure toggle
         self._btn_disc_advanced = _make_button("Advanced Options", "ghost_button")
-        self._btn_disc_advanced.setProperty("compact", True)
         self._btn_disc_advanced.setCheckable(True)
         self._btn_disc_advanced.setChecked(False)
         self._btn_disc_advanced.toggled.connect(self._toggle_disc_advanced)
         disc_card.add_button_row(
-            self._btn_takeover, self._btn_restore, self._btn_disc_refresh, self._btn_disc_advanced)
+            self._btn_takeover, self._btn_restore, self._btn_cancel_restart,
+            self._btn_disc_refresh, self._btn_disc_advanced)
 
         # Advanced options container
         self._disc_advanced = QWidget()
@@ -281,7 +291,7 @@ class SettingsPage(QWidget):
         pw_card.add_row(pw_status_frame)
 
         pw_card.add_row(_hint(
-            "'Updates only' (recommended) makes  passwordless, so "
+            "'Updates only' (recommended) makes dnf upgrade passwordless, so "
             "daily updates just run. Installs, removals, repo changes and "
             "firmware updates still ask for your password. 'All DNF operations' "
             "removes every prompt but lets any program running as you change "
@@ -313,6 +323,34 @@ class SettingsPage(QWidget):
         pw_card.add_button_row(
             self._btn_pw_enable, self._btn_pw_disable, self._btn_pw_refresh)
         content.addWidget(pw_card)
+
+        # ── Update without Major ──
+        content.addWidget(_section_header(
+            "Update without Major",
+            "Choose which packages count as major updates. Update without Major skips "
+            "them and installs everything else; Upgrade All installs everything."
+        ))
+        hb_card = _Card()
+        hb_card.add_row(_hint(
+            "Comma-separated package-name globs. By default the kernel, firmware, "
+            "NVIDIA and Mesa graphics drivers, and the bootloader count as major: "
+            "they're the updates most likely to need a reboot or affect the display. "
+            "Packages you mark with Mark Major on the Updates page are added here."
+        ))
+        self._held_back_edit = QLineEdit()
+        self._held_back_edit.setPlaceholderText("kernel*, *nvidia*, mesa-*")
+        hb_card.add_row(self._held_back_edit)
+        self._held_back_status = _caption("")
+        self._held_back_status.setWordWrap(True)
+        hb_card.add_row(self._held_back_status)
+        self._btn_hb_save = _make_button("Save", "primary_button")
+        self._btn_hb_save.clicked.connect(
+            lambda: self.held_back_save_requested.emit(self._held_back_edit.text()))
+        self._btn_hb_reset = _make_button("Reset to Defaults", "ghost_button")
+        self._btn_hb_reset.clicked.connect(
+            lambda: self.held_back_save_requested.emit(""))
+        hb_card.add_button_row(self._btn_hb_save, self._btn_hb_reset)
+        content.addWidget(hb_card)
 
         content.addStretch()
         scroll.setWidget(content_w)
@@ -357,7 +395,14 @@ class SettingsPage(QWidget):
             else "Background checks have never run."
         )
 
-    def display_passwordless_status(self, remembered: str, live: str) -> None:
+    def load_held_back_patterns(self, patterns: list[str], message: str = "") -> None:
+        self._held_back_edit.setText(", ".join(patterns))
+        self._held_back_status.setText(
+            message or f"{len(patterns)} pattern(s) count as major.")
+
+    def display_passwordless_status(self, remembered: str, live: str,
+                                    legacy: bool = False,
+                                    held_back_stale: bool = False) -> None:
         """Show remembered preference vs what's actually in effect."""
         if live == "off" and remembered == "off":
             text = ("• Passwordless updates are off. "
@@ -372,6 +417,14 @@ class SettingsPage(QWidget):
         else:
             text = (f"• Passwordless updates: {live} is active "
                     f"(your setting: {remembered}).")
+        if held_back_stale:
+            text += ("\n• Update without Major still asks for a password: your "
+                     "list of major packages changed after the rule was installed. Click "
+                     "Enable Passwordless to update it.")
+        if legacy:
+            text += ("\n• Your rule uses an older, overly broad format that "
+                     "could let other programs gain root. Click Enable "
+                     "Passwordless to replace it with the exact-command rule.")
         self._pw_status.setText(text)
         for i in range(self._pw_scope_combo.count()):
             if self._pw_scope_combo.itemData(i) == (remembered if remembered != "off" else "updates"):
@@ -382,21 +435,26 @@ class SettingsPage(QWidget):
         """Show a banner + one contextual action, in plain language."""
         nothing_to_do = (not status.discover_installed
                          and not status.system_autostart_present)
-        active = (status.per_user_disabled
-                  or (status.discover_installed
-                      and not status.system_autostart_present))
+        active = status.per_user_disabled or status.system_disabled
 
+        scheduled = status.restart_update_scheduled
         extras = []
         if status.notifier_running:
             extras.append("Its background checker is running right now.")
-        if status.packagekit_offline_active:
-            extras.append("It may also install updates when you restart.")
+        if scheduled:
+            extras.append("It has updates scheduled to install at your next restart.")
         extra = (" " + " ".join(extras)) if extras else ""
 
         if nothing_to_do:
             variant = "status_info"
             title = "Discover isn't installed."
             detail = "Nothing to turn off."
+        elif active and scheduled:
+            # The takeover stops new checks but not an already-scheduled update.
+            variant = "status_warn"
+            title = "Discover still has an update scheduled."
+            detail = ("Its checks are off, but it will install updates at your next "
+                      "restart. Cancel it and update from this app instead.")
         elif active:
             variant = "status_ok"
             title = "This app handles updates."
@@ -409,10 +467,14 @@ class SettingsPage(QWidget):
                 else "You may see double notifications."
 
         self._discover_banner.setObjectName(variant)
-        self._discover_banner.style().unpolish(self._discover_banner)
-        self._discover_banner.style().polish(self._discover_banner)
+        # The labels' colors come from "QFrame#status_* QLabel#..." rules,
+        # so they need re-polishing too or they keep the previous variant.
+        for widget in (self._discover_banner, self._discover_title, self._discover_status):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
         self._discover_title.setText(title)
         self._discover_status.setText(detail)
 
         self._btn_takeover.setVisible(not active and not nothing_to_do)
         self._btn_restore.setVisible(active and not nothing_to_do)
+        self._btn_cancel_restart.setVisible(scheduled)

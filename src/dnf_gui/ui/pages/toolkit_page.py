@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, Qt
 
 from dnf_gui.ui.icons import paint_icon
+from dnf_gui.ui.styles.theme import get_palette
 
 
 class ToolCard(QFrame):
@@ -14,15 +15,16 @@ class ToolCard(QFrame):
 
     clicked = pyqtSignal(str)  # tool_id
 
-    def __init__(self, tool_id: str, icon: str, title: str, description: str,
-                 color: str, button_text: str = "Run", danger: bool = False,
+    def __init__(self, tool_id: str, title: str, description: str,
+                 color_key: str, button_text: str = "Run", danger: bool = False,
                  parent=None):
         super().__init__(parent)
         self._tool_id = tool_id
+        self._color_key = color_key  # palette key, so icons follow the theme
         self.setObjectName("card")
-        self._setup_ui(icon, title, description, color, button_text, danger)
+        self._setup_ui(title, description, button_text, danger)
 
-    def _setup_ui(self, icon, title, description, color, button_text, danger):
+    def _setup_ui(self, title, description, button_text, danger):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(16)
@@ -32,8 +34,8 @@ class ToolCard(QFrame):
         icon_label.setFixedSize(36, 36)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_label.setObjectName("tool_icon")
-        pix = paint_icon(self._tool_id, color, 24)
-        icon_label.setPixmap(pix)
+        self._icon_label = icon_label
+        self.apply_theme()
         layout.addWidget(icon_label)
 
         # Text
@@ -61,9 +63,12 @@ class ToolCard(QFrame):
         self._btn.clicked.connect(lambda: self.clicked.emit(self._tool_id))
         layout.addWidget(self._btn)
 
+    def apply_theme(self, mode: str | None = None):
+        color = get_palette(mode)[self._color_key]
+        self._icon_label.setPixmap(paint_icon(self._tool_id, color, 24))
+
     def set_installed(self, is_installed: bool):
-        """Update button state to indicate it's already installed/enabled."""
-        if not hasattr(self, '_btn'): return
+        """Hide tools that are already installed/enabled."""
         if is_installed:
             self.hide()
 
@@ -114,15 +119,15 @@ class ToolkitPage(QWidget):
         content.addWidget(self._repos_empty_label)
 
         tools_repos = [
-            ("rpmfusion_free", "RF", "RPM Fusion (Free)",
+            ("rpmfusion_free", "RPM Fusion (Free)",
              "Enable the RPM Fusion Free repository for open-source packages not shipped by Fedora",
-             "#2ecc71", "Enable"),
-            ("rpmfusion_nonfree", "RN", "RPM Fusion (Non-Free)",
+             "green", "Enable"),
+            ("rpmfusion_nonfree", "RPM Fusion (Non-Free)",
              "Enable the RPM Fusion Non-Free repository for proprietary drivers and codecs",
-             "#f67400", "Enable"),
-            ("add_flathub", "FH", "Add Flathub Repository",
+             "amber", "Enable"),
+            ("add_flathub", "Add Flathub Repository",
              "Add the Flathub remote to Flatpak for access to thousands of applications",
-             "#9b59b6", "Add"),
+             "violet", "Add"),
         ]
 
         for args in tools_repos:
@@ -135,21 +140,21 @@ class ToolkitPage(QWidget):
         content.addWidget(self._section_label("System Maintenance"))
 
         tools_system = [
-            ("firmware_check", "FW", "Check Firmware Updates",
+            ("firmware_check", "Check Firmware Updates",
              "Check for available system firmware and BIOS/UEFI updates using fwupd",
-             "#3daee9", "Check"),
-            ("firmware_update", "UP", "Apply Firmware Updates",
+             "accent", "Check"),
+            ("firmware_update", "Apply Firmware Updates",
              "Download and install available device firmware updates (may require restart)",
-             "#f67400", "Update"),
-            ("clean_cache", "CLN", "Clean DNF Cache",
+             "amber", "Update"),
+            ("clean_cache", "Clean DNF Cache",
              "Remove cached package metadata, packages, and temporary storage files",
-             "#e05252", "Clean"),
-            ("rebuild_cache", "BLD", "Rebuild Metadata Cache",
+             "danger", "Clean"),
+            ("rebuild_cache", "Rebuild Metadata Cache",
              "Rebuild DNF repository metadata index for faster and more reliable search",
-             "#3daee9", "Rebuild"),
-            ("distro_sync", "SNC", "Distribution Sync",
+             "accent", "Rebuild"),
+            ("distro_sync", "Distribution Sync",
              "Synchronize all installed packages with the latest distribution repositories",
-             "#9b59b6", "Sync"),
+             "violet", "Sync"),
         ]
 
         for args in tools_system:
@@ -167,11 +172,9 @@ class ToolkitPage(QWidget):
         lbl.setObjectName("section_label")
         return lbl
 
-    def mark_installed(self, tool_id: str):
-        """Mark a tool as installed/configured (hides it)."""
-        if tool_id in self._cards:
-            self._cards[tool_id].set_installed(True)
-        self._check_section_emptiness()
+    def apply_theme(self, mode: str):
+        for card in self._cards.values():
+            card.apply_theme(mode)
 
     def _check_section_emptiness(self):
         """Show message if all repository tools are installed."""

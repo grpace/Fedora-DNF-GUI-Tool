@@ -22,7 +22,6 @@ _DARK = {
     "bg_sidebar": "#121418",       # Deeper navigation rail
     "bg_card": "#1e222a",          # Elevated card surface
     "bg_card_hover": "#252b36",    # Interactive card hover
-    "bg_card_active": "#2b3240",   # Selected card surface
     "bg_card_disabled": "#191c22",
     "bg_input": "#181b22",         # Recessed input field
     "bg_banner": "#1e222a",
@@ -38,15 +37,13 @@ _DARK = {
     "accent": "#3daee9",           # Breeze Cyan
     "accent_hover": "#55bbee",
     "accent_pressed": "#2899d4",
-    "on_bright": "#ffffff",
     "on_accent": "#0d131a",        # Deep contrast text for bright cyan fill
     "green": "#27ae60",            # Emerald success
     "green_hover": "#2ecc71",
-    "badge_ok_text": "#4ade80",
+    "on_fill": "#0d131a",          # Dark text on bright green/amber fills
     "badge_update_bg": "#f67400",
-    "badge_update_text": "#ffffff",
-    "danger": "#e05252",           # Plasma crimson
-    "red": "#e05252",
+    "badge_update_text": "#0d131a",
+    "danger": "#e86464",           # Plasma crimson (AA on dark cards)
     "amber": "#f67400",            # Plasma amber
     "amber_bg": "#2a1c0d",
     "violet": "#9b59b6",           # Plasma purple
@@ -85,6 +82,7 @@ _DARK = {
     "scroll_handle": "#384152",
     "scroll_hover": "#4b566b",
     "terminal_bg": "#0d0f14",      # Obsidian terminal
+    "terminal_text": "#d8dee9",
 }
 
 _LIGHT = {
@@ -93,7 +91,6 @@ _LIGHT = {
     "bg_sidebar": "#e9edf3",       # Distinct sidebar rail
     "bg_card": "#ffffff",          # Pure white card surface
     "bg_card_hover": "#f7f9fc",    # Subtle card hover
-    "bg_card_active": "#eef2f8",   # Selected card surface
     "bg_card_disabled": "#f4f6fa",
     "bg_input": "#ffffff",         # Clean input field
     "bg_banner": "#ffffff",
@@ -109,16 +106,14 @@ _LIGHT = {
     "accent": "#1d72b8",           # Breeze Royal Blue (high contrast against white)
     "accent_hover": "#175c94",
     "accent_pressed": "#114670",
-    "on_bright": "#ffffff",
     "on_accent": "#ffffff",        # White text on royal blue
     "green": "#1e824c",            # Forest green (readable on light backgrounds)
     "green_hover": "#17673c",
-    "badge_ok_text": "#15633a",
-    "badge_update_bg": "#c85a00",
+    "on_fill": "#ffffff",          # White text on deep green/amber fills
+    "badge_update_bg": "#b05000",
     "badge_update_text": "#ffffff",
     "danger": "#c0392b",           # Rich red
-    "red": "#c0392b",
-    "amber": "#c85a00",            # Deep amber
+    "amber": "#b05000",            # Deep amber (AA for text and fills)
     "amber_bg": "#fff3e0",
     "violet": "#7b1fa2",
     # Badges
@@ -156,6 +151,7 @@ _LIGHT = {
     "scroll_handle": "#c2c9d4",
     "scroll_hover": "#a2abb8",
     "terminal_bg": "#14171d",
+    "terminal_text": "#d8dee9",
 }
 
 FONTS = {
@@ -169,32 +165,6 @@ FONTS = {
     "size_xl": "20px",
     "size_2xl": "24px",
 }
-
-COLORS = {  # backward-compat alias
-    "bg_primary": _DARK["bg_app"],
-    "bg_secondary": _DARK["bg_card"],
-    "bg_tertiary": _DARK["border"],
-    "bg_hover": _DARK["accent_hover"],
-    "bg_selected": _DARK["accent"],
-    "bg_input": _DARK["bg_input"],
-    "bg_card": _DARK["bg_card"],
-    "border_primary": _DARK["border"],
-    "border_secondary": _DARK["scroll_handle"],
-    "border_focus": _DARK["border_focus"],
-    "text_primary": _DARK["text"],
-    "text_secondary": _DARK["text_dim"],
-    "text_tertiary": _DARK["text_faint"],
-    "text_link": _DARK["accent"],
-    "accent_blue": _DARK["accent"],
-    "accent_green": _DARK["green"],
-    "accent_red": _DARK["red"],
-    "accent_orange": _DARK["amber"],
-    "accent_purple": _DARK["violet"],
-    "scrollbar_bg": _DARK["bg_app"],
-    "scrollbar_handle": _DARK["scroll_handle"],
-    "scrollbar_hover": _DARK["scroll_hover"],
-}
-
 
 def detect_system_theme() -> str:
     """Detect whether system is dark or light mode."""
@@ -240,11 +210,18 @@ def get_palette(mode: str | None = None) -> dict:
     return dict(_LIGHT if resolve_mode(mode) == "light" else _DARK)
 
 
+def _rgba(hex_color: str, alpha: int) -> str:
+    """Translucent color for QSS. Qt reads 8-digit hex as #AARRGGBB, not
+    #RRGGBBAA, so appending an alpha byte silently produces the wrong hue."""
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
 def get_stylesheet(mode: str | None = None) -> str:
     """Return the complete application QSS stylesheet."""
     c = get_palette(mode)
     f = FONTS
-    is_light = resolve_mode(mode) == "light"
 
     return f"""
     /* ── Global ── */
@@ -261,6 +238,12 @@ def get_stylesheet(mode: str | None = None) -> str:
     }}
     QDialog {{
         background-color: {c['bg_app']};
+    }}
+    /* QSS padding makes Qt treat a label as framed and add an automatic
+       half-character indent on top of the padding, which nudges headers
+       out of line with the text below them. Padding alone positions text. */
+    QLabel {{
+        qproperty-indent: 0;
     }}
 
     /* ── Sidebar ── */
@@ -448,7 +431,7 @@ def get_stylesheet(mode: str | None = None) -> str:
 
     /* Badges */
     QLabel#badge_installed, QLabel#badge_update,
-    QLabel#badge_ok, QLabel#badge_muted {{
+    QLabel#badge_ok, QLabel#badge_muted, QLabel#badge_security {{
         border-radius: 6px;
         padding: 2px 8px;
         font-size: 11px;
@@ -469,6 +452,11 @@ def get_stylesheet(mode: str | None = None) -> str:
         color: {c['badge_ok_text']};
         border: 1px solid {c['badge_ok_border']};
     }}
+    QLabel#badge_security {{
+        background-color: {_rgba(c['danger'], 0x10)};
+        color: {c['danger']};
+        border: 1px solid {_rgba(c['danger'], 0x55)};
+    }}
     QLabel#badge_muted {{
         background-color: {c['badge_muted_bg']};
         color: {c['badge_muted_text']};
@@ -482,7 +470,7 @@ def get_stylesheet(mode: str | None = None) -> str:
     QLabel#repo_dot_on {{ color: {c['badge_ok_text']}; }}
     QLabel#repo_dot_off {{ color: {c['text_faint']}; }}
     QLabel#txn_badge {{
-        background-color: {c['accent']}1f;
+        background-color: {_rgba(c['accent'], 0x1f)};
         color: {c['accent']};
         border-radius: 6px;
         font-size: 12px;
@@ -509,7 +497,7 @@ def get_stylesheet(mode: str | None = None) -> str:
     /* ── High-Contrast, Unified Buttons ── */
     QPushButton#primary_button {{
         background-color: {c['accent']};
-        color: {c['on_accent'] if not is_light else c['on_bright']};
+        color: {c['on_accent']};
         border: none;
         border-radius: 8px;
         padding: 8px 18px;
@@ -531,7 +519,7 @@ def get_stylesheet(mode: str | None = None) -> str:
 
     QPushButton#success_button {{
         background-color: {c['green']};
-        color: {c['on_bright']};
+        color: {c['on_fill']};
         border: none;
         border-radius: 8px;
         padding: 8px 18px;
@@ -571,7 +559,7 @@ def get_stylesheet(mode: str | None = None) -> str:
 
     QPushButton#warning_button {{
         background-color: {c['amber']};
-        color: {c['on_bright']};
+        color: {c['on_fill']};
         border: none;
         border-radius: 8px;
         padding: 8px 18px;
@@ -582,7 +570,6 @@ def get_stylesheet(mode: str | None = None) -> str:
     }}
     QPushButton#warning_button:hover {{
         background-color: {c['amber']};
-        opacity: 0.9;
     }}
     QPushButton#warning_button:disabled {{
         background-color: {c['border_soft']};
@@ -613,7 +600,7 @@ def get_stylesheet(mode: str | None = None) -> str:
     QPushButton#danger_button {{
         background-color: {c['btn_neutral_bg']};
         color: {c['danger']};
-        border: 1px solid {c['danger']}66;
+        border: 1px solid {_rgba(c['danger'], 0x66)};
         border-radius: 8px;
         padding: 7px 16px;
         min-height: 32px;
@@ -622,25 +609,12 @@ def get_stylesheet(mode: str | None = None) -> str:
     }}
     QPushButton#danger_button:hover {{
         border-color: {c['danger']};
-        background-color: {c['danger']}18;
+        background-color: {_rgba(c['danger'], 0x18)};
     }}
     QPushButton#danger_button:disabled {{
         background-color: transparent;
         color: {c['text_faint']};
         border-color: {c['border_soft']};
-    }}
-
-    QPushButton#icon_button {{
-        background-color: transparent;
-        color: {c['text_dim']};
-        border: none;
-        border-radius: 6px;
-        padding: 4px 8px;
-        font-size: 16px;
-    }}
-    QPushButton#icon_button:hover {{
-        color: {c['text']};
-        background-color: {c['border_soft']};
     }}
 
     QPushButton#primary_button[compact="true"],
@@ -653,6 +627,74 @@ def get_stylesheet(mode: str | None = None) -> str:
         min-height: 24px;
         min-width: 0px;
         font-size: {f['size_sm']};
+    }}
+
+    QPushButton#ghost_button[compact="true"][major_toggle="true"] {{
+        min-width: 86px;  /* fits "Unmark Major" so rows line up */
+    }}
+
+    /* ── Split update button + its menu ── */
+    QPushButton#primary_button[split="main"] {{
+        border-top-right-radius: 0px;
+        border-bottom-right-radius: 0px;
+    }}
+    QPushButton#primary_button[split="arrow"] {{
+        border-top-left-radius: 0px;
+        border-bottom-left-radius: 0px;
+        border-left: 1px solid {c['accent_pressed']};
+        min-width: 0px;
+        padding: 8px 10px;
+    }}
+    QMenu#update_menu {{
+        background-color: {c['bg_card']};
+        border: 1px solid {c['border']};
+        border-radius: 10px;
+        padding: 6px;
+    }}
+    QMenu#update_menu::separator {{
+        height: 1px;
+        background-color: {c['border_soft']};
+        margin: 6px 8px;
+    }}
+    QFrame#update_menu_row {{
+        background-color: transparent;
+        border-radius: 8px;
+    }}
+    QFrame#update_menu_row[hover="true"] {{
+        background-color: {_rgba(c['accent'], 0x1f)};
+    }}
+    QLabel#menu_row_title {{
+        color: {c['text']};
+        font-size: {f['size_base']};
+        font-weight: 600;
+    }}
+    QLabel#menu_row_desc {{
+        color: {c['text_dim']};
+        font-size: {f['size_sm']};
+    }}
+    QLabel#menu_row_count {{
+        color: {c['accent']};
+        font-size: {f['size_sm']};
+        font-weight: 600;
+        padding-left: 12px;
+    }}
+    QLabel#menu_row_title:disabled, QLabel#menu_row_desc:disabled,
+    QLabel#menu_row_count:disabled {{
+        color: {c['text_faint']};
+    }}
+    QToolButton#star_button {{
+        background-color: transparent;
+        border: none;
+        border-radius: 6px;
+        padding: 4px;
+    }}
+    QToolButton#star_button:hover {{
+        background-color: {c['border_soft']};
+    }}
+    QLabel#menu_footer {{
+        color: {c['text_faint']};
+        font-size: {f['size_xs']};
+        padding: 2px 12px 4px 12px;
     }}
 
     /* ── Inputs & Controls ── */
@@ -676,7 +718,7 @@ def get_stylesheet(mode: str | None = None) -> str:
         border-color: {c['accent']};
     }}
 
-    QLineEdit#search_input {{
+    QLineEdit {{
         background-color: {c['bg_input']};
         color: {c['text']};
         border: 1px solid {c['border']};
@@ -685,7 +727,7 @@ def get_stylesheet(mode: str | None = None) -> str:
         font-size: {f['size_base']};
         selection-background-color: {c['accent']};
     }}
-    QLineEdit#search_input:focus {{
+    QLineEdit:focus {{
         border-color: {c['border_focus']};
     }}
 
@@ -712,7 +754,19 @@ def get_stylesheet(mode: str | None = None) -> str:
         border: 1px solid {c['border']};
         border-radius: 8px;
         padding: 4px;
-        selection-background-color: {c['accent']};
+        outline: none;
+    }}
+    QComboBox QAbstractItemView::item {{
+        padding: 6px 10px;
+        min-height: 20px;
+        border-radius: 6px;
+    }}
+    QComboBox QAbstractItemView::item:hover {{
+        background-color: {_rgba(c['accent'], 0x1f)};
+    }}
+    QComboBox QAbstractItemView::item:selected {{
+        background-color: {_rgba(c['accent'], 0x33)};
+        color: {c['text']};
     }}
 
     /* ── Reboot Banner ── */
@@ -782,8 +836,9 @@ def get_stylesheet(mode: str | None = None) -> str:
     QScrollBar:vertical {{
         border: none;
         background: {c['scroll_bg']};
-        width: 8px;
-        margin: 0px;
+        /* 8px track plus a 6px gap so it doesn't touch the rows */
+        width: 14px;
+        margin: 0px 0px 0px 6px;
     }}
     QScrollBar::handle:vertical {{
         background: {c['scroll_handle']};
@@ -800,9 +855,9 @@ def get_stylesheet(mode: str | None = None) -> str:
     }}
 
     /* ── Terminal ── */
-    QPlainTextEdit#terminal {{
+    QPlainTextEdit#terminal, QPlainTextEdit#terminal_view {{
         background-color: {c['terminal_bg']};
-        color: #d8dee9;
+        color: {c['terminal_text']};
         border: 1px solid {c['border_soft']};
         border-radius: 8px;
         padding: 12px;
@@ -903,17 +958,17 @@ def get_stylesheet(mode: str | None = None) -> str:
         color: {c['text_faint']};
         font-size: {f['size_xs']};
     }}
-    QLabel#status_line {{
-        color: {c['text_dim']};
-        font-size: {f['size_sm']};
-    }}
     QLabel#loading_label {{
         color: {c['text_dim']};
         font-size: {f['size_base']};
         padding: 40px;
     }}
     QFrame#separator {{
-        background-color: {c['border_soft']};
+        /* A plain 1px rule; without border: none Qt draws its own
+           heavier sunken HLine on top. */
+        border: none;
+        background-color: {c['border']};
+        min-height: 1px;
         max-height: 1px;
     }}
     """

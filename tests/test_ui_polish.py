@@ -14,7 +14,7 @@ _app = None
 def _ensure_app():
     global _app
     if _app is None:
-        _app = QApplication([])
+        _app = QApplication.instance() or QApplication([])
     return _app
 
 
@@ -32,7 +32,7 @@ class TestThemeSystem(unittest.TestCase):
         sheet = get_stylesheet()
         self.assertIn("QCheckBox::indicator", sheet)
         self.assertIn("QCheckBox::indicator:checked", sheet)
-        for name in ("hint", "section_label", "status_line", "reboot_banner"):
+        for name in ("hint", "section_label", "reboot_banner"):
             self.assertIn(name, sheet)
 
     def test_no_inline_button_styles_remain(self):
@@ -202,7 +202,8 @@ class TestSettingsPolish(unittest.TestCase):
                         notification_interval="-1",
                         unattended_updates="false",
                         notifications_silenced=True,
-                        packagekit_offline_active=False)
+                        restart_update_scheduled=False,
+                        system_disabled=False)
             base.update(kwargs)
             page.display_discover_status(SimpleNamespace(**base))
 
@@ -214,7 +215,7 @@ class TestSettingsPolish(unittest.TestCase):
         self.assertTrue(page._btn_restore.isVisibleTo(page))
 
         # Discover checking on its own: banner warn, only Takeover offered.
-        show(notifier_running=True, packagekit_offline_active=True)
+        show(notifier_running=True, restart_update_scheduled=True)
         self.assertEqual(page._discover_banner.objectName(), "status_warn")
         self.assertTrue(page._btn_takeover.isVisibleTo(page))
         self.assertFalse(page._btn_restore.isVisibleTo(page))

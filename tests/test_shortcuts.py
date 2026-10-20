@@ -14,7 +14,7 @@ _app = None
 def _ensure_app():
     global _app
     if _app is None:
-        _app = QApplication([])
+        _app = QApplication.instance() or QApplication([])
     return _app
 
 

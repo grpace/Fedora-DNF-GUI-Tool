@@ -1,6 +1,7 @@
 """App update checker — fetches latest release from GitHub and compares versions."""
 
 import json
+import re
 import urllib.request
 from dataclasses import dataclass
 from typing import Optional
@@ -14,7 +15,9 @@ _ALLOWED_DOWNLOAD_HOSTS = (
     "github.com",
     "objects.githubusercontent.com",
     "github-releases.githubusercontent.com",
+    "release-assets.githubusercontent.com",
 )
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _is_safe_download_url(url: str) -> bool:
@@ -42,6 +45,15 @@ class UpdateInfo:
     download_url: str
     release_url: str
     release_notes: str = ""
+    sha256: str = ""  # from GitHub's asset digest; required to auto-install
+
+
+def _asset_sha256(asset: dict) -> str:
+    """GitHub asset ``digest`` ("sha256:<hex>") → hex, or ''."""
+    digest = str(asset.get("digest") or "")
+    algo, _, value = digest.partition(":")
+    value = value.lower()
+    return value if algo == "sha256" and _SHA256_RE.match(value) else ""
 
 
 def _parse_version(version_str: str) -> list[int]:
@@ -101,6 +113,7 @@ def check_for_update(current_version: str) -> Optional[UpdateInfo]:
 
     # Find the .noarch.rpm asset (validate URL is from trusted GitHub hosts)
     download_url = ""
+    sha256 = ""
     assets = data.get("assets", [])
     for asset in assets:
         name = asset.get("name", "")
@@ -108,6 +121,7 @@ def check_for_update(current_version: str) -> Optional[UpdateInfo]:
             candidate = asset.get("browser_download_url", "")
             if _is_safe_download_url(candidate):
                 download_url = candidate
+                sha256 = _asset_sha256(asset)
             break
 
     # Fallback: use first .rpm asset if no noarch
@@ -118,6 +132,7 @@ def check_for_update(current_version: str) -> Optional[UpdateInfo]:
                 candidate = asset.get("browser_download_url", "")
                 if _is_safe_download_url(candidate):
                     download_url = candidate
+                    sha256 = _asset_sha256(asset)
                 break
 
     release_url = data.get("html_url", RELEASES_PAGE_URL)
@@ -128,4 +143,5 @@ def check_for_update(current_version: str) -> Optional[UpdateInfo]:
         download_url=download_url,
         release_url=release_url,
         release_notes=body[:500] + "..." if len(body) > 500 else body,
+        sha256=sha256,
     )

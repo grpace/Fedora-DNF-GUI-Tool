@@ -2,7 +2,7 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QLineEdit, QTabWidget, QSizePolicy
+    QScrollArea, QFrame, QLineEdit, QTabWidget
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QTimer
 
@@ -139,7 +139,7 @@ class FlatpakPage(QWidget):
         action_bar.setSpacing(16)
 
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setObjectName("primary_button")
+        refresh_btn.setObjectName("ghost_button")
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         refresh_btn.clicked.connect(self.refresh_clicked.emit)
         action_bar.addWidget(refresh_btn)
@@ -158,7 +158,7 @@ class FlatpakPage(QWidget):
         action_bar.addWidget(cleanup_btn)
 
         repair_btn = QPushButton("Repair")
-        repair_btn.setObjectName("danger_button")
+        repair_btn.setObjectName("ghost_button")
         repair_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         repair_btn.setToolTip("Repair Flatpak installation")
         repair_btn.clicked.connect(self.repair_clicked.emit)

@@ -1,13 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component type="desktop">
+<component type="desktop-application">
   <id>dnf-gui.desktop</id>
   <name>DNF Package Manager</name>
-  <summary>Modern GUI package manager for Fedora Linux</summary>
+  <summary>Fedora updates you can see and control</summary>
+  <developer id="tech.greg">
+    <name>Greg.Tech</name>
+  </developer>
   <description>
-    <p>A Discovery alternative that uses real DNF and Flatpak commands for reliable, terminal-grade updates.</p>
-    <p>Features: combined DNF + Flatpak + security updates with download previews, package details, reboot reminders, Discover takeover, background update reminders, optional passwordless updates, light and dark themes with adaptive icons, Flatpak manager with Flathub search, system info dashboard, quick tools, repository manager, transaction history with undo, and auto-update.</p>
+    <p>The Discover alternative for Fedora KDE. Every action runs the real DNF and Flatpak commands with live output, updates install right away instead of waiting for a restart, and you choose what gets updated: everything, everything except the kernel and graphics drivers, or security fixes only.</p>
+    <p>Keep Discover for browsing apps if you like. One click turns off its update checks so you don't get duplicate notifications, and one click brings them back.</p>
+    <p>Features:</p>
+    <ul>
+      <li>Combined DNF, Flatpak and security-advisory updates with download previews</li>
+      <li>Update without Major: upgrade everything except the kernel, graphics drivers, firmware and bootloader</li>
+      <li>Security-only upgrades and a reboot-required banner</li>
+      <li>Guided Fedora release upgrades when a new version is out</li>
+      <li>Discover takeover, background update reminders and optional passwordless updates</li>
+      <li>Search the Fedora repositories and install RPMs, with versions and source repository shown</li>
+      <li>Flatpak manager with Flathub search, repository and COPR manager, and transaction history with undo</li>
+      <li>System information dashboard, quick tools, and light and dark themes</li>
+    </ul>
   </description>
+  <launchable type="desktop-id">dnf-gui.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>System updates (dark theme)</caption>
+      <image>https://raw.githubusercontent.com/grpace/Fedora-DNF-GUI-Tool/master/docs/screenshots/updates-dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Searching the repositories (light theme)</caption>
+      <image>https://raw.githubusercontent.com/grpace/Fedora-DNF-GUI-Tool/master/docs/screenshots/packages-search-light.png</image>
+    </screenshot>
+  </screenshots>
   <releases>
+    <release version="1.2.0" date="2026-10-20">
+      <description>
+        <p>Adds Update without Major (upgrade everything except kernel, graphics drivers, firmware and bootloader), guided Fedora release upgrades, per-package Hold Back, repository search and install, a single update button with a favorite mode, security tags and version changes on every update, and a Clean Up preview. Security fixes: the passwordless rule now covers only exact upgrade commands, and app self-updates are verified against a SHA-256 checksum. Fixes security advisory counts on dnf5, crashes when closing during background work, and many smaller issues.</p>
+      </description>
+    </release>
     <release version="1.1.1" date="2026-09-14">
       <description>
         <p>Fix terminal worker execution hang and cancel operation behavior, sync login autostart with reminder switch, and add independent Flatpak reminders.</p>
@@ -19,10 +49,9 @@
       </description>
     </release>
   </releases>
-  <developer_name>Greg.Tech</developer_name>
-  <url type="homepage">https://greg.tech</url>
+  <url type="homepage">https://github.com/grpace/Fedora-DNF-GUI-Tool</url>
   <url type="bugtracker">https://github.com/grpace/Fedora-DNF-GUI-Tool/issues</url>
   <project_license>GPL-3.0-or-later</project_license>
   <metadata_license>FSFAP</metadata_license>
-  <icon type="local">/usr/share/icons/hicolor/scalable/apps/dnf-gui.svg</icon>
+  <content_rating type="oars-1.1"/>
 </component>

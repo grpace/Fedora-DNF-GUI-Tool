@@ -10,6 +10,9 @@ Owns:
    - ``reminders/last_check`` (ISO timestamp)
    - ``discover/notifier_overridden`` (bool)
    - ``passwordless/scope`` ("off" | "updates" | "full")
+   - ``updates/held_back`` (comma-separated globs for "Update without Major")
+   - ``updates/favorite`` (update mode on the main Updates button)
+   - ``upgrade/dismissed_release`` (Fedora release the upgrade banner was dismissed for)
 2. **Login checker** — ``dnf-gui --check`` can be installed as a
    per-user XDG autostart entry (``~/.config/autostart/dnf-gui-update-checker.desktop``)
    that triggers at login, checks if an update check is due according
@@ -28,6 +31,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 CHECKER_DESKTOP_NAME = "dnf-gui-update-checker.desktop"
+# Update modes for the main Updates button; the first is the default.
+UPDATE_MODE_KEYS = ("all", "everything", "minor", "security")
 
 
 @dataclass
@@ -42,6 +47,16 @@ class ReminderResult:
     @property
     def total(self) -> int:
         return self.dnf_updates + self.flatpak_updates
+
+
+def _checker_exec() -> str:
+    """Autostart Exec line: the RPM/install.sh launcher if present, else
+    this interpreter + module (pip installs only ship fedora-dnf-gui)."""
+    import shutil
+    import sys
+    if shutil.which("dnf-gui"):
+        return "dnf-gui --check"
+    return f'"{sys.executable}" -m dnf_gui --check'
 
 
 class AppSettings:
@@ -118,6 +133,41 @@ class AppSettings:
         self.set("passwordless/scope", value)
         self.set("privilege/passwordless_scope", value)
 
+    @property
+    def dismissed_release(self) -> int:
+        """Highest Fedora release the user said "Not now" to."""
+        return self.get_int("upgrade/dismissed_release", 0)
+
+    @dismissed_release.setter
+    def dismissed_release(self, value: int) -> None:
+        self.set("upgrade/dismissed_release", int(value))
+
+    @property
+    def update_favorite(self) -> str:
+        value = str(self.get("updates/favorite", UPDATE_MODE_KEYS[0]))
+        return value if value in UPDATE_MODE_KEYS else UPDATE_MODE_KEYS[0]
+
+    @update_favorite.setter
+    def update_favorite(self, key: str) -> None:
+        self.set("updates/favorite", key)
+
+    @property
+    def held_back_patterns(self) -> list[str]:
+        from dnf_gui.core.dnf_backend import (
+            DEFAULT_HELD_BACK_PATTERNS, parse_held_back_patterns,
+        )
+        raw = self.get("updates/held_back", None)
+        if raw is None or str(raw).strip() == "":
+            return list(DEFAULT_HELD_BACK_PATTERNS)
+        if isinstance(raw, (list, tuple)):  # QSettings may hand back a list
+            raw = ",".join(str(r) for r in raw)
+        valid, _invalid = parse_held_back_patterns(str(raw))
+        return valid or list(DEFAULT_HELD_BACK_PATTERNS)
+
+    @held_back_patterns.setter
+    def held_back_patterns(self, patterns) -> None:
+        self.set("updates/held_back", ", ".join(patterns or []))
+
     # ─── Last check timestamp + throttle ──────────────────────
     def get_last_check(self) -> datetime | None:
         raw = self.get("reminders/last_check", "")
@@ -163,7 +213,7 @@ class AppSettings:
                 "Type=Application\n"
                 "Name=DNF GUI Update Checker\n"
                 "Comment=Background update reminder for DNF Package Manager\n"
-                "Exec=dnf-gui --check\n"
+                f"Exec={_checker_exec()}\n"
                 "Icon=dnf-gui\n"
                 "Terminal=false\n"
                 "Categories=System;\n"
@@ -195,18 +245,22 @@ def send_desktop_notification(title: str, body: str, urgent: bool = False) -> bo
     return False
 
 
-def perform_background_check(settings: AppSettings | None = None) -> ReminderResult:
+def perform_background_check(settings: AppSettings | None = None,
+                             security_only: bool | None = None) -> ReminderResult:
     """Headless check used by ``dnf-gui --check`` and the in-app timer.
 
     Respects ``reminders/security_only`` and ``reminders/notify_flatpak``.
     Always updates ``reminders/last_check`` so the interval throttle works.
-    Never raises — failures degrade to zero counts.
+    Never raises — failures degrade to zero counts. ``security_only``
+    overrides the saved preference for this run without persisting it.
     """
     from dnf_gui.core.dnf_backend import DNFBackend
     from dnf_gui.core.flatpak_backend import FlatpakBackend
     from dnf_gui.core.security import get_security_summary
 
     settings = settings or AppSettings()
+    if security_only is None:
+        security_only = settings.security_only
     result = ReminderResult()
     try:
         backend = DNFBackend()
@@ -231,7 +285,7 @@ def perform_background_check(settings: AppSettings | None = None) -> ReminderRes
     settings.set_last_check()
 
     # Determine whether system DNF packages warrant a reminder
-    if settings.security_only:
+    if security_only:
         system_notify = result.security_total > 0
     else:
         system_notify = result.dnf_updates > 0 or result.security_total > 0
@@ -243,8 +297,8 @@ def perform_background_check(settings: AppSettings | None = None) -> ReminderRes
 
     if result.should_notify:
         parts = []
-        if result.dnf_updates and (not settings.security_only or result.security_total):
-            if settings.security_only:
+        if result.dnf_updates and (not security_only or result.security_total):
+            if security_only:
                 parts.append(f"{result.security_total} security")
             else:
                 parts.append(f"{result.dnf_updates} system")
@@ -268,20 +322,3 @@ def perform_background_check(settings: AppSettings | None = None) -> ReminderRes
         else:
             result.message = f"{updates_str} updates available."
     return result
-
-
-def checker_autostart_desktop_source() -> str:
-    """Desktop file content for packagers (mirrors set_checker_installed)."""
-    return (
-        "[Desktop Entry]\n"
-        "Type=Application\n"
-        "Name=DNF GUI Update Checker\n"
-        "Comment=Background update reminder for DNF Package Manager\n"
-        "Exec=dnf-gui --check\n"
-        "Icon=dnf-gui\n"
-        "Terminal=false\n"
-        "Categories=System;\n"
-        "X-GNOME-Autostart-enabled=true\n"
-        "X-KDE-AutostartScript=true\n"
-        "NoDisplay=true\n"
-    )

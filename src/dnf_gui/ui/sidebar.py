@@ -21,7 +21,7 @@ from dnf_gui.ui.icons import paint_icon
 _NAV_ITEMS: list[tuple[str, str, str]] = [
     # (label, section, icon kind)
     ("Updates", "PACKAGES", "updates"),
-    ("Installed", "PACKAGES", "installed"),
+    ("Packages", "PACKAGES", "installed"),
     ("Flatpak", "PACKAGES", "flatpak"),
     ("System Info", "SYSTEM", "sysinfo"),
     ("Quick Tools", "SYSTEM", "tools"),
@@ -87,9 +87,6 @@ class SidebarButton(QPushButton):
         self._polish()
         self._repaint()
 
-    def is_active(self) -> bool:
-        return self._active
-
     def enterEvent(self, event):
         super().enterEvent(event)
         self._hover = True
@@ -105,11 +102,12 @@ class SidebarButton(QPushButton):
         self._repaint()
 
     def _polish(self):
-        try:
-            self.style().unpolish(self)
-            self.style().polish(self)
-        except Exception:
-            pass
+        # The label's color comes from a parent-property selector
+        # (nav_button[active] QLabel#nav_label), so it must be re-polished
+        # too or it keeps the previous page's highlight.
+        for widget in (self, self._text_label):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
     def _repaint(self):
         """Recolor the icon pixmap for the current state."""

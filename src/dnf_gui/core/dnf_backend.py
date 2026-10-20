@@ -1,14 +1,60 @@
 """DNF backend — handles all interaction with the DNF package manager via subprocess."""
 
+import fnmatch
 import os
 import platform
 import re
 import subprocess
 import shutil
-from typing import Optional
+from typing import Iterable, Optional
 
 # COPR format: user/project or @group/project (alphanumeric, dots, hyphens)
 _COPR_PATTERN = re.compile(r"^[@]?[\w][\w.-]*/[\w.-]+$")
+
+# Packages "Update without Major" holds back by default: the kernel and its
+# out-of-tree modules, GPU drivers + firmware, and the bootloader. These are
+# the updates most likely to need a reboot or break graphics if they land
+# half-tested, so they wait for a deliberate full upgrade.
+DEFAULT_HELD_BACK_PATTERNS = (
+    "kernel*",
+    "linux-firmware*",
+    "*-gpu-firmware",
+    "*nvidia*",
+    "akmod-*",
+    "mesa-*",
+    "grub2-*",
+    "shim-*",
+)
+
+# Package-name globs only — these are passed to dnf as argv, never a shell,
+# but rejecting anything else keeps typos from becoming dnf option syntax.
+_HELD_BACK_PATTERN_RE = re.compile(r"^[A-Za-z0-9*?._+\-\[\]]+$")
+
+
+def parse_held_back_patterns(text: str) -> tuple[list[str], list[str]]:
+    """Split comma/whitespace-separated globs into (valid, invalid)."""
+    valid, invalid = [], []
+    for token in re.split(r"[,\s]+", text or ""):
+        if not token:
+            continue
+        if _HELD_BACK_PATTERN_RE.match(token) and not token.startswith("-"):
+            if token not in valid:
+                valid.append(token)
+        else:
+            invalid.append(token)
+    return valid, invalid
+
+
+def build_exclude_arg(patterns: Iterable[str]) -> str:
+    """``--exclude=a,b`` for valid globs, or '' if none survive."""
+    valid = [p for p in patterns
+             if _HELD_BACK_PATTERN_RE.match(p) and not p.startswith("-")]
+    return f"--exclude={','.join(valid)}" if valid else ""
+
+
+def is_held_back(name: str, patterns: Iterable[str]) -> bool:
+    """True if a package name matches any held-back glob."""
+    return any(fnmatch.fnmatchcase(name, p) for p in patterns)
 
 from dnf_gui.core.package import Package, PackageStatus, UpdateInfo, UpgradePreview
 
@@ -22,6 +68,10 @@ class DNFBackend:
 
     def __init__(self):
         self._dnf_path = self._find_dnf()
+
+    @property
+    def dnf_path(self) -> str:
+        return self._dnf_path
 
     def _find_dnf(self) -> str:
         """Locate the dnf binary. Prefers dnf5 on Fedora 41+."""
@@ -54,22 +104,17 @@ class DNFBackend:
             return info
 
         packages = self._parse_package_list(result, PackageStatus.UPDATE_AVAILABLE)
+        installed = self._installed_versions([p.name for p in packages])
+        for pkg in packages:
+            pkg.installed_version = installed.get(pkg.name, "")
         info.packages = packages
         info.total_updates = len(packages)
-        
+
         from datetime import datetime
         info.last_checked = datetime.now().strftime("%Y-%m-%d")
         
         return info
 
-    def search(self, query: str) -> list[Package]:
-        """Search for packages matching a query."""
-        if not query or len(query) < 2:
-            return []
-        result = self._run([self._dnf_path, "search", "-q", query])
-        if result is None:
-            return []
-        return self._parse_search_results(result)
 
     def package_info(self, package_name: str) -> Optional[Package]:
         """Get detailed info about a package."""
@@ -77,6 +122,100 @@ class DNFBackend:
         if result is None:
             return None
         return self._parse_package_info(result)
+
+    def search(self, query: str, limit: int = 100) -> list[Package]:
+        """Search enabled repositories by name and summary (no root).
+
+        Keeps dnf's relevance order (exact name, then name, then summary
+        matches), only this machine's architectures, and no debug packages.
+        """
+        query = (query or "").strip()
+        if len(query) < 2 or query.startswith("-"):
+            return []
+        output = self._run([self._dnf_path, "search", "-q", query], allow_nonzero=True)
+        if not output:
+            return []
+        native = {platform.machine(), "noarch"}
+        installed = self._installed_versions()
+        results: list[Package] = []
+        seen: set[str] = set()
+        for line in output.split("\n"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("Matched fields", "=", "Last metadata")):
+                continue
+            # dnf5: "name.arch<TAB>summary"   dnf4: "name.arch : summary"
+            if "\t" in stripped:
+                name_arch, summary = stripped.split("\t", 1)
+            elif " : " in stripped:
+                name_arch, summary = stripped.split(" : ", 1)
+            else:
+                continue
+            name, _, arch = name_arch.strip().rpartition(".")
+            if (not name or arch not in native or name in seen
+                    or name.endswith(("-debuginfo", "-debugsource"))):
+                continue
+            seen.add(name)
+            results.append(Package(
+                name=name, version=installed.get(name, ""), arch=arch,
+                summary=summary.strip(),
+                status=(PackageStatus.INSTALLED if name in installed
+                        else PackageStatus.AVAILABLE),
+            ))
+            if len(results) >= limit:
+                break
+        available = self._available_versions(
+            [p.name for p in results if p.status == PackageStatus.AVAILABLE], native)
+        for pkg in results:
+            if pkg.name in available:
+                pkg.version, pkg.repo = available[pkg.name]
+        return results
+
+    def _available_versions(self, names: list[str],
+                            arches: set[str]) -> dict[str, tuple[str, str]]:
+        """name -> (latest available EVR, repo id) for not-installed packages."""
+        if not names:
+            return {}
+        output = self._run(
+            [self._dnf_path, "repoquery", "-q", "--available", "--latest-limit=1",
+             f"--arch={','.join(sorted(arches))}",
+             "--queryformat", "%{name} %{evr} %{repoid}\n", *names],
+            allow_nonzero=True,
+        )
+        versions: dict[str, tuple[str, str]] = {}
+        for line in (output or "").split("\n"):
+            parts = line.split()
+            if len(parts) == 3:
+                versions.setdefault(parts[0], (parts[1], parts[2]))
+        return versions
+
+    def unneeded_packages(self) -> list[str]:
+        """Packages ``dnf autoremove`` would remove, as "name-evr" (no root)."""
+        output = self._run(
+            [self._dnf_path, "repoquery", "-q", "--unneeded",
+             "--queryformat", "%{name}-%{evr}\n"],
+            allow_nonzero=True,
+        )
+        if not output:
+            return []
+        return sorted({line.strip() for line in output.split("\n")
+                       if line.strip() and not line.startswith("Last metadata")})
+
+    def _installed_versions(self, names: list[str] | None = None) -> dict[str, str]:
+        """name -> installed EVR (newest when several, e.g. kernels)."""
+        cmd = ["rpm", "-q" if names else "-qa", "--qf", "%{NAME} %{EVR}\n"]
+        if names:
+            cmd += sorted(set(names))
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return {}
+        versions: dict[str, str] = {}
+        for line in result.stdout.split("\n"):
+            parts = line.split()
+            # "package foo is not installed" lines have more than 2 words
+            if len(parts) == 2:
+                versions[parts[0]] = parts[1]  # rpm lists oldest first
+        return versions
 
     def get_upgrade_preview(self, security_only: bool = False) -> UpgradePreview:
         """Preview an upgrade: package count + total download size.
@@ -104,12 +243,14 @@ class DNFBackend:
                 continue
             preview.count += 1
             try:
-                preview.total_bytes += int(parts[-1])
+                size = int(parts[-1])
+                preview.total_bytes += size
                 preview.sizes_known = True
             except ValueError:
                 # Unknown query tag echoed literally (older dnf) — count it,
                 # but don't claim a size.
-                pass
+                size = None
+            preview.entries.append((parts[0], size))
         return preview
 
     def reboot_required(self) -> bool:
@@ -144,15 +285,22 @@ class DNFBackend:
             running = platform.release()
             for pkg in ("kernel-core", "kernel"):
                 result = subprocess.run(
-                    ["rpm", "-q", pkg, "--queryformat", "%{VERSION}-%{RELEASE}.%{ARCH}\n"],
+                    ["rpm", "-q", pkg, "--queryformat",
+                     "%{INSTALLTIME} %{VERSION}-%{RELEASE}.%{ARCH}\n"],
                     capture_output=True, text=True, timeout=15,
                 )
                 if result.returncode != 0 or not result.stdout.strip():
                     continue
-                installed = [l.strip() for l in result.stdout.split("\n") if l.strip()]
-                if installed and running not in installed:
-                    return True
-                return False
+                installed = []
+                for line in result.stdout.split("\n"):
+                    parts = line.split()
+                    if len(parts) == 2 and parts[0].isdigit():
+                        installed.append((int(parts[0]), parts[1]))
+                if not installed:
+                    continue
+                # Reboot needed when a newer kernel was installed after the
+                # one we're running (or ours was removed entirely).
+                return max(installed)[1] != running
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             pass
         except Exception:
@@ -167,6 +315,23 @@ class DNFBackend:
         if refresh:
             cmd.append("--refresh")
         return cmd
+
+    def build_upgrade_without_major_command(
+            self, held_back: Iterable[str], refresh: bool = True) -> list[str]:
+        """Upgrade everything except held-back core packages.
+
+        Stays a literal ``dnf upgrade`` (no shell) so the passwordless
+        "updates" sudoers rule still covers it.
+        """
+        cmd = self.build_upgrade_command(refresh=refresh)
+        exclude = build_exclude_arg(held_back)
+        if exclude:
+            cmd.append(exclude)
+        return cmd
+
+    def build_upgrade_package_command(self, package_name: str) -> list[str]:
+        """Upgrade one installed package (``install`` may not upgrade)."""
+        return ["pkexec", self._dnf_path, "upgrade", "-y", package_name]
 
     def build_install_command(self, package_name: str) -> list[str]:
         """Build the command to install a package."""
@@ -240,15 +405,10 @@ class DNFBackend:
             )
         return ["pkexec", self._dnf_path, "copr", "enable", "-y", cleaned]
 
-    def build_remove_copr_command(self, copr_repo: str) -> list[str]:
-        """Build command to remove a COPR repository."""
-        return ["pkexec", self._dnf_path, "copr", "remove", "-y", copr_repo]
-
-    # ─── History Operations ─────────────────────────────────────────
 
     def history(self, limit: int = 30) -> list[dict]:
         """Get DNF transaction history."""
-        result = self._run([self._dnf_path, "history", "list", f"--reverse"])
+        result = self._run([self._dnf_path, "history", "list", "--reverse"])
         if result is None:
             return []
 
@@ -330,38 +490,6 @@ class DNFBackend:
 
     # ─── Group Operations ───────────────────────────────────────────
 
-    def list_groups(self) -> list[dict]:
-        """List available package groups."""
-        result = self._run([self._dnf_path, "group", "list", "-q"])
-        if result is None:
-            return []
-
-        groups = []
-        current_section = ""
-        for line in result.strip().split("\n"):
-            if not line.strip():
-                continue
-            if line.strip().endswith(":") or line.strip().endswith("Groups:"):
-                current_section = line.strip().rstrip(":")
-                continue
-            name = line.strip()
-            if name:
-                groups.append({
-                    "name": name,
-                    "section": current_section,
-                    "installed": "Installed" in current_section,
-                })
-        return groups
-
-    def build_group_install_command(self, group_name: str) -> list[str]:
-        """Build command to install a package group."""
-        return ["pkexec", self._dnf_path, "group", "install", "-y", group_name]
-
-    def build_group_remove_command(self, group_name: str) -> list[str]:
-        """Build command to remove a package group."""
-        return ["pkexec", self._dnf_path, "group", "remove", "-y", group_name]
-
-    # ─── Cache & Maintenance ────────────────────────────────────────
 
     def build_clean_cache_command(self) -> list[str]:
         """Build command to clean DNF cache."""
@@ -399,7 +527,8 @@ class DNFBackend:
 
     def build_firmware_update_check_command(self) -> list[str]:
         """Build command to check for firmware updates."""
-        return ["bash", "-c", "fwupdmgr get-updates; if [ $? -eq 2 ]; then exit 0; else exit $?; fi"]
+        # fwupdmgr exits 2 for "no updates available" — treat that as success.
+        return ["bash", "-c", "fwupdmgr get-updates; rc=$?; [ $rc -eq 2 ] && exit 0; exit $rc"]
 
     def build_firmware_update_apply_command(self) -> list[str]:
         """Build command to apply firmware updates."""
@@ -434,44 +563,6 @@ class DNFBackend:
                 packages.append(pkg)
         return packages
 
-    def _parse_search_results(self, output: str) -> list[Package]:
-        """Parse DNF search output into Package objects."""
-        packages = []
-        lines = output.strip().split("\n")
-        
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-            if not line or line.startswith("=") or line.startswith("Last metadata"):
-                i += 1
-                continue
-
-            # Search results format: "name.arch : summary"
-            if " : " in line:
-                parts = line.split(" : ", 1)
-                name_arch = parts[0].strip()
-                summary = parts[1].strip() if len(parts) > 1 else ""
-
-                if "." in name_arch:
-                    last_dot = name_arch.rfind(".")
-                    name = name_arch[:last_dot]
-                    arch = name_arch[last_dot + 1:]
-                else:
-                    name = name_arch
-                    arch = ""
-
-                pkg = Package(
-                    name=name,
-                    version="",
-                    arch=arch,
-                    summary=summary,
-                    status=PackageStatus.AVAILABLE,
-                )
-                packages.append(pkg)
-            
-            i += 1
-
-        return packages
 
     def _parse_package_info(self, output: str) -> Optional[Package]:
         """Parse dnf info output into a Package object."""

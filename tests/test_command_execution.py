@@ -1,7 +1,6 @@
 """Tests for command execution, worker lifecycle, cancellation, and passwordless flow."""
 
 import os
-import sys
 import time
 import unittest
 from PyQt6.QtWidgets import QApplication

@@ -34,6 +34,20 @@ from pathlib import Path
 from typing import Optional
 
 SYSTEM_AUTOSTART = "/etc/xdg/autostart/org.kde.discover.notifier.desktop"
+# Plasma starts autostart entries as systemd user units; masking the unit
+# globally stops the notifier for every user and, unlike deleting the
+# package-owned desktop file, survives plasma-discover-notifier updates.
+NOTIFIER_UNIT = "app-org.kde.discover.notifier@autostart.service"
+GLOBAL_UNIT_MASK = f"/etc/systemd/user/{NOTIFIER_UNIT}"
+# System-wide default for Discover's notifier settings (fallback for
+# sessions not started through systemd). Only ever touched if ours.
+SYSTEM_DISCOVER_CONFIG = "/etc/xdg/PlasmaDiscoverUpdates"
+MANAGED_MARKER = "# Managed by DNF Package Manager"
+# systemd boots into the offline-update target while this symlink exists.
+# PackageKit points it at its prepared transaction; dnf's own offline
+# upgrades point elsewhere, so only PackageKit-scheduled work matches.
+SYSTEM_UPDATE_TRIGGER = "/system-update"
+PACKAGEKIT_OFFLINE_DIR = "/var/lib/PackageKit/"
 NOTIFIER_NAME = "org.kde.discover.notifier.desktop"
 NOTIFIER_BINARY_NAMES = ("DiscoverNotifier", "discover-notifier")
 
@@ -58,13 +72,9 @@ class DiscoverStatus:
     notification_interval: Optional[str] = None
     unattended_updates: Optional[str] = None
     notifications_silenced: bool = False
-    packagekit_offline_active: bool = False
     discover_installed: bool = False
-
-    @property
-    def effectively_quiet(self) -> bool:
-        """True when Discover will not pop update notifications."""
-        return self.per_user_disabled or self.notifications_silenced
+    system_disabled: bool = False  # "Turn Off for All Users" is in effect
+    restart_update_scheduled: bool = False  # Discover/PackageKit, next boot
 
 
 class DiscoverManager:
@@ -88,12 +98,47 @@ class DiscoverManager:
         status.notification_interval = interval
         status.unattended_updates = unattended
         status.notifications_silenced = (interval is not None and interval.strip() == "-1")
-        status.packagekit_offline_active = self._is_packagekit_offline_active()
         status.discover_installed = bool(
             shutil.which("plasma-discover") or shutil.which("plasma-discover-notifier")
             or os.path.exists("/usr/bin/plasma-discover")
         )
+        status.system_disabled = self._is_system_disabled(status)
+        status.restart_update_scheduled = self.restart_update_scheduled()
         return status
+
+    @staticmethod
+    def restart_update_scheduled() -> bool:
+        """True if PackageKit will install updates at the next restart.
+
+        Reads the trigger symlink instead of asking PackageKit over D-Bus,
+        which would start the daemon just to answer.
+        """
+        try:
+            return (os.path.islink(SYSTEM_UPDATE_TRIGGER)
+                    and os.readlink(SYSTEM_UPDATE_TRIGGER).startswith(PACKAGEKIT_OFFLINE_DIR))
+        except OSError:
+            return False
+
+    @staticmethod
+    def build_cancel_restart_update_command() -> list[str]:
+        """Unschedule PackageKit's restart-time update (polkit asks if needed).
+
+        ``offline-cancel`` isn't in pkcon's --help or man page, but it
+        exists (PackageKit's Offline.Cancel D-Bus method). The downloaded
+        packages stay cached; only the "install at next boot" is removed.
+        """
+        return ["pkcon", "offline-cancel"]
+
+    @staticmethod
+    def _is_system_disabled(status: DiscoverStatus) -> bool:
+        try:
+            if (os.path.islink(GLOBAL_UNIT_MASK)
+                    and os.readlink(GLOBAL_UNIT_MASK) == "/dev/null"):
+                return True
+        except OSError:
+            pass
+        # Older versions of this app deleted the autostart file instead.
+        return status.discover_installed and not status.system_autostart_present
 
     def _read_discover_config(self) -> tuple[Optional[str], Optional[str]]:
         cfg_path = _discover_updates_config()
@@ -128,15 +173,6 @@ class DiscoverManager:
                 continue
         return False
 
-    def _is_packagekit_offline_active(self) -> bool:
-        try:
-            result = subprocess.run(
-                ["systemctl", "is-active", "packagekit-offline-update.service"],
-                capture_output=True, text=True, timeout=5,
-            )
-            return result.stdout.strip() == "active"
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            return False
 
     # ─── Per-user takeover (no root, reversible) ──────────────────
 
@@ -215,26 +251,44 @@ class DiscoverManager:
     # ─── System-wide hardening (needs root via pkexec) ────────────
 
     def build_system_disable_commands(self) -> list[list[str]]:
-        """Commands (run with pkexec) to stop Discover/PackageKit system-wide.
+        """Commands (run with pkexec) to stop Discover's checks system-wide.
 
-        1. Remove the system autostart entry so the notifier never starts.
-        2. Mask packagekit-offline-update so no surprise offline updates run
-           on reboot/shutdown. ``packagekit.service`` itself is left alone
-           so manual pkcon use still works.
+        1. Globally mask the notifier's systemd user unit (all users).
+        2. Write a system default that silences Discover update
+           notifications, unless an admin already has their own file there.
+        3. Mask packagekit-offline-update so no surprise offline updates run
+           on reboot. ``packagekit.service`` itself is left alone so Discover
+           and ``pkcon`` keep working for browsing and installing apps.
         """
+        config = SYSTEM_DISCOVER_CONFIG
         return [
             ["pkexec", "bash", "-c",
-             f"rm -f {SYSTEM_AUTOSTART} && "
-             "systemctl mask --now packagekit-offline-update.service || "
+             # Unschedule any pending restart-time update first: masking the
+             # service under a live trigger costs an extra reboot instead.
+             "pkcon offline-cancel >/dev/null 2>&1 || true; "
+             f"systemctl --global mask {NOTIFIER_UNIT} && "
+             f"if [ ! -e {config} ] || grep -qF '{MANAGED_MARKER}' {config}; then "
+             f"printf '%s\\n' '{MANAGED_MARKER}' '[Global]' "
+             "'RequiredNotificationInterval=-1' 'UseUnattendedUpdates=false' "
+             f"> {config}; fi && "
              "systemctl mask packagekit-offline-update.service"],
         ]
 
     def build_system_enable_commands(self) -> list[list[str]]:
-        """Re-enable what :meth:`build_system_disable_commands` turned off."""
+        """Undo :meth:`build_system_disable_commands` completely.
+
+        Also restores the autostart file if an older version of this app
+        deleted it (it belongs to the plasma-discover-notifier package).
+        """
+        dnf = shutil.which("dnf5") or shutil.which("dnf") or "dnf"
+        config = SYSTEM_DISCOVER_CONFIG
         return [
             ["pkexec", "bash", "-c",
+             f"systemctl --global unmask {NOTIFIER_UNIT}; "
+             f"if grep -qsF '{MANAGED_MARKER}' {config}; then rm -f {config}; fi; "
              "systemctl unmask packagekit-offline-update.service; "
-             "systemctl unmask packagekit.service || true"],
+             f"if [ ! -e {SYSTEM_AUTOSTART} ]; then "
+             f"{dnf} reinstall -y plasma-discover-notifier; fi"],
         ]
 
     def build_remove_notifier_package_command(self) -> list[str]:

@@ -2,9 +2,9 @@
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget,
-    QMessageBox, QApplication, QFrame, QDialog, QLabel, QPushButton
+    QMessageBox, QFrame, QDialog, QLabel, QPushButton
 )
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QThread, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut, QIcon, QDesktopServices
 import os
 
@@ -12,17 +12,18 @@ from dnf_gui.core.dnf_backend import DNFBackend
 from dnf_gui.core.flatpak_backend import FlatpakBackend
 from dnf_gui.core.discover_manager import DiscoverManager
 from dnf_gui.core.security import build_security_update_command
+from dnf_gui.core import release_upgrade
+from dnf_gui.core.release_upgrade import RELEASE_NOTES_URL, UPGRADE_DOCS_URL
 from dnf_gui.core.app_settings import (
-    AppSettings, perform_background_check, send_desktop_notification,
+    AppSettings, send_desktop_notification,
 )
 from dnf_gui.core.worker import (
-    PackageListWorker, UpdateCheckWorker,
-    PackageInfoWorker, CommandWorker,
+    CallWorker, PackageListWorker, PackageInfoWorker, CommandWorker,
     SystemInfoWorker, FlatpakListWorker, FlatpakSearchWorker,
-    HistoryWorker, RepoListWorker, GroupListWorker,
+    HistoryWorker, RepoListWorker,
     ToolkitCheckWorker, AppUpdateWorker, AppUpdateDownloadWorker,
-    SecurityCheckWorker, CombinedUpdateCheckWorker, DiscoverStatusWorker,
-    RebootCheckWorker,
+    CombinedUpdateCheckWorker, DiscoverStatusWorker,
+    RebootCheckWorker, ReminderCheckWorker,
 )
 from dnf_gui.ui.sidebar import Sidebar
 from dnf_gui.ui.pages.updates_page import UpdatesPage
@@ -60,17 +61,23 @@ class MainWindow(QMainWindow):
         self._app_settings = AppSettings()
         self._current_worker = None
         self._history_loading = False  # prevent concurrent history refreshes
+        self._history_worker = None
+        self._reminder_worker = None
         self._command_worker = None
         self._app_update_worker = None  # Must keep ref to avoid QThread GC crash
         self._pending_update_info = None  # App update available
         self._updates_cache: dict | None = None  # last scan; revisit reuses it
 
+        from dnf_gui.ui.polish import install_ui_polish
+        install_ui_polish()
         self._setup_window()
         self._setup_ui()
+        self._updates_page.set_held_back_patterns(
+            self._app_settings.held_back_patterns)
+        self._updates_page.set_favorite(self._app_settings.update_favorite)
         self._connect_signals()
         self._setup_shortcuts()
 
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._refresh_current)
         QTimer.singleShot(3000, self._check_app_update)  # Check for app updates after 3s
         QTimer.singleShot(15000, self._maybe_background_reminder)  # in-app reminder
@@ -78,6 +85,43 @@ class MainWindow(QMainWindow):
         self._reminder_timer.setInterval(3600 * 1000)  # hourly throttle check
         self._reminder_timer.timeout.connect(self._maybe_background_reminder)
         self._reminder_timer.start()
+
+    def closeEvent(self, event):
+        """Don't let Qt destroy running worker threads (that aborts)."""
+        worker = self._command_worker
+        if worker is not None and worker.isRunning():
+            reply = QMessageBox.question(
+                self, "Operation Still Running",
+                "A package operation is still running. Closing the window "
+                "will not stop it; it keeps running in the background "
+                "without visible output.\n\nClose anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+        self._reminder_timer.stop()
+        self.shutdown_threads()
+        super().closeEvent(event)
+
+    def shutdown_threads(self, timeout_ms: int = 2000) -> list:
+        """Wait briefly for worker threads; detach any still running.
+
+        Returns the detached threads. The caller must then exit with
+        ``os._exit`` — letting Python finalize a running QThread aborts.
+        """
+        import time
+        deadline = time.monotonic() + timeout_ms / 1000
+        for thread in self.findChildren(QThread):
+            remaining = int((deadline - time.monotonic()) * 1000)
+            if thread.isRunning() and remaining > 0:
+                thread.wait(remaining)
+        still_running = [t for t in self.findChildren(QThread) if t.isRunning()]
+        for thread in still_running:
+            thread.setParent(None)
+        self._detached_threads = still_running
+        return still_running
 
     def _setup_window(self):
         """Configure the main window properties."""
@@ -90,7 +134,7 @@ class MainWindow(QMainWindow):
                 self.setWindowIcon(QIcon(icon_path))
             else:
                 self.setWindowIcon(QIcon.fromTheme("system-software-install"))
-        except:
+        except Exception:
             pass
 
         self.setMinimumSize(1050, 700)
@@ -167,13 +211,25 @@ class MainWindow(QMainWindow):
         self._updates_page.upgrade_all_clicked.connect(self._upgrade_all)
         self._updates_page.update_everything_clicked.connect(self._update_everything)
         self._updates_page.security_upgrade_clicked.connect(self._security_upgrade)
-        self._updates_page.upgrade_package_clicked.connect(self._install_package)
+        self._updates_page.upgrade_without_major_clicked.connect(
+            self._upgrade_without_major)
+        self._updates_page.favorite_changed.connect(self._save_update_favorite)
+        self._updates_page.hold_toggled.connect(self._toggle_hold)
+        self._updates_page.release_upgrade_clicked.connect(self._start_release_upgrade)
+        self._updates_page.release_install_clicked.connect(self._install_release_upgrade)
+        self._updates_page.release_cancel_clicked.connect(self._cancel_release_upgrade)
+        self._updates_page.release_dismissed.connect(self._dismiss_release_upgrade)
+        self._updates_page.release_notes_clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(RELEASE_NOTES_URL)))
+        self._updates_page.upgrade_package_clicked.connect(self._upgrade_package)
         self._updates_page.details_requested.connect(self._show_package_details)
         self._updates_page.reboot_requested.connect(self._reboot_now)
         self._updates_page.autoremove_clicked.connect(self._autoremove)
 
         # Installed page
         self._installed_page.remove_clicked.connect(self._remove_package)
+        self._installed_page.install_clicked.connect(self._install_package)
+        self._installed_page.search_requested.connect(self._search_repos)
         self._installed_page.details_requested.connect(self._show_package_details)
         self._installed_page.refresh_clicked.connect(self._load_installed)
 
@@ -212,6 +268,8 @@ class MainWindow(QMainWindow):
         self._settings_page.discover_system_enable_requested.connect(
             self._discover_system_enable)
         self._settings_page.discover_kill_requested.connect(self._discover_kill)
+        self._settings_page.discover_cancel_restart_update_requested.connect(
+            self._cancel_restart_update)
         self._settings_page.discover_remove_notifier_requested.connect(
             self._discover_remove_notifier)
         self._settings_page.reminders_save_requested.connect(self._save_reminders)
@@ -223,12 +281,16 @@ class MainWindow(QMainWindow):
             self._disable_passwordless)
         self._settings_page.passwordless_refresh_requested.connect(
             self._load_passwordless_status)
+        self._settings_page.held_back_save_requested.connect(self._save_held_back)
         self._terminal_page.cancel_clicked.connect(self._on_cancel_clicked)
 
     def _setup_shortcuts(self):
         """Set up keyboard shortcuts."""
         QShortcut(QKeySequence("Ctrl+R"), self, self._refresh_current)
         QShortcut(QKeySequence("Ctrl+F"), self, self._focus_search)
+        QShortcut(QKeySequence("Ctrl+U"), self, self._run_favorite_update)
+        QShortcut(QKeySequence("Ctrl+T"), self,
+                  lambda: self._switch_page(PAGE_TERMINAL))
         # Ctrl+1..9 = Switch pages
         for i in range(9):
             QShortcut(
@@ -240,7 +302,9 @@ class MainWindow(QMainWindow):
         """Focus the search input on pages that have one (Ctrl+F)."""
         index = self._stack.currentIndex()
         page = None
-        if index == PAGE_INSTALLED:
+        if index == PAGE_UPDATES:
+            page = self._updates_page
+        elif index == PAGE_INSTALLED:
             page = self._installed_page
         elif index == PAGE_FLATPAK:
             page = self._flatpak_page
@@ -261,7 +325,7 @@ class MainWindow(QMainWindow):
         try:
             self._stack.setCurrentIndex(index)
             self._refresh_current()
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
 
@@ -274,8 +338,7 @@ class MainWindow(QMainWindow):
         try:
             from PyQt6.QtWidgets import QApplication
             from dnf_gui.ui.styles.theme import (
-                get_stylesheet, get_saved_theme_mode,
-                save_theme_mode, resolve_mode,
+                get_stylesheet, save_theme_mode, resolve_mode,
             )
             current = resolve_mode()
             new_mode = "light" if current == "dark" else "dark"
@@ -284,6 +347,8 @@ class MainWindow(QMainWindow):
             if app is not None:
                 app.setStyleSheet(get_stylesheet(new_mode))
             self._sidebar.apply_theme(new_mode)
+            self._toolkit_page.apply_theme(new_mode)
+            self._updates_page.apply_theme()
         except Exception:
             import traceback
             traceback.print_exc()
@@ -312,7 +377,7 @@ class MainWindow(QMainWindow):
                 self._load_history()
             elif index == PAGE_SETTINGS:
                 self._load_settings_page()
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
 
@@ -345,6 +410,8 @@ class MainWindow(QMainWindow):
                 preview=result.get("preview"),
                 security_preview=result.get("security_preview"),
                 reboot=result.get("reboot", False))
+            self._updates_page.set_release_upgrade(
+                result.get("release_upgrade"), self._app_settings.dismissed_release)
             self._sidebar.set_update_badge(total)
         except Exception:
             import traceback
@@ -363,21 +430,10 @@ class MainWindow(QMainWindow):
                 preview=result.get("preview"),
                 security_preview=result.get("security_preview"),
                 reboot=result.get("reboot", False))
+            self._updates_page.set_release_upgrade(
+                result.get("release_upgrade"), self._app_settings.dismissed_release)
             self._sidebar.set_update_badge(total)
             self._updates_cache = result  # revisit reuses this scan
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self._progress_bar.stop()
-            self._updates_page.set_loading(False)
-            QMessageBox.warning(self, "Error", f"Failed to load updates: {e}")
-
-    def _on_updates_checked(self, info):
-        try:
-            self._progress_bar.stop()
-            self._updates_page.set_loading(False)
-            self._updates_page.display_updates(info)
-            self._sidebar.set_update_badge(info.total_updates)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -468,6 +524,179 @@ class MainWindow(QMainWindow):
             self._run_command(
                 build_security_update_command(), "Security Upgrade")
 
+    def _upgrade_without_major(self):
+        page = self._updates_page
+        patterns = page.held_back_patterns
+        held = page.held_back_package_names()
+        preview = page.upgrade_preview
+        preview_text = self._preview_line(
+            preview.excluding(patterns) if preview is not None else None,
+            count_fallback=len(page.minor_package_names()))
+        detail = f"\n\n{preview_text}." if preview_text else ""
+        if held:
+            shown = ", ".join(held[:12])
+            more = f" and {len(held) - 12} more" if len(held) > 12 else ""
+            held_text = (f"Major updates skipped ({len(held)}): {shown}{more}.\n"
+                         "These install when you run Upgrade All.")
+        else:
+            held_text = "No major updates are pending right now."
+        reply = QMessageBox.question(
+            self, "Update without Major?",
+            "Install everything except major updates (kernel, graphics "
+            "drivers, firmware, bootloader)?"
+            f"{detail}\n\n{held_text}\n\n"
+            "What counts as major can be changed in Settings. You will be "
+            "prompted for your password unless passwordless updates are "
+            "enabled.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._run_command(
+                self._backend.build_upgrade_without_major_command(patterns),
+                "Update without Major")
+
+    def _save_update_favorite(self, key: str):
+        self._app_settings.update_favorite = key
+
+    def _run_favorite_update(self):
+        """Ctrl+U: run the starred update option from any page."""
+        self._switch_page(PAGE_UPDATES)
+        self._updates_page.trigger_favorite()
+
+    def _toggle_hold(self, name: str, hold: bool):
+        """Per-row Mark Major / Unmark Major from the Updates page."""
+        patterns = self._app_settings.held_back_patterns
+        if hold and name not in patterns:
+            patterns.append(name)
+        elif not hold and name in patterns:
+            patterns.remove(name)
+        else:
+            return
+        self._app_settings.held_back_patterns = patterns
+        self._updates_page.set_held_back_patterns(patterns)
+        self._settings_page.load_held_back_patterns(
+            patterns, f"Marked {name} as major." if hold
+            else f"{name} no longer counts as major.")
+        if (self._app_settings.passwordless_scope == "updates"
+                and not getattr(self, "_hold_notice_shown", False)):
+            self._hold_notice_shown = True
+            QMessageBox.information(
+                self, "Major Packages Changed",
+                "Passwordless 'Updates Only' lists the exact Update without "
+                "Major command, so it will ask for your password until you "
+                "click Enable Passwordless again under Settings → Password Prompts.")
+
+    # ─── Fedora release upgrades ────────────────────────────────
+
+    def _release_operation(self, target: int) -> str:
+        return f"Upgrade to Fedora {target}"
+
+    def _start_release_upgrade(self, target: int):
+        current = release_upgrade.current_release() or target - 1
+        reply = QMessageBox.question(
+            self, f"Upgrade to Fedora {target}?",
+            f"Upgrading from Fedora {current} to Fedora {target} takes three steps:\n\n"
+            f"1. Install all pending updates for Fedora {current}.\n"
+            f"2. Download Fedora {target} (usually 2–4 GB). You can keep working.\n"
+            "3. Restart to install. This runs before you log in and takes about "
+            "15–60 minutes.\n\n"
+            "Steps 1 and 2 start now. You decide when to restart.\n\n"
+            "Before you start: back up important files and keep laptops plugged "
+            "in. Third-party repositories (COPRs, vendor repos) may not have "
+            f"Fedora {target} packages yet.\n\nFedora's guide: {UPGRADE_DOCS_URL}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._pending_release_target = target
+        self._run_command_chain(
+            [self._backend.build_upgrade_command(),
+             release_upgrade.build_download_command(self._backend.dnf_path, target)],
+            self._release_operation(target))
+
+    def _on_release_download_failed(self, target: int):
+        reply = QMessageBox.question(
+            self, "Download Failed",
+            f"Downloading Fedora {target} failed. This usually means some installed "
+            f"packages (often from a COPR or third-party repo) have no Fedora "
+            f"{target} version yet.\n\n"
+            "Check the terminal output for the packages involved. You can retry and "
+            "let DNF remove those packages (--allowerasing), or cancel, deal with "
+            "them yourself and try again later.\n\nRetry with --allowerasing?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._run_command(
+                release_upgrade.build_download_command(
+                    self._backend.dnf_path, target, allow_erasing=True),
+                self._release_operation(target))
+
+    def _on_release_downloaded(self, target: int):
+        current = release_upgrade.current_release() or target - 1
+        self._updates_page.set_release_upgrade(
+            release_upgrade.ReleaseUpgrade(current, target, downloaded=True))
+        self._install_release_upgrade(target)
+
+    def _install_release_upgrade(self, target: int):
+        reply = QMessageBox.warning(
+            self, f"Restart and Install Fedora {target}?",
+            f"Fedora {target} is downloaded. Restart now to install it?\n\n"
+            "Save your work first. The installation runs before you log in, "
+            "takes about 15–60 minutes, and must not be interrupted. Your "
+            "computer restarts again when it's done.\n\n"
+            "Choose No to install later from the Updates page.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._run_command(
+                release_upgrade.build_reboot_command(self._backend.dnf_path),
+                f"Restarting to install Fedora {target}")
+
+    def _cancel_release_upgrade(self):
+        reply = QMessageBox.question(
+            self, "Cancel Upgrade?",
+            "Discard the downloaded Fedora upgrade and free its disk space? "
+            "You can start the upgrade again later.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._run_command(
+                release_upgrade.build_clean_command(self._backend.dnf_path),
+                "Cancelling Fedora upgrade")
+
+    def _dismiss_release_upgrade(self, target: int):
+        self._app_settings.dismissed_release = target
+
+    def _save_held_back(self, text: str):
+        from dnf_gui.core.dnf_backend import (
+            DEFAULT_HELD_BACK_PATTERNS, parse_held_back_patterns,
+        )
+        valid, invalid = parse_held_back_patterns(text)
+        if invalid:
+            QMessageBox.warning(
+                self, "Invalid Patterns",
+                "These aren't valid package-name globs and were not saved:\n\n"
+                + ", ".join(invalid)
+                + "\n\nUse letters, digits and . _ + - * ? [ ] only.")
+            return
+        if not valid:
+            valid = list(DEFAULT_HELD_BACK_PATTERNS)
+            message = "Reset to defaults."
+        else:
+            message = f"Saved. {len(valid)} pattern(s) count as major."
+        changed = valid != self._app_settings.held_back_patterns
+        self._app_settings.held_back_patterns = valid
+        self._updates_page.set_held_back_patterns(valid)
+        if changed and self._app_settings.passwordless_scope == "updates":
+            message += (" Passwordless 'Updates Only' lists the exact command, "
+                        "so click Enable Passwordless again to cover the new list.")
+        self._settings_page.load_held_back_patterns(valid, message)
+
     def _show_package_details(self, name: str):
         """Show a Details dialog for one package (fetched in background)."""
         from dnf_gui.ui.widgets.package_details import PackageDetailsDialog
@@ -517,13 +746,36 @@ class MainWindow(QMainWindow):
 
     def _install_package(self, name: str):
         reply = QMessageBox.question(
-            self, "Confirm Install",
-            f"Install/upgrade package: {name}?\n\nYou will be prompted for your password.",
+            self, "Install Package",
+            f"Install {name} and its dependencies?\n\n"
+            "DNF lists everything it will install in the terminal. You will "
+            "be prompted for your password.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._run_command(self._backend.build_install_command(name), f"Installing {name}")
+
+    def _upgrade_package(self, name: str):
+        reply = QMessageBox.question(
+            self, "Update Package",
+            f"Update only {name} (and anything it needs)?\n\n"
+            "You will be prompted for your password.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._run_command(
+                self._backend.build_upgrade_package_command(name), f"Updating {name}")
+
+    def _search_repos(self, query: str):
+        self._installed_page.set_search_loading()
+        worker = CallWorker(self._backend.search, query, parent=self)
+        worker.finished.connect(
+            lambda results: self._installed_page.display_search_results(query, results))
+        worker.error.connect(self._on_worker_error)
+        worker.start()
+        self._repo_search_worker = worker
 
     def _remove_package(self, name: str):
         reply = QMessageBox.question(
@@ -537,15 +789,29 @@ class MainWindow(QMainWindow):
             self._run_command(self._backend.build_remove_command(name), f"Removing {name}")
 
     def _autoremove(self):
-        reply = QMessageBox.warning(
-            self, "Clean Up: Proceed With Caution",
-            "This will run: dnf autoremove -y\n\n"
-            "What it does: Removes packages that were installed as dependencies of other "
-            "packages but are no longer needed (e.g. after you uninstalled something).\n\n"
-            "While this is mostly safe, it may remove packages you actually want to keep. "
-            "For example, libraries you use manually or packages with weak dependency links.\n\n"
-            "You will be prompted for your password.\n\n"
-            "Proceed with caution. Do you want to continue?",
+        """Preview what dnf autoremove would remove, then confirm."""
+        self._progress_bar.start_indeterminate()
+        worker = CallWorker(self._backend.unneeded_packages, parent=self)
+        worker.finished.connect(self._confirm_autoremove)
+        worker.error.connect(self._on_worker_error)
+        worker.start()
+        self._autoremove_worker = worker
+
+    def _confirm_autoremove(self, packages: list):
+        self._progress_bar.stop()
+        if not packages:
+            QMessageBox.information(
+                self, "Nothing to Clean Up",
+                "No unneeded dependencies are installed. There's nothing to remove.")
+            return
+        shown = "\n".join(f"  • {name}" for name in packages[:15])
+        more = f"\n  …and {len(packages) - 15} more" if len(packages) > 15 else ""
+        reply = QMessageBox.question(
+            self, "Clean Up",
+            f"Remove {len(packages)} package(s) that were installed as dependencies "
+            f"and are no longer needed?\n\n{shown}{more}\n\n"
+            "Check the list for anything you use directly; if you see one, cancel "
+            "and install it explicitly so DNF keeps it. Runs: dnf autoremove -y",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -818,16 +1084,6 @@ class MainWindow(QMainWindow):
             return
 
         self._history_loading = True
-
-        # Disconnect previous worker to avoid re-entrancy and stale results
-        # when user clicks Refresh multiple times quickly
-        if self._current_worker is not None:
-            try:
-                self._current_worker.finished.disconnect()
-                self._current_worker.error.disconnect()
-            except (TypeError, RuntimeError):
-                pass
-
         self._history_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
@@ -835,7 +1091,7 @@ class MainWindow(QMainWindow):
         worker.finished.connect(self._on_history_loaded)
         worker.error.connect(self._on_history_error)
         worker.start()
-        self._current_worker = worker
+        self._history_worker = worker
 
     def _on_history_loaded(self, history):
         self._history_loading = False
@@ -885,16 +1141,15 @@ class MainWindow(QMainWindow):
     def _on_app_update_checked(self, update_info):
         """Handle app update check result."""
         try:
-            # Defer worker destruction to avoid QThread GC crash in slot callback
-            if self._app_update_worker:
-                self._app_update_worker.deleteLater()
-                self._app_update_worker = None
+            # Don't deleteLater() the worker here: this slot runs while its
+            # run() is still returning, and deleting a running QThread
+            # aborts. It's parented to the window, so it's freed with it.
             if update_info is None:
                 return
             self._pending_update_info = update_info
             self._sidebar.set_update_available(update_info.latest_version)
             self._show_update_dialog(update_info)
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
 
@@ -903,7 +1158,7 @@ class MainWindow(QMainWindow):
         try:
             if self._pending_update_info:
                 self._show_update_dialog(self._pending_update_info)
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
 
@@ -938,7 +1193,7 @@ class MainWindow(QMainWindow):
             layout.addWidget(btn_later)
 
             dialog.exec()
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
 
@@ -991,7 +1246,8 @@ class MainWindow(QMainWindow):
         self._terminal_page.append_line("  Installing DNF Package Manager update")
         self._terminal_page.append_line("─" * 60 + "\n")
 
-        download_worker = AppUpdateDownloadWorker(update_info.download_url, parent=self)
+        download_worker = AppUpdateDownloadWorker(
+            update_info.download_url, getattr(update_info, "sha256", ""), parent=self)
         download_worker.finished.connect(
             lambda path: self._on_update_downloaded(path, update_info)
         )
@@ -1004,7 +1260,7 @@ class MainWindow(QMainWindow):
         """Run dnf install on downloaded RPM."""
         self._terminal_page.append_line(f"Downloaded to {rpm_path}")
         self._terminal_page.append_line("Installing via DNF...\n")
-        cmd = ["pkexec", "dnf", "install", "-y", rpm_path]
+        cmd = self._backend.build_install_command(rpm_path)
         self._run_command(cmd, "Installing app update")
 
     def _on_update_download_error(self, error: str):
@@ -1022,8 +1278,21 @@ class MainWindow(QMainWindow):
     #  Command Runner & Error Handling
     # ═══════════════════════════════════════════════════════════════
 
+    def _command_busy(self) -> bool:
+        """True (and tell the user) if a command is already running."""
+        worker = self._command_worker
+        if worker is None or not worker.isRunning():
+            return False
+        QMessageBox.information(
+            self, "Operation in Progress",
+            "Another operation is still running. Wait for it to finish "
+            "(see the Terminal page) before starting a new one.")
+        return True
+
     def _run_command(self, cmd: list[str], operation: str):
         """Run a command and stream output to terminal page."""
+        if self._command_busy():
+            return
         self._switch_page(PAGE_TERMINAL)
         self._terminal_page.set_running(True, operation)
         self._progress_bar.start_indeterminate()
@@ -1041,6 +1310,8 @@ class MainWindow(QMainWindow):
         Used by Update Everything so the DNF step (privileged) and the
         Flatpak step (unprivileged) share one view. Stops on first failure.
         """
+        if self._command_busy():
+            return
         self._switch_page(PAGE_TERMINAL)
         self._terminal_page.set_running(True, operation)
         self._progress_bar.start_indeterminate()
@@ -1065,6 +1336,12 @@ class MainWindow(QMainWindow):
     def _on_chain_step_done(self, exit_code: int, operation: str):
         if exit_code != 0:
             self._progress_bar.stop()
+            self._notify_if_unfocused(exit_code, operation)
+            target = getattr(self, "_pending_release_target", None)
+            if (target and operation == self._release_operation(target)
+                    and not self._cmd_queue and exit_code not in (-15, 143, -9, 137)):
+                # The download (last step) failed, not the regular update.
+                QTimer.singleShot(0, lambda: self._on_release_download_failed(target))
             self._terminal_page.set_error()
             self._terminal_page.append_line(
                 f"\n✗ Step failed (exit {exit_code}) — stopping here. "
@@ -1102,7 +1379,8 @@ class MainWindow(QMainWindow):
             self._terminal_page.append_line(line)
 
         def _on_done(code: int):
-            self._command_worker = None
+            if self._command_worker is worker:
+                self._command_worker = None
             if (code != 0 and not _retried
                     and effective and effective[0] == "sudo"
                     and any("password" in line.lower() for line in collected)):
@@ -1113,9 +1391,15 @@ class MainWindow(QMainWindow):
                 return
             done_cb(code)
 
+        def _on_error(error: str):
+            # Failed to start (e.g. binary missing): finish through the
+            # normal path so chains stop and pending state is reset.
+            self._terminal_page.append_line(f"\n❌ Error: {error}")
+            _on_done(-1)
+
         worker.output_line.connect(_on_line)
         worker.finished.connect(_on_done)
-        worker.error.connect(self._on_command_error)
+        worker.error.connect(_on_error)
 
         worker.start()
         self._command_worker = worker
@@ -1127,6 +1411,7 @@ class MainWindow(QMainWindow):
 
     def _on_command_done(self, exit_code: int, operation: str):
         self._progress_bar.stop()
+        self._notify_if_unfocused(exit_code, operation)
 
         if exit_code == 0:
             self._terminal_page.set_success()
@@ -1158,17 +1443,36 @@ class MainWindow(QMainWindow):
         if operation in ("Enabling passwordless updates",
                          "Disabling passwordless updates"):
             self._load_passwordless_status()
+        if operation in ("Disabling Discover system-wide",
+                         "Re-enabling Discover system-wide",
+                         "Cancelling Discover's restart update"):
+            self._load_discover_status()
+
+        target = getattr(self, "_pending_release_target", None)
+        if exit_code == 0 and target and operation == self._release_operation(target):
+            self._pending_release_target = None
+            self._on_release_downloaded(target)
+        elif exit_code == 0 and operation == "Cancelling Fedora upgrade":
+            self._updates_page.set_release_upgrade(None)
 
         # A finished upgrade may leave a reboot pending (new kernel etc.)
         if exit_code == 0 and operation in (
                 "System Upgrade", "Update Everything (DNF + Flatpak)",
-                "Security Upgrade"):
+                "Security Upgrade", "Update without Major"):
             self._recheck_reboot_banner()
 
-    def _on_command_error(self, error: str):
-        self._progress_bar.stop()
-        self._terminal_page.set_error()
-        self._terminal_page.append_line(f"\n❌ Error: {error}")
+    def _notify_if_unfocused(self, exit_code: int, operation: str):
+        """Desktop notification for operations that finish while you're away."""
+        if self.isActiveWindow():
+            return
+        if exit_code == 0:
+            title, body = f"{operation} finished", "Completed successfully."
+        elif exit_code in (-15, 143, -9, 137):
+            title, body = f"{operation} cancelled", "The operation was cancelled."
+        else:
+            title, body = (f"{operation} failed",
+                           "Open DNF Package Manager to see the terminal output.")
+        send_desktop_notification(title, body, urgent=exit_code not in (0, -15, 143, -9, 137))
 
     def _on_worker_error(self, error: str):
         self._progress_bar.stop()
@@ -1189,6 +1493,8 @@ class MainWindow(QMainWindow):
         last_str = last.strftime("%Y-%m-%d %I:%M %p") if last else ""
         self._settings_page.load_reminder_settings(
             prefs, AppSettings.is_checker_installed(), last_str)
+        self._settings_page.load_held_back_patterns(
+            self._app_settings.held_back_patterns)
         self._load_discover_status()
         self._load_passwordless_status()
 
@@ -1217,6 +1523,17 @@ class MainWindow(QMainWindow):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
+        cancel_scheduled = False
+        if self._discover_manager.restart_update_scheduled():
+            cancel_scheduled = QMessageBox.question(
+                self, "Cancel Discover's Scheduled Update?",
+                "Discover has already scheduled updates to install at your next "
+                "restart. Cancel that too, so updates come from this app instead?\n\n"
+                "Recommended: otherwise PackageKit installs its own, possibly "
+                "out-of-date, update set during the restart.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            ) == QMessageBox.StandardButton.Yes
         try:
             self._discover_manager.set_per_user_enabled(False)
         except Exception as e:
@@ -1225,7 +1542,8 @@ class MainWindow(QMainWindow):
         # Best-effort: stop the currently running notifier
         import subprocess
         try:
-            subprocess.run(["pkill", "-x", "DiscoverNotifier"], timeout=5)
+            subprocess.run(
+                self._discover_manager.build_kill_notifier_command(), timeout=5)
         except Exception:
             pass
         QMessageBox.information(
@@ -1233,7 +1551,25 @@ class MainWindow(QMainWindow):
             "Discover will no longer check or notify for your user.\n\n"
             "Use the Updates page plus reminders in this app instead.\n"
             "You can restore Discover anytime from this page.")
+        if cancel_scheduled:
+            self._run_command(
+                self._discover_manager.build_cancel_restart_update_command(),
+                "Cancelling Discover's restart update")
         self._load_discover_status()
+
+    def _cancel_restart_update(self):
+        reply = QMessageBox.question(
+            self, "Cancel Restart Update?",
+            "Discover scheduled system updates to install at your next restart. "
+            "Cancel them? Nothing is uninstalled; install updates from the Updates "
+            "page instead.\n\nRuns: pkcon offline-cancel",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._run_command(
+                self._discover_manager.build_cancel_restart_update_command(),
+                "Cancelling Discover's restart update")
 
     def _discover_restore(self):
         try:
@@ -1248,41 +1584,40 @@ class MainWindow(QMainWindow):
 
     def _discover_system_disable(self):
         reply = QMessageBox.warning(
-            self, "Disable System-Wide?",
-            "This runs as root (pkexec):\n\n"
-            "• Removes /etc/xdg/autostart/org.kde.discover.notifier.desktop\n"
-            "• Masks packagekit-offline-update.service (no surprise reboot updates)\n\n"
-            "packagekit.service itself is left intact so manual pkcon still works.\n\n"
+            self, "Turn Off Discover Update Checks for All Users?",
+            "This runs as root (pkexec) and affects every account on this computer:\n\n"
+            "• Stops Discover's background update checker for all users\n"
+            "• Turns off Discover's update notifications by default\n"
+            "• Stops PackageKit from installing updates during restarts\n\n"
+            "Discover itself keeps working for browsing and installing apps, and "
+            "this survives Discover package updates. Turn Back On undoes all of it.\n\n"
             "Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-        for cmd in self._discover_manager.build_system_disable_commands():
-            self._run_command(cmd, "Disabling Discover system-wide")
-            break  # one chained command; terminal shows output
+        cmd = self._discover_manager.build_system_disable_commands()[0]
+        self._run_command(cmd, "Disabling Discover system-wide")
 
     def _discover_system_enable(self):
         reply = QMessageBox.question(
-            self, "Re-enable System Services?",
-            "Unmask packagekit-offline-update.service?\n\n"
-            "Note: the system autostart file is owned by the "
-            "plasma-discover-notifier package — reinstall that package "
-            "to fully restore it.",
+            self, "Turn Discover Update Checks Back On?",
+            "Restore Discover's update checker, notifications and restart-time "
+            "updates for all users? This undoes 'Turn Off for All Users'.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-        for cmd in self._discover_manager.build_system_enable_commands():
-            self._run_command(cmd, "Re-enabling PackageKit offline updates")
-            break
+        cmd = self._discover_manager.build_system_enable_commands()[0]
+        self._run_command(cmd, "Re-enabling Discover system-wide")
 
     def _discover_kill(self):
         import subprocess
         try:
-            subprocess.run(["pkill", "-x", "DiscoverNotifier"], timeout=5)
+            subprocess.run(
+                self._discover_manager.build_kill_notifier_command(), timeout=5)
             QMessageBox.information(
                 self, "Checker Stopped",
                 "Discover's background checker was stopped (it returns at "
@@ -1364,7 +1699,18 @@ class MainWindow(QMainWindow):
         try:
             if not self._app_settings.is_check_due():
                 return
-            result = perform_background_check(self._app_settings)
+            if self._reminder_worker is not None and self._reminder_worker.isRunning():
+                return
+            worker = ReminderCheckWorker(parent=self)
+            worker.finished.connect(self._on_reminder_checked)
+            worker.error.connect(lambda _e: None)
+            worker.start()
+            self._reminder_worker = worker
+        except Exception:
+            pass
+
+    def _on_reminder_checked(self, result):
+        try:
             if not result.should_notify:
                 return
             title = ("⚠ Security updates pending!"
@@ -1383,11 +1729,12 @@ class MainWindow(QMainWindow):
     def _load_passwordless_status(self):
         from dnf_gui.core import passwordless as pw
         try:
-            live = pw.live_scope()
+            live, legacy, covered = pw.live_status(self._app_settings.held_back_patterns)
         except Exception:
-            live = "off"
+            live, legacy, covered = "off", False, True
         remembered = self._app_settings.passwordless_scope
-        self._settings_page.display_passwordless_status(remembered, live)
+        self._settings_page.display_passwordless_status(
+            remembered, live, legacy=legacy, held_back_stale=not covered)
 
     def _enable_passwordless(self, scope: str):
         from dnf_gui.core import passwordless as pw
@@ -1414,7 +1761,8 @@ class MainWindow(QMainWindow):
         else:
             msg = (
                 "Enable passwordless system updates?\n\n"
-                "• `dnf upgrade` will run without a password\n"
+                "• Upgrade All, Security Only and Update without Major "
+                "will run without a password\n"
                 "• Installs, removals, repo changes and firmware updates "
                 "will STILL ask\n\n"
                 "Installs a validated per-user sudoers file "
@@ -1429,7 +1777,8 @@ class MainWindow(QMainWindow):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-        content = pw.build_rule_content(user, scope)
+        content = pw.build_rule_content(
+            user, scope, self._app_settings.held_back_patterns)
         ok, validation_msg = pw.validate_content(content)
         if not ok:
             QMessageBox.warning(

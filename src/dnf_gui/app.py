@@ -22,8 +22,6 @@ def _run_headless_check() -> int:
         AppSettings, perform_background_check, send_desktop_notification,
     )
     settings = AppSettings()
-    if args.security_only:
-        settings.security_only = True
     # Respect the configured interval unless forced via env (useful for testing)
     import os
     force = os.environ.get("DNF_GUI_FORCE_CHECK") == "1"
@@ -31,7 +29,8 @@ def _run_headless_check() -> int:
         print("DNF GUI: check not due yet, skipping.")
         return 0
     print("DNF GUI: checking for updates (DNF + Flatpak + security)...")
-    result = perform_background_check(settings)
+    result = perform_background_check(
+        settings, security_only=True if args.security_only else None)
     print(f"DNF updates: {result.dnf_updates}, "
           f"Flatpak: {result.flatpak_updates}, "
           f"security: {result.security_total}")
@@ -85,7 +84,16 @@ def main():
     window = MainWindow()
     window.show()
 
-    sys.exit(app.exec())
+    code = app.exec()
+    if getattr(window, "_detached_threads", None):
+        # A background thread (e.g. a long dnf call) outlived the window.
+        # Normal interpreter shutdown would destroy it mid-run and abort,
+        # so exit hard; its child processes run in their own sessions.
+        import os
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+    sys.exit(code)
 
 
 if __name__ == "__main__":

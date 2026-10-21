@@ -5,7 +5,7 @@
 # License: GPL-3.0
 #
 # Usage: ./build-rpm.sh
-# Output: ~/rpmbuild/RPMS/noarch/dnf-gui-*.noarch.rpm
+# Output: ~/.cache/rpmbuild/dnf-gui/RPMS/noarch/dnf-gui-*.noarch.rpm (override with RPMBUILD_TOPDIR)
 #         dist/DNF-Package-Manager-X.Y.Z.rpm (release-ready, user-friendly name)
 # ──────────────────────────────────────────────────────────────
 
@@ -15,29 +15,31 @@ APP_NAME="dnf-gui"
 RELEASE_NAME="DNF-Package-Manager"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPEC_FILE="${SCRIPT_DIR}/packaging/dnf-gui.spec"
+# rpmbuild work tree lives in the cache, not ~/rpmbuild (and not the project: spaces in the path break %install)
+TOPDIR="${RPMBUILD_TOPDIR:-${XDG_CACHE_HOME:-$HOME/.cache}/rpmbuild/${APP_NAME}}"
 
 # Extract version from spec file
 VERSION=$(grep -E '^Version:' "$SPEC_FILE" | awk '{print $2}')
 
 echo "Building ${APP_NAME} v${VERSION}..."
-mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+mkdir -p "$TOPDIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
 # Remove stale artifacts for this version to avoid packaging an outdated build
-rm -f ~/rpmbuild/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm
-rm -f ~/rpmbuild/SOURCES/${APP_NAME}-${VERSION}.tar.gz
+rm -f "$TOPDIR"/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm
+rm -f "$TOPDIR"/SOURCES/${APP_NAME}-${VERSION}.tar.gz
 
-tar czf ~/rpmbuild/SOURCES/${APP_NAME}-${VERSION}.tar.gz \
+tar czf "$TOPDIR"/SOURCES/${APP_NAME}-${VERSION}.tar.gz \
     --transform "s,^,${APP_NAME}-${VERSION}/," \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
     -C "$SCRIPT_DIR" \
     src/ assets/ packaging/ install.sh pyproject.toml requirements.txt LICENSE README.md CHANGELOG.md RELEASING.md
 
-cp "$SPEC_FILE" ~/rpmbuild/SPECS/
-rpmbuild -bb ~/rpmbuild/SPECS/dnf-gui.spec
+cp "$SPEC_FILE" "$TOPDIR"/SPECS/
+rpmbuild -bb --define "_topdir $TOPDIR" "$TOPDIR"/SPECS/dnf-gui.spec
 
 # Find the newly built RPM (handles .fc44, .fc43, etc.)
-BUILT_RPM=$(ls -t ~/rpmbuild/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm 2>/dev/null | head -1)
+BUILT_RPM=$(ls -t "$TOPDIR"/RPMS/noarch/${APP_NAME}-${VERSION}-*.noarch.rpm 2>/dev/null | head -1)
 if [ -n "$BUILT_RPM" ]; then
     mkdir -p "${SCRIPT_DIR}/dist"
     RELEASE_RPM="${SCRIPT_DIR}/dist/${RELEASE_NAME}-v${VERSION}.rpm"
@@ -48,6 +50,6 @@ if [ -n "$BUILT_RPM" ]; then
     echo "   $RELEASE_RPM  (for GitHub release)"
 else
     echo ""
-    echo "✅ RPM built in ~/rpmbuild/RPMS/noarch/"
-    ls ~/rpmbuild/RPMS/noarch/${APP_NAME}-*.noarch.rpm 2>/dev/null || true
+    echo "✅ RPM built in $TOPDIR/RPMS/noarch/"
+    ls "$TOPDIR"/RPMS/noarch/${APP_NAME}-*.noarch.rpm 2>/dev/null || true
 fi

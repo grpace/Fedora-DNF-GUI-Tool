@@ -161,8 +161,8 @@ class TestUpdatesPageReleaseAndHold(unittest.TestCase):
         page.set_held_back_patterns(page.held_back_patterns + ["firefox"])
         released = _hold_button(page, "firefox")
         self.assertEqual(released.text(), "Unmark Major")
-        badge = [l for l in released.parent().findChildren(QLabel)
-                 if l.objectName() == "badge_muted"][0]
+        badge = [label for label in released.parent().findChildren(QLabel)
+                 if label.objectName() == "badge_muted"][0]
         self.assertIn("You marked this as major", badge.toolTip())
         released.click()
         self.assertEqual(toggles[-1], ("firefox", False))

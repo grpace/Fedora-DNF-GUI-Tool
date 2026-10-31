@@ -213,8 +213,8 @@ class DiscoverManager:
                     "X-KDE-AutostartScript=true\n"
                 )
             if "Hidden=" in content:
-                lines = [l for l in content.splitlines()
-                         if not l.strip().startswith("Hidden=")]
+                lines = [line for line in content.splitlines()
+                         if not line.strip().startswith("Hidden=")]
                 content = "\n".join(lines) + "\n"
             if not content.endswith("\n"):
                 content += "\n"

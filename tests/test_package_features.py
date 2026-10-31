@@ -155,8 +155,8 @@ class TestUpdatesSecurityFilter(unittest.TestCase):
         def rows():
             layout = page._list_layout
             return {layout.itemAt(i).widget().package.name:
-                    [l.text() for l in layout.itemAt(i).widget().findChildren(QLabel)
-                     if l.objectName().startswith("badge_")]
+                    [label.text() for label in layout.itemAt(i).widget().findChildren(QLabel)
+                     if label.objectName().startswith("badge_")]
                     for i in range(layout.count())
                     if isinstance(layout.itemAt(i).widget(), PackageCard)}
 

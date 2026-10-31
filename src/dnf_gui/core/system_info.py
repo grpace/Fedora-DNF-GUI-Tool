@@ -166,7 +166,7 @@ def get_system_info() -> SystemInfo:
             capture_output=True, text=True, timeout=10,
         )
         if result.returncode == 0:
-            lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+            lines = [line for line in result.stdout.strip().split("\n") if line.strip()]
             info.flatpak_count = len(lines)
     except Exception:
         pass

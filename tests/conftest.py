@@ -20,8 +20,8 @@ from PyQt6.QtCore import QSettings  # noqa: E402
 
 QSettings.setPath(QSettings.Format.NativeFormat, QSettings.Scope.UserScope, _CONFIG_HOME)
 
-import pytest
-from PyQt6.QtWidgets import QApplication
+import pytest  # noqa: E402
+from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 # One QApplication for the whole session, created before any test module
 # builds widgets. Several modules creating/dropping their own makes Python's

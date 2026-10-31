@@ -77,11 +77,11 @@ def _version_compare(current: str, latest: str) -> int:
     cur_parts = _parse_version(current)
     lat_parts = _parse_version(latest)
     for i in range(max(len(cur_parts), len(lat_parts))):
-        c = cur_parts[i] if i < len(cur_parts) else 0
-        l = lat_parts[i] if i < len(lat_parts) else 0
-        if c < l:
+        cur = cur_parts[i] if i < len(cur_parts) else 0
+        lat = lat_parts[i] if i < len(lat_parts) else 0
+        if cur < lat:
             return -1
-        if c > l:
+        if cur > lat:
             return 1
     return 0
 

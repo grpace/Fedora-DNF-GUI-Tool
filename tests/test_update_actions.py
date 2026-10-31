@@ -80,14 +80,14 @@ class TestUpdatesPageRows(unittest.TestCase):
 
     def test_held_back_rows_are_tagged(self):
         page = self._page()
-        tags = {card.package.name: [l.text() for l in card.findChildren(QLabel)
-                                    if l.objectName() == "badge_muted"]
+        tags = {card.package.name: [label.text() for label in card.findChildren(QLabel)
+                                    if label.objectName() == "badge_muted"]
                 for card in page._list_container.findChildren(PackageCard)}
         self.assertEqual(tags, {"kernel-core": ["Major"], "firefox": []})
         self.assertIn("1 major (Update without Major skips these)", page._list_summary.text())
         card = [c for c in page._list_container.findChildren(PackageCard)
                 if c.package.name == "kernel-core"][0]
-        badge = [l for l in card.findChildren(QLabel) if l.objectName() == "badge_muted"][0]
+        badge = [label for label in card.findChildren(QLabel) if label.objectName() == "badge_muted"][0]
         # The tooltip says why it's major and what that means.
         self.assertIn("kernel*", badge.toolTip())
         self.assertIn("Update without Major skips it", badge.toolTip())

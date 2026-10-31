@@ -8,6 +8,8 @@ import subprocess
 import shutil
 from typing import Iterable, Optional
 
+from dnf_gui.core.package import Package, PackageStatus, UpdateInfo, UpgradePreview
+
 # COPR format: user/project or @group/project (alphanumeric, dots, hyphens)
 _COPR_PATTERN = re.compile(r"^[@]?[\w][\w.-]*/[\w.-]+$")
 
@@ -55,9 +57,6 @@ def build_exclude_arg(patterns: Iterable[str]) -> str:
 def is_held_back(name: str, patterns: Iterable[str]) -> bool:
     """True if a package name matches any held-back glob."""
     return any(fnmatch.fnmatchcase(name, p) for p in patterns)
-
-from dnf_gui.core.package import Package, PackageStatus, UpdateInfo, UpgradePreview
-
 
 class DNFBackend:
     """Interface to DNF package manager via CLI commands.

@@ -48,6 +48,12 @@ No. Atomic desktops manage the system with rpm-ostree, not dnf.
 
 Yes. It's a Qt app and works on any Fedora desktop that uses dnf. The Discover takeover only matters on KDE Plasma; GNOME Software has its own update settings.
 
+### Why is a security update still listed after I ran Security Only?
+
+dnf skips an update when installing it would break another package. This usually happens with a third-party package, for example RPM Fusion's `libheif-freeworld`, which requires one exact version of Fedora's `libheif`. When Fedora ships a security fix for `libheif`, the update has to wait until RPM Fusion publishes a matching `libheif-freeworld`. That usually takes a few days.
+
+The Updates page shows a banner naming the package holding the update back, and the affected rows are tagged **Waiting**. Rerunning Security Only won't help until the matching update is out. If you can't wait, **Force Install…** installs the update now by removing the blocking package. The confirmation lists what will be removed and how to reinstall it later.
+
 ### Why does it ask for my password?
 
 Anything that changes the system runs through polkit (`pkexec`), the same password dialog other desktop tools use. To stop prompts for routine updates, enable **Settings → Password Prompts → Updates Only**. It covers exactly the Upgrade All, Security Only and Update without Major commands; everything else still asks.

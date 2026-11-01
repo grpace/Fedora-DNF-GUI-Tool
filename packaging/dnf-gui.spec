@@ -3,7 +3,7 @@
 %global install_dir /opt/%{app_name}
 
 Name:           %{app_name}
-Version:        1.3.0
+Version:        1.4.0
 Release:        1%{?dist}
 Summary:        Discover alternative for Fedora: updates you can see and control
 License:        GPL-3.0-or-later
@@ -81,6 +81,13 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 /usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
+* Sun Nov 01 2026 Greg.Tech <hello@greg.tech> - 1.4.0-1
+- Explain security updates dnf skips because a dependency isn't ready (e.g. RPM Fusion libheif-freeworld): Updates page banner, Waiting tags and count
+- Security Only explains when there's nothing installable yet instead of rerunning dnf
+- Force Install for waiting security updates, listing exactly what would be removed
+- Report skipped packages after every update run
+- Reminders ignore security advisories that can't be installed yet
+
 * Sun Nov 01 2026 Greg.Tech <hello@greg.tech> - 1.3.0-1
 - Update reminders now work while the app is closed: a per-user systemd timer follows the Check Every setting instead of a login-only autostart entry, with a catch-up check at login when one is due
 - Failed reminder checks no longer silence reminders for a whole interval; they wait for the network and retry at most three times

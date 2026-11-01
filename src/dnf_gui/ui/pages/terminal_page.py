@@ -114,10 +114,10 @@ class TerminalPage(QWidget):
         self._status_indicator.style().unpolish(self._status_indicator)
         self._status_indicator.style().polish(self._status_indicator)
 
-    def set_success(self):
+    def set_success(self, message: str = ""):
         """Show success status."""
         self._status_indicator.setObjectName("term_dot_ok")
-        self._status_text.setText("Operation Completed Successfully")
+        self._status_text.setText(message or "Operation Completed Successfully")
         self._status_indicator.style().unpolish(self._status_indicator)
         self._status_indicator.style().polish(self._status_indicator)
 

@@ -44,6 +44,8 @@ class ReminderResult:
     flatpak_updates: int = 0
     security_total: int = 0
     security_urgent: bool = False
+    # Advisories left out of security_total because they can't install yet.
+    security_waiting: int = 0
     should_notify: bool = False
     message: str = ""
     # dnf couldn't check (e.g. offline): counts are unknown, and the
@@ -459,7 +461,7 @@ def perform_background_check(settings: AppSettings | None = None,
     """
     from dnf_gui.core.dnf_backend import DNFBackend
     from dnf_gui.core.flatpak_backend import FlatpakBackend
-    from dnf_gui.core.security import get_security_summary
+    from dnf_gui.core.security import find_blocked_security, get_security_summary
 
     settings = settings or AppSettings()
     if security_only is None:
@@ -482,8 +484,12 @@ def perform_background_check(settings: AppSettings | None = None,
         result.flatpak_updates = 0
     try:
         sec = get_security_summary()
-        result.security_total = sec.total
-        result.security_urgent = sec.urgent
+        # Don't remind about advisories nobody can install yet (e.g. waiting
+        # on an RPM Fusion rebuild); they come back once installable.
+        find_blocked_security(sec)
+        result.security_total = sec.installable_total
+        result.security_urgent = sec.installable_urgent
+        result.security_waiting = len(sec.blocked_advisories)
     except Exception:
         pass
 

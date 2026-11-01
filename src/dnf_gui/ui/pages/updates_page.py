@@ -11,7 +11,7 @@ from PyQt6.QtCore import pyqtSignal, Qt
 from dnf_gui.core.dnf_backend import DEFAULT_HELD_BACK_PATTERNS, is_held_back
 from dnf_gui.core.release_upgrade import ReleaseUpgrade
 from dnf_gui.core.package import UpdateInfo
-from dnf_gui.core.security import SecuritySummary
+from dnf_gui.core.security import BlockedUpdates, SecuritySummary
 from dnf_gui.core.flatpak_backend import FlatpakApp
 from dnf_gui.ui.widgets.package_card import PackageCard
 from dnf_gui.ui.widgets.update_action_button import UpdateActionButton
@@ -36,6 +36,7 @@ class UpdatesPage(QWidget):
     upgrade_all_clicked = pyqtSignal()
     update_everything_clicked = pyqtSignal()
     security_upgrade_clicked = pyqtSignal()
+    security_force_clicked = pyqtSignal()      # install blocked security updates
     upgrade_without_major_clicked = pyqtSignal()
     favorite_changed = pyqtSignal(str)  # update mode key
     upgrade_package_clicked = pyqtSignal(str)
@@ -55,6 +56,8 @@ class UpdatesPage(QWidget):
         self._flatpak_count = 0
         self._security_total = 0
         self._package_severity: dict[str, str] = {}
+        self._security_blocked: BlockedUpdates | None = None
+        self._security_waiting = 0  # advisories Security Only can't install yet
         self._release_upgrade: ReleaseUpgrade | None = None
         self._dismissed_release = 0
         self.upgrade_preview = None
@@ -169,6 +172,28 @@ class UpdatesPage(QWidget):
             release_layout.addWidget(button)
         body_layout.addWidget(self._release_banner)
         self._release_banner.hide()
+
+        # ── Blocked Security Updates Banner ──
+        self._blocked_banner = QFrame()
+        self._blocked_banner.setObjectName("status_info")
+        blocked_layout = QHBoxLayout(self._blocked_banner)
+        blocked_layout.setContentsMargins(4, 0, 0, 0)
+        blocked_layout.setSpacing(12)
+        blocked_text = QVBoxLayout()
+        blocked_text.setSpacing(2)
+        self._blocked_title = QLabel("")
+        self._blocked_title.setObjectName("status_title")
+        self._blocked_detail = QLabel("")
+        self._blocked_detail.setObjectName("status_detail")
+        self._blocked_detail.setWordWrap(True)
+        blocked_text.addWidget(self._blocked_title)
+        blocked_text.addWidget(self._blocked_detail)
+        blocked_layout.addLayout(blocked_text, 1)
+        self._blocked_force = self._compact_button("Force Install…", "ghost_button")
+        self._blocked_force.clicked.connect(self.security_force_clicked.emit)
+        blocked_layout.addWidget(self._blocked_force)
+        body_layout.addWidget(self._blocked_banner)
+        self._blocked_banner.hide()
 
         # ── List Header: summary + filter ──
         list_header = QHBoxLayout()
@@ -292,8 +317,15 @@ class UpdatesPage(QWidget):
         button.set_mode_state(
             "minor", minor > 0,
             f"{minor} packages (skips {held} major)" if held else f"{minor} packages")
-        button.set_mode_state(
-            "security", self._security_total > 0, f"{self._security_total} advisories")
+        installable = self._security_total - self._security_waiting
+        if self._security_waiting and not installable:
+            # Stays enabled: clicking explains why and offers Force Install.
+            detail = f"nothing to install yet · {self._security_waiting} waiting"
+        elif self._security_waiting:
+            detail = f"{installable} advisories ({self._security_waiting} waiting)"
+        else:
+            detail = f"{self._security_total} advisories"
+        button.set_mode_state("security", self._security_total > 0, detail)
 
     # ─── Reboot banner ──────────────────────────────────────────
 
@@ -390,6 +422,12 @@ class UpdatesPage(QWidget):
         self._package_severity = dict(security.package_severity) if security else {}
         self._security_card._val_label.setText(
             str(self._security_total) if security else "—")
+        self._security_blocked = security.blocked if security else None
+        self._security_waiting = len(security.blocked_advisories) if security else 0
+        self._security_card._text_label.setText(
+            f"Security Advisories · {self._security_waiting} Waiting"
+            if self._security_waiting else "Security Advisories")
+        self._show_blocked_banner()
         self._flatpak_count = len(flatpaks) if flatpaks else 0
         self._flatpak_card._val_label.setText(str(self._flatpak_count))
         if not (dnf_info and dnf_info.last_checked):
@@ -398,6 +436,51 @@ class UpdatesPage(QWidget):
         self.display_updates(dnf_info)
         dnf_count = len(dnf_info.packages) if dnf_info and dnf_info.packages else 0
         return dnf_count + self._flatpak_count
+
+    # ─── Blocked security updates ───────────────────────────────
+
+    @property
+    def security_blocked(self) -> BlockedUpdates | None:
+        return self._security_blocked
+
+    @property
+    def security_installable(self) -> int:
+        """Advisories Security Only can install right now."""
+        return self._security_total - self._security_waiting
+
+    def blocked_summary(self) -> str:
+        """Why some security updates can't install, and what to do."""
+        blocked = self._security_blocked
+        if not blocked:
+            return ""
+        installable = self.security_installable
+        if installable:
+            advice = (f"Security Only still installs the other {installable} "
+                      f"{'advisory' if installable == 1 else 'advisories'}.")
+        else:
+            advice = ("Running Security Only again won't install it until then, "
+                      "unless you force it.")
+        return f"{blocked.explanation()} {advice}"
+
+    def _show_blocked_banner(self) -> None:
+        blocked = self._security_blocked
+        if not blocked:
+            self._blocked_banner.hide()
+            return
+        count = self._security_waiting or len(blocked.packages)
+        noun = "advisory" if self._security_waiting else "package"
+        noun = noun if count == 1 else ("advisories" if noun == "advisory" else "packages")
+        source = blocked.source
+        self._blocked_title.setText(
+            f"{count} security {noun} waiting on {source}" if source
+            else f"{count} security {noun} can't install yet")
+        self._blocked_detail.setText(self.blocked_summary())
+        if blocked.removals:
+            self._blocked_force.setToolTip(
+                "Install now by removing " + ", ".join(blocked.removals) + ".")
+        else:
+            self._blocked_force.setToolTip("Try installing them now anyway.")
+        self._blocked_banner.show()
 
     def _render_list(self) -> None:
         while self._list_layout.count() > 1:
@@ -481,12 +564,18 @@ class UpdatesPage(QWidget):
 
     def _row_tags(self, name: str, held: set[str]) -> list[tuple[str, str, str]]:
         tags = []
+        waiting = bool(self._security_blocked
+                       and name in self._security_blocked.packages)
         if name in self._package_severity:
             severity = self._package_severity[name]
             label = f"Security · {severity.title()}" if severity else "Security"
             tags.append((label, "badge_security",
-                         f"Fixes a {severity or 'security'} advisory. "
-                         "Included in Security Only."))
+                         f"Fixes a {severity or 'security'} advisory. " +
+                         ("Security Only can't install it yet." if waiting
+                          else "Included in Security Only.")))
+        if waiting:
+            tags.append(("Waiting", "badge_muted",
+                         self._security_blocked.explanation()))
         if name in held:
             pattern = self._major_pattern(name)
             why = ("You marked this as major." if pattern == name

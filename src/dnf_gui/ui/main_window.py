@@ -11,7 +11,10 @@ import os
 from dnf_gui.core.dnf_backend import DNFBackend
 from dnf_gui.core.flatpak_backend import FlatpakBackend
 from dnf_gui.core.discover_manager import DiscoverManager
-from dnf_gui.core.security import build_security_update_command
+from dnf_gui.core.security import (
+    build_forced_security_update_command, build_security_update_command,
+    parse_blocked_updates,
+)
 from dnf_gui.core import release_upgrade
 from dnf_gui.core.release_upgrade import RELEASE_NOTES_URL, UPGRADE_DOCS_URL
 from dnf_gui.core.app_settings import (
@@ -50,6 +53,13 @@ PAGE_TERMINAL = 7
 PAGE_SETTINGS = 8
 
 
+# dnf upgrades: report skipped packages and recheck the reboot banner after.
+UPGRADE_OPERATIONS = (
+    "System Upgrade", "Update Everything (DNF + Flatpak)", "Security Upgrade",
+    "Update without Major", "Forced Security Upgrade",
+)
+
+
 class MainWindow(QMainWindow):
     """Main application window with sidebar navigation and stacked pages."""
 
@@ -64,6 +74,8 @@ class MainWindow(QMainWindow):
         self._history_worker = None
         self._reminder_worker = None
         self._command_worker = None
+        self._op_output: list[str] = []  # dnf output of the current operation
+        self._forced_removals: list[str] = []
         self._app_update_worker = None  # Must keep ref to avoid QThread GC crash
         self._pending_update_info = None  # App update available
         self._updates_cache: dict | None = None  # last scan; revisit reuses it
@@ -212,6 +224,7 @@ class MainWindow(QMainWindow):
         self._updates_page.upgrade_all_clicked.connect(self._upgrade_all)
         self._updates_page.update_everything_clicked.connect(self._update_everything)
         self._updates_page.security_upgrade_clicked.connect(self._security_upgrade)
+        self._updates_page.security_force_clicked.connect(self._force_security_upgrade)
         self._updates_page.upgrade_without_major_clicked.connect(
             self._upgrade_without_major)
         self._updates_page.favorite_changed.connect(self._save_update_favorite)
@@ -508,8 +521,14 @@ class MainWindow(QMainWindow):
                 "Update Everything (DNF + Flatpak)")
 
     def _security_upgrade(self):
-        preview = self._preview_line(self._updates_page.security_preview)
+        page = self._updates_page
+        if page.security_blocked and not page.security_installable:
+            self._explain_blocked_security()
+            return
+        preview = self._preview_line(page.security_preview)
         detail = f"\n\n{preview}." if preview else ""
+        if page.security_blocked:
+            detail += f"\n\n{page.blocked_summary()}"
         reply = QMessageBox.question(
             self, "Security Updates Only?",
             "Install only security advisories?\n\n"
@@ -524,6 +543,47 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self._run_command(
                 build_security_update_command(), "Security Upgrade")
+
+    def _explain_blocked_security(self):
+        """Security Only has nothing it can install: say why, offer force."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Nothing to Install Yet")
+        box.setText("The pending security updates can't be installed yet.")
+        box.setInformativeText(self._updates_page.blocked_summary())
+        force = box.addButton("Force Install…", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        box.setDefaultButton(QMessageBox.StandardButton.Ok)
+        box.exec()
+        if box.clickedButton() is force:
+            self._force_security_upgrade()
+
+    def _force_security_upgrade(self):
+        blocked = self._updates_page.security_blocked
+        if blocked is None:
+            return
+        removals = list(blocked.removals)
+        if removals:
+            names = ", ".join(removals)
+            consequence = (
+                f"To make room, dnf will remove: {names}.\n\n"
+                "Anything that relies on it stops working until you reinstall it. "
+                f"Once a matching update is out, reinstall with:\n"
+                f"sudo dnf install {' '.join(removals)}")
+        else:
+            consequence = "dnf may remove packages that block these updates."
+        reply = QMessageBox.warning(
+            self, "Force Security Updates?",
+            f"{blocked.explanation()}\n\n{consequence}\n\n"
+            "Runs: dnf upgrade --security --allowerasing --best\n\n"
+            "Waiting is usually the better choice. Force anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._forced_removals = removals
+            self._run_command(
+                build_forced_security_update_command(), "Forced Security Upgrade")
 
     def _upgrade_without_major(self):
         page = self._updates_page
@@ -1302,6 +1362,7 @@ class MainWindow(QMainWindow):
         self._terminal_page.append_line(f"  {operation}")
         self._terminal_page.append_line(f"{'─' * 60}\n")
 
+        self._op_output = []
         self._start_worker(
             cmd, lambda code: self._on_command_done(code, operation))
 
@@ -1322,6 +1383,7 @@ class MainWindow(QMainWindow):
         self._terminal_page.append_line(f"{'─' * 60}\n")
 
         self._cmd_queue = list(cmds)
+        self._op_output = []
         self._run_next_in_chain(operation)
 
     def _run_next_in_chain(self, operation: str):
@@ -1377,6 +1439,7 @@ class MainWindow(QMainWindow):
 
         def _on_line(line: str):
             collected.append(line)
+            self._op_output.append(line)
             self._terminal_page.append_line(line)
 
         def _on_done(code: int):
@@ -1412,10 +1475,24 @@ class MainWindow(QMainWindow):
 
     def _on_command_done(self, exit_code: int, operation: str):
         self._progress_bar.stop()
-        self._notify_if_unfocused(exit_code, operation)
+        skipped = (parse_blocked_updates("\n".join(self._op_output))
+                   if exit_code == 0 and operation in UPGRADE_OPERATIONS else None)
+        self._notify_if_unfocused(
+            exit_code, operation,
+            f"{len(skipped.packages)} update(s) couldn't be installed yet."
+            if skipped else "")
 
         if exit_code == 0:
             self._terminal_page.set_success()
+            if skipped:
+                self._report_skipped(skipped, operation)
+            if operation == "Forced Security Upgrade" and self._forced_removals:
+                names = " ".join(self._forced_removals)
+                self._terminal_page.append_line(
+                    f"\nRemoved to make room: {', '.join(self._forced_removals)}. "
+                    "Reinstall once a matching update is published:\n"
+                    f"  sudo dnf install {names}")
+                self._forced_removals = []
             if operation == "Installing app update":
                 self._terminal_page.append_line(
                     "\n✅ Update installed. Please restart the app to use the new version."
@@ -1457,17 +1534,29 @@ class MainWindow(QMainWindow):
             self._updates_page.set_release_upgrade(None)
 
         # A finished upgrade may leave a reboot pending (new kernel etc.)
-        if exit_code == 0 and operation in (
-                "System Upgrade", "Update Everything (DNF + Flatpak)",
-                "Security Upgrade", "Update without Major"):
+        if exit_code == 0 and operation in UPGRADE_OPERATIONS:
             self._recheck_reboot_banner()
 
-    def _notify_if_unfocused(self, exit_code: int, operation: str):
+    def _report_skipped(self, skipped, operation: str):
+        """dnf exits 0 when it skips blocked updates; say so plainly."""
+        count = len(skipped.packages)
+        self._terminal_page.set_success(
+            f"Completed · {count} Update{'s' if count != 1 else ''} Skipped")
+        lines = [f"\n⚠ {count} update{'s' if count != 1 else ''} couldn't be "
+                 f"installed: {', '.join(skipped.packages)}",
+                 f"  {skipped.explanation()}"]
+        if operation == "Security Upgrade":
+            lines.append("  Running Security Only again won't install it until then. "
+                         "To install it now anyway, use Force Install… on the "
+                         "Updates page.")
+        self._terminal_page.append_line("\n".join(lines))
+
+    def _notify_if_unfocused(self, exit_code: int, operation: str, note: str = ""):
         """Desktop notification for operations that finish while you're away."""
         if self.isActiveWindow():
             return
         if exit_code == 0:
-            title, body = f"{operation} finished", "Completed successfully."
+            title, body = f"{operation} finished", note or "Completed successfully."
         elif exit_code in (-15, 143, -9, 137):
             title, body = f"{operation} cancelled", "The operation was cancelled."
         else:

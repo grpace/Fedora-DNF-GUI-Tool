@@ -376,7 +376,9 @@ class CombinedUpdateCheckWorker(QThread):
 
     def run(self):
         try:
-            from dnf_gui.core.security import get_security_summary
+            from dnf_gui.core.security import (
+                find_blocked_security, get_security_summary,
+            )
             dnf_info = self._dnf_backend.check_updates()
             flatpak_updates: list = []
             try:
@@ -386,6 +388,7 @@ class CombinedUpdateCheckWorker(QThread):
                 flatpak_updates = []
             try:
                 security = get_security_summary()
+                find_blocked_security(security)  # sets security.blocked
             except Exception:
                 security = None
             try:

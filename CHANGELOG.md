@@ -5,6 +5,19 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-11-01
+
+### Added
+
+- **Blocked security updates are explained.** dnf sometimes skips a security update because another package isn't ready for it yet, usually a third-party package such as RPM Fusion's `libheif-freeworld` that still requires the old version. dnf still reports success, so the advisory just stayed on the Updates page with no explanation. Each scan now checks which security updates dnf would skip (a read-only dry run, only when advisories are pending). The Updates page shows a banner naming the package that's holding them back and where it comes from, tags the affected rows **Waiting**, and counts them on the Security Advisories card.
+- **Security Only says when there's nothing to install yet.** When every pending advisory is waiting, Security Only explains that rerunning it won't help until the repository catches up, instead of running dnf for nothing.
+- **Force Install…** installs waiting security updates anyway (`dnf upgrade --security --allowerasing --best`). The confirmation lists exactly which packages dnf will remove to make room and how to reinstall them later. It always asks for your password in "Updates only" passwordless mode, because it removes packages.
+- **Skipped updates are reported after every update run.** If dnf skipped packages, the terminal says which ones and why, the status reads "Completed · N Updates Skipped", and the finish notification says so too.
+
+### Fixed
+
+- Update reminders no longer warn about security advisories that can't be installed yet. They come back once they're installable.
+
 ## [1.3.0] - 2026-11-01
 
 ### Fixed

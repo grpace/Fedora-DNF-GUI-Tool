@@ -81,6 +81,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, self._refresh_current)
         QTimer.singleShot(3000, self._check_app_update)  # Check for app updates after 3s
         QTimer.singleShot(15000, self._maybe_background_reminder)  # in-app reminder
+        QTimer.singleShot(0, self._refresh_background_checker)
         self._reminder_timer = QTimer(self)
         self._reminder_timer.setInterval(3600 * 1000)  # hourly throttle check
         self._reminder_timer.timeout.connect(self._maybe_background_reminder)
@@ -1653,22 +1654,46 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             pass
         try:
-            AppSettings.set_checker_installed(enabled)
+            scheduled = AppSettings.set_checker_installed(
+                enabled, self._app_settings.check_interval_hours)
         except Exception:
-            pass
-        status_msg = (
-            "Reminder preferences saved.\n\n"
-            "Background login checker is active."
-            if enabled else
-            "Reminder preferences saved.\n\n"
-            "Background reminders are turned off."
-        )
+            scheduled = False
+        if not enabled:
+            status_msg = ("Reminder preferences saved.\n\n"
+                          "Background reminders are turned off.")
+        elif scheduled:
+            status_msg = ("Reminder preferences saved.\n\n"
+                          "Background checks are on and follow your schedule. "
+                          "You'll get a notification when updates are waiting, "
+                          "even while this app is closed.")
+        else:
+            status_msg = ("Reminder preferences saved.\n\n"
+                          "The background timer couldn't be set up (systemd user "
+                          "session unavailable), so updates are only checked at "
+                          "login and while this app is open.")
         QMessageBox.information(self, "Settings Saved", status_msg)
         self._load_settings_page()
 
     def _toggle_checker(self, enabled: bool):
         try:
-            AppSettings.set_checker_installed(enabled)
+            AppSettings.set_checker_installed(
+                enabled, self._app_settings.check_interval_hours)
+        except Exception:
+            pass
+
+    def _refresh_background_checker(self):
+        """Keep the background checker in step with the reminder switch.
+
+        Replaces the login-only autostart entry older versions installed
+        with the scheduled timer, and rewrites the timer if it's stale.
+        """
+        try:
+            enabled = self._app_settings.reminders_enabled
+            interval = self._app_settings.check_interval_hours
+            if enabled and AppSettings.checker_needs_refresh(interval):
+                AppSettings.set_checker_installed(True, interval)
+            elif not enabled and AppSettings.is_checker_installed():
+                AppSettings.set_checker_installed(False)
         except Exception:
             pass
 

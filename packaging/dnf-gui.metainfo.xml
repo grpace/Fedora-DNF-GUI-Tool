@@ -33,6 +33,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.3.0" date="2026-11-01">
+      <description>
+        <p>Update reminders now work while the app is closed. A per-user systemd timer runs the check on your Check Every schedule, and a login check catches up when one was missed while the PC was off or asleep. Nothing polls in the background. Failed checks no longer silence reminders for a whole interval: they wait for the network and retry a few times.</p>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-10-20">
       <description>
         <p>Adds Update without Major (upgrade everything except kernel, graphics drivers, firmware and bootloader), guided Fedora release upgrades, per-package Mark Major, repository search and install, a single update button with a favorite mode, security tags and version changes on every update, and a Clean Up preview. Security fixes: the passwordless rule now covers only exact upgrade commands, and app self-updates are verified against a SHA-256 checksum. Fixes security advisory counts on dnf5, crashes when closing during background work, and many smaller issues.</p>

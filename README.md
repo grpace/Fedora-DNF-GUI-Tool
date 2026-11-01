@@ -150,12 +150,12 @@ The full walkthrough, including how to undo it, is in [Switching from Discover](
 
 ```bash
 dnf-gui                                 # open the app
-dnf-gui --check                         # headless update check (used by the login reminder)
+dnf-gui --check                         # headless update check (run by the reminder timer)
 dnf-gui --check --security-only         # only notify about security updates, this run only
 DNF_GUI_FORCE_CHECK=1 dnf-gui --check   # ignore the reminder interval
 ```
 
-`--check` exits with `0` when nothing needs attention and `2` when updates are pending.
+`--check` exits with `0` when nothing needs attention (or no check is due), `2` when updates are pending, and `1` when it couldn't check or deliver the notification (the reminder timer retries on `1`).
 
 ---
 

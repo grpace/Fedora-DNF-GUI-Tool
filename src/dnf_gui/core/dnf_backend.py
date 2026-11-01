@@ -93,14 +93,20 @@ class DNFBackend:
 
     def check_updates(self) -> UpdateInfo:
         """Check for available updates."""
-        result = self._run(
-            [self._dnf_path, "check-upgrade", "-q", "--refresh"],
-            allow_nonzero=True,
-        )
-        
         info = UpdateInfo()
-        if result is None:
+        try:
+            proc = subprocess.run(
+                [self._dnf_path, "check-upgrade", "-q", "--refresh"],
+                capture_output=True, text=True, timeout=120,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            info.check_failed = True
             return info
+        # check-upgrade exits 0 (none), 100 (updates) or 1 (error).
+        if proc.returncode not in (0, 100):
+            info.check_failed = True
+            return info
+        result = proc.stdout
 
         packages = self._parse_package_list(result, PackageStatus.UPDATE_AVAILABLE)
         installed = self._installed_versions([p.name for p in packages])

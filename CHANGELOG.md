@@ -5,6 +5,15 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-01
+
+### Fixed
+
+- **Update reminders didn't work while the app was closed.** The background check was an autostart entry, so it ran once per login and never again. On a PC that stays logged in or sleeps instead of shutting down, "Check Every" did nothing until the app was opened. Reminders now run from a per-user systemd timer that follows your Check Every setting: 9 AM and 9 PM for 12 Hours, 9 AM for Daily, Monday and Thursday for Every 3 Days, and Monday for Weekly. A check missed while the PC was off or asleep runs when it's back, and each login checks only if one is due. Nothing polls or stays running in the background, and nothing runs before you log in. Existing setups switch over the next time you open the app.
+- An uninstalled app no longer leaves a failing reminder behind. The per-user checker skips quietly once DNF Package Manager is removed.
+- **A failed reminder check silenced reminders for a full interval.** Being offline right after waking, or checking before Plasma's notification server was up, still counted as a completed check. A check now waits briefly for the network and notification server after login or resume. If it still fails, it doesn't count, and it's retried at most three times, 15 minutes apart, before waiting for the next login or scheduled check.
+- `dnf-gui --check` no longer checks for updates when reminders are turned off (set `DNF_GUI_FORCE_CHECK=1` to force it).
+
 ## [1.2.0] - 2026-10-20
 
 ### Added

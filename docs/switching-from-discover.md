@@ -50,7 +50,7 @@ These changes survive Discover package updates. PackageKit itself keeps running,
 
 ## 3. Set up reminders
 
-Under **Settings → Update Reminders**, turn on **Remind Me About Pending Updates** and choose how often to check. A small login check (`dnf-gui --check`) then sends a desktop notification when updates are waiting, without keeping anything running in the background.
+Under **Settings → Update Reminders**, turn on **Remind Me About Pending Updates** and choose how often to check. A systemd user timer then runs `dnf-gui --check` on that schedule (at 9 AM), even while the app is closed, and sends a desktop notification when updates are waiting. It also takes a quick look at login and checks only if one is due, so a check missed while the PC was off or asleep isn't lost. Nothing stays running or polls between checks, and nothing runs before you log in. If you're offline, it retries at most three times, 15 minutes apart.
 
 - **Security Updates Only** keeps quiet about routine updates and only notifies you about security fixes.
 - **Include Flatpak Updates** notifies you about Flatpak updates either way.

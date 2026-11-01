@@ -86,6 +86,9 @@ class UpdateInfo:
     total_updates: int = 0
     packages: list = field(default_factory=list)
     last_checked: str = ""
+    # True when dnf itself failed (offline, metadata error), so a count of
+    # 0 means "unknown" rather than "up to date".
+    check_failed: bool = False
 
 
 @dataclass

@@ -13,13 +13,14 @@ Owns:
    - ``updates/held_back`` (comma-separated globs for "Update without Major")
    - ``updates/favorite`` (update mode on the main Updates button)
    - ``upgrade/dismissed_release`` (Fedora release the upgrade banner was dismissed for)
-2. **Login checker** — ``dnf-gui --check`` can be installed as a
-   per-user XDG autostart entry (``~/.config/autostart/dnf-gui-update-checker.desktop``)
-   that triggers at login, checks if an update check is due according
-   to the configured interval, and sends a desktop notification via
-   ``notify-send`` (or falls back to an in-app banner if run in GUI
-   mode). This is the "ongoing thing that reminds people" without
-   requiring a resident background daemon.
+2. **Background checker** — ``dnf-gui --check --scheduled`` runs from a
+   per-user systemd service, started by a timer whose schedule follows
+   ``reminders/interval_hours`` and once at each login. The service only
+   runs inside a graphical session, so nothing fires before login. Each
+   run compares the last check with the interval and exits at once unless
+   a check is due. A failed check (offline) is retried at most 3 times,
+   15 minutes apart. Nothing stays resident and nothing polls.
+   Without systemd, an XDG autostart entry runs the check at login instead.
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 CHECKER_DESKTOP_NAME = "dnf-gui-update-checker.desktop"
+CHECKER_SERVICE = "dnf-gui-update-checker.service"
+CHECKER_TIMER = "dnf-gui-update-checker.timer"
 # Update modes for the main Updates button; the first is the default.
 UPDATE_MODE_KEYS = ("all", "everything", "minor", "security")
 
@@ -43,20 +46,80 @@ class ReminderResult:
     security_urgent: bool = False
     should_notify: bool = False
     message: str = ""
+    # dnf couldn't check (e.g. offline): counts are unknown, and the
+    # check doesn't count against the interval.
+    check_failed: bool = False
 
     @property
     def total(self) -> int:
         return self.dnf_updates + self.flatpak_updates
 
 
-def _checker_exec() -> str:
-    """Autostart Exec line: the RPM/install.sh launcher if present, else
+def _checker_command(scheduled: bool = False) -> list[str]:
+    """argv for the check: the RPM/install.sh launcher if present, else
     this interpreter + module (pip installs only ship fedora-dnf-gui)."""
     import shutil
     import sys
-    if shutil.which("dnf-gui"):
-        return "dnf-gui --check"
-    return f'"{sys.executable}" -m dnf_gui --check'
+    launcher = shutil.which("dnf-gui")
+    argv = [launcher] if launcher else [sys.executable, "-m", "dnf_gui"]
+    return argv + (["--check", "--scheduled"] if scheduled else ["--check"])
+
+
+def _quote_exec(argv: list[str]) -> str:
+    """Join argv for a systemd ExecStart= or desktop-entry Exec= line."""
+    return " ".join(f'"{a}"' if (" " in a or not a) else a for a in argv)
+
+
+def _systemctl_user(*args: str) -> bool:
+    """Run ``systemctl --user ARGS``. False if systemd isn't usable."""
+    try:
+        result = subprocess.run(["systemctl", "--user", *args],
+                                capture_output=True, timeout=30)
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def network_online(timeout: int = 0) -> bool:
+    """True when NetworkManager reports a connection, waiting up to
+    ``timeout`` seconds for one. Assumes True if it can't tell."""
+    try:
+        result = subprocess.run(["nm-online", "-q", "-x", "-t", str(timeout)],
+                                capture_output=True, timeout=timeout + 10)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return True
+    return result.returncode == 0
+
+
+def wait_for_desktop(timeout: float = 120, poll: float = 5) -> bool:
+    """Wait up to ``timeout`` seconds for a notification server and a
+    network connection, e.g. right after login or resume."""
+    import time
+    deadline = time.monotonic() + timeout
+    while not notification_server_available():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll)
+    return network_online(max(0, int(deadline - time.monotonic())))
+
+
+def notification_server_available() -> bool:
+    """True when something owns org.freedesktop.Notifications.
+
+    The timer also fires before login (e.g. with lingering enabled), when
+    a notification would be lost. Assumes True if it can't tell.
+    """
+    try:
+        result = subprocess.run(
+            ["busctl", "--user", "call", "org.freedesktop.DBus",
+             "/org/freedesktop/DBus", "org.freedesktop.DBus",
+             "NameHasOwner", "s", "org.freedesktop.Notifications"],
+            capture_output=True, text=True, timeout=5)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return True
+    if result.returncode != 0:
+        return False  # no session bus reachable
+    return result.stdout.strip() != "b false"
 
 
 class AppSettings:
@@ -181,52 +244,191 @@ class AppSettings:
     def set_last_check(self, when: datetime | None = None) -> None:
         self.set("reminders/last_check", (when or datetime.now()).isoformat())
 
-    def is_check_due(self) -> bool:
-        """True when reminders are enabled and the interval has elapsed."""
+    def is_check_due(self, fraction: float = 1.0) -> bool:
+        """True when reminders are enabled and ``fraction`` of the interval
+        has elapsed since the last check."""
         if not self.reminders_enabled:
             return False
         last = self.get_last_check()
         if last is None:
             return True
-        return datetime.now() - last >= timedelta(hours=self.check_interval_hours)
+        return datetime.now() - last >= timedelta(
+            hours=self.check_interval_hours * fraction)
 
-    # ─── Login checker autostart ──────────────────────────────
+    # ─── Background checker (systemd timer + login trigger) ───
     @classmethod
     def checker_autostart_path(cls) -> Path:
-        config_home = Path(os.environ.get("XDG_CONFIG_HOME")
-                           or Path.home() / ".config")
-        return config_home / "autostart" / CHECKER_DESKTOP_NAME
+        return _config_home() / "autostart" / CHECKER_DESKTOP_NAME
+
+    @classmethod
+    def checker_unit_dir(cls) -> Path:
+        return _config_home() / "systemd" / "user"
 
     @classmethod
     def is_checker_installed(cls) -> bool:
-        return cls.checker_autostart_path().exists()
+        return (cls.checker_autostart_path().exists()
+                or (cls.checker_unit_dir() / CHECKER_TIMER).exists())
 
     @classmethod
-    def set_checker_installed(cls, installed: bool) -> None:
-        path = cls.checker_autostart_path()
-        if installed:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            # Exec must work for both /opt installs and source checkouts.
-            # Prefer the on-PATH launcher, fall back to module invocation.
-            path.write_text(
-                "[Desktop Entry]\n"
-                "Type=Application\n"
-                "Name=DNF GUI Update Checker\n"
-                "Comment=Background update reminder for DNF Package Manager\n"
-                f"Exec={_checker_exec()}\n"
-                "Icon=dnf-gui\n"
-                "Terminal=false\n"
-                "Categories=System;\n"
-                "X-GNOME-Autostart-enabled=true\n"
-                "X-KDE-AutostartScript=true\n"
-                "NoDisplay=true\n"
-            )
-        else:
+    def checker_needs_refresh(cls, interval_hours: int) -> bool:
+        """True when the timer is missing, out of date or on the wrong
+        schedule (e.g. the login-only entry older versions installed)."""
+        if cls.checker_autostart_path().exists():
+            return True
+        unit_dir = cls.checker_unit_dir()
+        wanted = {
+            unit_dir / CHECKER_SERVICE: _service_unit(),
+            unit_dir / CHECKER_TIMER: _timer_unit(interval_hours),
+        }
+        for path, content in wanted.items():
             try:
-                if path.exists():
-                    path.unlink()
+                if path.read_text() != content:
+                    return True
+            except OSError:
+                return True
+        return False
+
+    @classmethod
+    def set_checker_installed(cls, installed: bool,
+                              interval_hours: int = 24) -> bool:
+        """Install or remove the background checker.
+
+        Returns True when the systemd timer is active (or was removed).
+        False on install means only the login check is in place.
+        """
+        unit_dir = cls.checker_unit_dir()
+        service = unit_dir / CHECKER_SERVICE
+        timer = unit_dir / CHECKER_TIMER
+        autostart = cls.checker_autostart_path()
+        if not installed:
+            if timer.exists() or service.exists():
+                _systemctl_user("disable", "--now", CHECKER_TIMER, CHECKER_SERVICE)
+            for path in (timer, service, autostart):
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            _systemctl_user("daemon-reload")
+            return True
+
+        unit_dir.mkdir(parents=True, exist_ok=True)
+        service.write_text(_service_unit())
+        timer.write_text(_timer_unit(interval_hours))
+        # Enabling the service hooks it to login; restart re-arms the timer
+        # if its schedule changed.
+        use_systemd = (_systemctl_user("daemon-reload")
+                       and _systemctl_user("enable", CHECKER_TIMER, CHECKER_SERVICE)
+                       and _systemctl_user("restart", CHECKER_TIMER))
+        if use_systemd:
+            try:
+                autostart.unlink(missing_ok=True)  # pre-1.3 login-only checker
             except OSError:
                 pass
+        else:
+            for path in (timer, service):
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            autostart.parent.mkdir(parents=True, exist_ok=True)
+            autostart.write_text(_autostart_entry())
+        return use_systemd
+
+
+def _config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+
+
+def _installed_condition() -> str:
+    """Unit lines that skip the run (no failure, no retries) once the app
+    is uninstalled, since its per-user units outlive the package."""
+    argv = _checker_command()
+    if argv[1:2] == ["-m"]:  # pip/source install: the interpreter stays
+        return f"ExecCondition={_quote_exec([argv[0], '-c', 'import dnf_gui'])}\n"
+    return f"ConditionPathExists={argv[0]}\n"
+
+
+def _service_unit() -> str:
+    condition = _installed_condition()
+    unit_condition = condition if condition.startswith("Condition") else ""
+    exec_condition = "" if unit_condition else condition
+    return (
+        "[Unit]\n"
+        "Description=DNF Package Manager update reminder\n"
+        "Documentation=https://github.com/grpace/Fedora-DNF-GUI-Tool\n"
+        "# Only inside a desktop session: before login there's nobody to\n"
+        "# notify, and the login start below catches up.\n"
+        "Requisite=graphical-session.target\n"
+        "After=graphical-session.target\n"
+        "# The first run plus at most 3 retries an hour.\n"
+        "StartLimitIntervalSec=1h\n"
+        "StartLimitBurst=4\n"
+        "# Skip quietly once the app is uninstalled.\n"
+        f"{unit_condition}"
+        "\n"
+        "[Service]\n"
+        "Type=oneshot\n"
+        f"{exec_condition}"
+        f"ExecStart={_quote_exec(_checker_command(scheduled=True))}\n"
+        "# Exit code 2 means updates are pending, not a failure.\n"
+        "SuccessExitStatus=2\n"
+        "# Exit code 1: still offline or undelivered after waiting.\n"
+        "Restart=on-failure\n"
+        "RestartSec=15min\n"
+        "Nice=10\n"
+        "IOSchedulingClass=idle\n"
+        "TimeoutStartSec=15min\n"
+        "\n"
+        "[Install]\n"
+        "# Also start at login; the run exits at once unless a check is due.\n"
+        "WantedBy=graphical-session.target\n"
+    )
+
+
+# OnCalendar= for each "Check Every" choice. Every 3 Days alternates 3- and
+# 4-day gaps, the closest a calendar schedule gets.
+_TIMER_SCHEDULES = {
+    12: "*-*-* 09,21:00:00",
+    24: "*-*-* 09:00:00",
+    72: "Mon,Thu *-*-* 09:00:00",
+    168: "Mon *-*-* 09:00:00",
+}
+
+
+def _timer_unit(interval_hours: int) -> str:
+    schedule = _TIMER_SCHEDULES.get(int(interval_hours), _TIMER_SCHEDULES[24])
+    return (
+        "[Unit]\n"
+        "Description=Scheduled DNF Package Manager update reminder\n"
+        "\n"
+        "[Timer]\n"
+        f"OnCalendar={schedule}\n"
+        "# Run a missed check once the PC is back on or awake.\n"
+        "Persistent=true\n"
+        "RandomizedDelaySec=10min\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=timers.target\n"
+    )
+
+
+def _autostart_entry() -> str:
+    """Login check for systems without a systemd user session."""
+    return (
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        "Name=DNF GUI Update Checker\n"
+        "Comment=Background update reminder for DNF Package Manager\n"
+        f"Exec={_quote_exec(_checker_command())}\n"
+        # Ignored once the app is uninstalled.
+        f"TryExec={_checker_command()[0]}\n"
+        "Icon=dnf-gui\n"
+        "Terminal=false\n"
+        "Categories=System;\n"
+        "X-GNOME-Autostart-enabled=true\n"
+        "X-KDE-AutostartScript=true\n"
+        "NoDisplay=true\n"
+    )
 
 
 def send_desktop_notification(title: str, body: str, urgent: bool = False) -> bool:
@@ -250,7 +452,8 @@ def perform_background_check(settings: AppSettings | None = None,
     """Headless check used by ``dnf-gui --check`` and the in-app timer.
 
     Respects ``reminders/security_only`` and ``reminders/notify_flatpak``.
-    Always updates ``reminders/last_check`` so the interval throttle works.
+    Updates ``reminders/last_check`` unless dnf failed, so an offline run
+    is retried on the next wake-up instead of silencing a whole interval.
     Never raises — failures degrade to zero counts. ``security_only``
     overrides the saved preference for this run without persisting it.
     """
@@ -266,8 +469,10 @@ def perform_background_check(settings: AppSettings | None = None,
         backend = DNFBackend()
         info = backend.check_updates()
         result.dnf_updates = info.total_updates if info else 0
+        result.check_failed = bool(getattr(info, "check_failed", False))
     except Exception:
         result.dnf_updates = 0
+        result.check_failed = True
     try:
         if settings.notify_flatpak:
             flatpak = FlatpakBackend()
@@ -282,7 +487,8 @@ def perform_background_check(settings: AppSettings | None = None,
     except Exception:
         pass
 
-    settings.set_last_check()
+    if not result.check_failed:
+        settings.set_last_check()
 
     # Determine whether system DNF packages warrant a reminder
     if security_only:

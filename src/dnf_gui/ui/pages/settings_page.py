@@ -265,8 +265,9 @@ class SettingsPage(QWidget):
         rem_card.add_button_row(self._btn_rem_save, self._btn_rem_test)
 
         rem_card.add_row(_hint(
-            "When enabled, reminders automatically run in the background at login and "
-            "on your chosen schedule, notifying only when updates are ready. "
+            "When enabled, a background check runs on your chosen schedule (at 9 AM), "
+            "even while this app is closed, and catches up at login if a check was missed. "
+            "Nothing runs in between, and notifications appear only when updates are ready. "
             "Flatpak updates notify independently even when Security Updates Only is active."
         ))
         content.addWidget(rem_card)

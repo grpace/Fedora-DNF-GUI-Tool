@@ -63,7 +63,7 @@ There's no telemetry or analytics.
 ### Where are my settings stored?
 
 - App settings: `~/.config/Greg.Tech/DNF Package Manager.conf`
-- Login reminder: `~/.config/autostart/dnf-gui-update-checker.desktop`
+- Update reminders: `~/.config/systemd/user/dnf-gui-update-checker.{timer,service}`. See the next run with `systemctl --user list-timers dnf-gui-update-checker.timer` and past runs with `journalctl --user -u dnf-gui-update-checker`.
 - Passwordless rule (if enabled): `/etc/sudoers.d/90-dnf-gui`
 
 ### Something failed. How do I report it?

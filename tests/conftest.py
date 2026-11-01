@@ -45,6 +45,9 @@ def _hermetic_main_window(monkeypatch):
     monkeypatch.setattr(worker.AppUpdateWorker, "run",
                         lambda self: self.finished.emit(None))
     monkeypatch.setattr(worker.ReminderCheckWorker, "run", lambda self: None)
+    # Never enable, start or reload the real user's systemd units.
+    from dnf_gui.core import app_settings
+    monkeypatch.setattr(app_settings, "_systemctl_user", lambda *a: True)
 
     windows = []
     original_init = main_window.MainWindow.__init__

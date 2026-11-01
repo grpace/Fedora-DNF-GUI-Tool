@@ -82,8 +82,9 @@ class TestInstalledVersions(unittest.TestCase):
 
     def test_check_updates_fills_installed_version(self):
         backend = _backend()
-        with patch.object(DNFBackend, "_run",
-                          return_value="firefox.x86_64 146.0-1.fc44 updates\n"), \
+        proc = MagicMock(returncode=100,
+                         stdout="firefox.x86_64 146.0-1.fc44 updates\n")
+        with patch("dnf_gui.core.dnf_backend.subprocess.run", return_value=proc), \
              patch.object(DNFBackend, "_installed_versions",
                           return_value={"firefox": "145.0-1.fc44"}):
             info = backend.check_updates()

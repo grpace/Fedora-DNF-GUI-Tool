@@ -3,7 +3,7 @@
 %global install_dir /opt/%{app_name}
 
 Name:           %{app_name}
-Version:        1.5.1
+Version:        2.0.0
 Release:        1%{?dist}
 Summary:        Discover alternative for Fedora: updates you can see and control
 License:        GPL-3.0-or-later
@@ -92,6 +92,15 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 /usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
+* Tue Nov 17 2026 Greg.Tech <hello@greg.tech> - 2.0.0-1
+- New native KDE Plasma interface (Kirigami): follows your Plasma colors and fonts
+- Updates page: one clear status, one main button, updates grouped by security, major and Flatpak
+- Package and transaction details open beside the list
+- Output follows you between pages, with live progress, Cancel and Copy Output
+- Confirmations show one at a time; destructive ones default to No
+- Rebuilt Installed, Flatpak, History, Repositories, System, Tools and Settings pages
+- Keyboard and screen reader support throughout; text meets WCAG AA in Breeze Light and Dark
+- The app restarts itself after installing its own update
 * Mon Nov 16 2026 Greg.Tech <hello@greg.tech> - 1.5.1-1
 - Pass the desktop entry id to setDesktopFileName (no startup warning from Qt)
 

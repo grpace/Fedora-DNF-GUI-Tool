@@ -96,7 +96,7 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
 
 ### Settings
 - **Discover takeover** for your account, or for every account on the computer. Fully reversible. If Discover already scheduled updates for your next restart, the app tells you and can cancel them (`pkcon offline-cancel`), so PackageKit doesn't install a stale update set when you reboot.
-- **Update reminders** on your Check Every schedule, even while the app is closed, optionally only for security updates. Click a reminder (or its **View Updates** button) to open the Updates page with a fresh scan.
+- **Update reminders** on your chosen schedule, even while the app is closed, optionally only for security updates. Click a reminder (or its **View Updates** button) to open the Updates page with a fresh scan.
 - **Passwordless updates (optional):** a validated sudoers rule that lets the app's exact upgrade commands run without a password prompt, while installs and removals still ask. See [Security model](#security-model).
 
 ### Desktop
@@ -133,7 +133,7 @@ Or run it without installing: `PYTHONPATH=src python3 -m dnf_gui`
 
 1. Open **DNF Package Manager** from the application menu (System), or run `dnf-gui`.
 2. Go to **Settings → KDE Discover** and click **Use This App for Updates…**.
-3. Turn on **Update Reminders** if you want a notification when updates are waiting.
+3. Turn on **Settings → Reminders** if you want a notification when updates are waiting.
 
 The full walkthrough, including how to undo it, is in [Switching from Discover](docs/switching-from-discover.md).
 

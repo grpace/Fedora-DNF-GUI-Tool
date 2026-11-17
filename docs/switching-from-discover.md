@@ -50,12 +50,12 @@ These changes survive Discover package updates. PackageKit itself keeps running,
 
 ## 3. Set up reminders
 
-Under **Settings → Update Reminders**, turn on **Remind Me About Pending Updates** and choose how often to check. A systemd user timer then runs `dnf-gui --check` on that schedule (at 9 AM), even while the app is closed, and sends a desktop notification when updates are waiting. Click the notification, or its **View Updates** button, to open the Updates page with a fresh scan; if the app is already open, its window comes forward. It also takes a quick look at login and checks only if one is due, so a check missed while the PC was off or asleep isn't lost. Nothing polls, and nothing runs before you log in. After sending a reminder, the check stays around (at most until shortly before the next check) only so it can answer a click, then exits. If you're offline, it retries at most three times, 15 minutes apart.
+Under **Settings → Reminders**, turn on **Remind me about pending updates** and choose how often to check. A systemd user timer then runs `dnf-gui --check` on that schedule (at 9 AM), even while the app is closed, and sends a desktop notification when updates are waiting. Click the notification, or its **View Updates** button, to open the Updates page with a fresh scan; if the app is already open, its window comes forward. It also takes a quick look at login and checks only if one is due, so a check missed while the PC was off or asleep isn't lost. Nothing polls, and nothing runs before you log in. After sending a reminder, the check stays around (at most until shortly before the next check) only so it can answer a click, then exits. If you're offline, it retries at most three times, 15 minutes apart.
 
 - **Security Updates Only** keeps quiet about routine updates and only notifies you about security fixes.
 - **Include Flatpak Updates** notifies you about Flatpak updates either way.
 
-Click **Send Test Notification** to see what it looks like, and click the notification to check that it opens the Updates page.
+Click **Send a Test Reminder** to see what it looks like, and click the notification to check that it opens the Updates page.
 
 ## 4. Pick your update style
 
@@ -65,18 +65,18 @@ On the **Updates** page, the main button runs your favorite update mode. Open th
 |---|---|---|
 | Upgrade All | `dnf upgrade --refresh` | Keeping everything current |
 | Update Everything | `dnf upgrade`, then `flatpak update` | One click for system and apps |
-| Update without Major | `dnf upgrade --exclude=kernel*,*nvidia*,mesa-*,…` | Day-to-day updates that won't touch the kernel or graphics stack |
+| Update Without Major | `dnf upgrade --exclude=kernel*,*nvidia*,mesa-*,…` | Day-to-day updates that won't touch the kernel or graphics stack |
 | Security Only | `dnf upgrade --security` | Getting fixes fast with minimal change |
 
 Click the star next to a mode to make it the main button. `Ctrl+U` runs it from any page.
 
-Rows tagged **Major** are the updates Update without Major skips: by default the kernel, firmware, graphics drivers and bootloader. Hover over the tag to see why a package counts as major. To have Update without Major skip something else as well, click **Mark Major** on its row (**Unmark Major** undoes it). The default patterns are editable under **Settings → Update without Major**.
+Rows tagged **Major** are the updates Update Without Major skips: by default the kernel, firmware, graphics drivers and bootloader. Open a row to see why a package counts as major. To have Update Without Major skip something else as well, choose **Treat as Major** from its row menu (**Don't Treat as Major** undoes it). The default patterns are editable under **Settings → Updates → Major packages**.
 
 > "Major" doesn't mean "never updated". Upgrade All and Update Everything install major updates too, and kernel updates include security fixes, so run **Upgrade All** regularly.
 
 ## 5. Optional: stop the password prompts
 
-**Settings → Password Prompts → Enable Passwordless** with **Updates Only** installs a sudoers rule covering exactly three commands: Upgrade All, Security Only and Update without Major. Installs, removals, repository changes and firmware updates still ask for a password. The rule names the exact Update without Major command, so after you change which packages count as major, Settings tells you to click **Enable Passwordless** once more.
+**Settings → Passwordless Updates → Turn On…** with **Updates Only** installs a sudoers rule covering exactly three commands: Upgrade All, Security Only and Update without Major. Installs, removals, repository changes and firmware updates still ask for a password. The rule names the exact Update without Major command, so after you change which packages count as major, Settings tells you to click **Enable Passwordless** once more.
 
 ## Optional: reclaim PackageKit's cache
 
@@ -95,6 +95,6 @@ It's only a cache. Discover rebuilds what it needs the next time you open it.
 1. **Settings → KDE Discover → Let Discover Check Again** undoes the per-user takeover.
 2. If you used **Turn Off for All Users**, choose **Show advanced options → Turn Back On for All Users…**. This unmasks everything and restores the checker's autostart entry if an older version of this app removed it.
 3. If you used **Uninstall Checker**, reinstall it: `sudo dnf install plasma-discover-notifier`.
-4. Turn off **Update Reminders** so you don't get two sets of notifications.
+4. Turn off **Settings → Reminders** so you don't get two sets of notifications.
 
 Then log out and back in.

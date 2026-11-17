@@ -14,6 +14,14 @@ BuildArch:      noarch
 
 Requires:       python3 >= 3.12
 Requires:       python3-pyqt6
+# The interface is Kirigami (QML); each module it imports, by its provide.
+Requires:       qt6qml(QtQuick)
+Requires:       qt6qml(QtQuick.Controls)
+Requires:       qt6qml(QtQuick.Layouts)
+Requires:       qt6qml(org.kde.kirigami)
+Requires:       qt6qml(org.kde.kirigamiaddons.formcard)
+Requires:       qt6qml(org.kde.desktop)
+Requires:       breeze-icon-theme
 Requires:       polkit
 Recommends:     flatpak
 Recommends:     fwupd
@@ -47,6 +55,8 @@ cat > %{buildroot}%{_bindir}/%{app_name} << 'EOF'
 #!/bin/bash
 # -P and no empty PYTHONPATH entry: never import from the current directory.
 export PYTHONPATH="%{install_dir}${PYTHONPATH:+:$PYTHONPATH}"
+# KDE look for the Qt Quick interface (outside Plasma too).
+export QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}"
 exec python3 -P -m %{app_module} "$@"
 EOF
 chmod 0755 %{buildroot}%{_bindir}/%{app_name}

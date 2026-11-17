@@ -70,21 +70,24 @@ check_fedora() {
 install_dependencies() {
     echo -e "${BLUE}[1/5]${NC} Installing system dependencies..."
 
-    # Check if python3-pyqt6 is available/installed
-    if python3 -c "import PyQt6" 2>/dev/null; then
-        echo -e "  ${GREEN}✓${NC} PyQt6 is already installed"
+    # PyQt6 and the KDE Kirigami interface come from Fedora's packages.
+    # (pip's PyQt6 bundles its own Qt and can't load the system Kirigami.)
+    local packages=(python3-pyqt6 qt6-qtdeclarative kf6-kirigami
+                    kf6-kirigami-addons kf6-qqc2-desktop-style breeze-icon-theme)
+    local missing=()
+    for pkg in "${packages[@]}"; do
+        rpm -q "$pkg" &>/dev/null || missing+=("$pkg")
+    done
+    if [ ${#missing[@]} -eq 0 ]; then
+        echo -e "  ${GREEN}✓${NC} PyQt6 and Kirigami are already installed"
     else
-        echo "  Installing python3-pyqt6..."
-        dnf install -y python3-pyqt6 2>/dev/null || {
-            echo -e "  ${YELLOW}!${NC} python3-pyqt6 not found in repos, trying pip..."
-            pip3 install PyQt6 2>/dev/null || {
-                echo -e "  ${RED}✗ Could not install PyQt6. Please install it manually:${NC}"
-                echo "    sudo dnf install python3-pyqt6"
-                echo "    or: pip3 install PyQt6"
-                exit 1
-            }
+        echo "  Installing ${missing[*]}..."
+        dnf install -y "${missing[@]}" || {
+            echo -e "  ${RED}✗ Could not install the required packages. Install them with:${NC}"
+            echo "    sudo dnf install ${missing[*]}"
+            exit 1
         }
-        echo -e "  ${GREEN}✓${NC} PyQt6 installed"
+        echo -e "  ${GREEN}✓${NC} Dependencies installed"
     fi
 
     # Ensure python3 is available
@@ -120,6 +123,8 @@ install_launcher() {
 
 # -P and no empty PYTHONPATH entry: never import from the current directory.
 export PYTHONPATH="/opt/dnf-gui${PYTHONPATH:+:$PYTHONPATH}"
+# KDE look for the Qt Quick interface (outside Plasma too).
+export QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}"
 exec python3 -P -m dnf_gui "$@"
 LAUNCHER
 

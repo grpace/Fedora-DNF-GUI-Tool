@@ -36,7 +36,9 @@ QQC2.ItemDelegate {
 
     text: name
     highlighted: ListView.isCurrentItem
-    Accessible.description: (severity ? severity + " security update. " : "")
+    Accessible.onPressAction: clicked()
+    Accessible.description: (severity === "Security" ? "Security update. "
+                             : severity ? severity + " security update. " : "")
                             + (major ? "Major update. " : "")
                             + (flatpak ? "Flatpak app. " : "")
                             + (fromVersion ? "From " + fromVersion + " to " + toVersion : toVersion)
@@ -76,8 +78,8 @@ QQC2.ItemDelegate {
                 QQC2.Label {
                     id: nameLabel
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, nameLine.width
-                                    - (pills.width > 0 ? pills.width + Kirigami.Units.smallSpacing : 0))
+                    width: Math.max(0, Math.min(implicitWidth, nameLine.width
+                                    - (pills.width > 0 ? pills.width + Kirigami.Units.smallSpacing : 0)))
                     text: row.name
                     font.weight: Font.DemiBold
                     color: row.fg

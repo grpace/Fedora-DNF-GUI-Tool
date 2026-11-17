@@ -18,8 +18,12 @@ Rectangle {
                                      : Kirigami.Theme.neutralTextColor
     // Plasma's state colors are made for icons; as small text they need
     // pulling toward the text color to stay readable (scripts/check_contrast.py).
+    // A plain RGB mix (ColorUtils.linearInterpolation goes through hue, so
+    // orange toward gray turns green).
     readonly property color fg: selected ? Kirigami.Theme.highlightedTextColor
-        : Kirigami.ColorUtils.linearInterpolation(toneColor, Kirigami.Theme.textColor, 0.4)
+        : Qt.rgba(toneColor.r + (Kirigami.Theme.textColor.r - toneColor.r) * 0.4,
+                  toneColor.g + (Kirigami.Theme.textColor.g - toneColor.g) * 0.4,
+                  toneColor.b + (Kirigami.Theme.textColor.b - toneColor.b) * 0.4, 1)
 
     radius: height / 2
     color: "transparent"

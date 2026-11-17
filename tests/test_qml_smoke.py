@@ -135,3 +135,97 @@ def test_prompts_answered_through_conftest_helper(ui):
     shown = answer(controller, "yes")
     controller.prompts.confirm("Go?", "Go now?", lambda: ran.append(1))
     assert ran == [1] and shown[-1].title == "Go?"
+
+
+def _scan(n: int = 3) -> dict:
+    pkgs = [Package(f"pkg{i}", "1.1", "1.fc45", "x86_64", "updates",
+                    status=PackageStatus.UPDATE_AVAILABLE, installed_version="1.0-1.fc45")
+            for i in range(n)]
+    return {"dnf": UpdateInfo(n, pkgs), "flatpak": [], "security": None,
+            "preview": None, "security_preview": None, "reboot": True}
+
+
+def _focused_page_title(window) -> str:
+    item = window.activeFocusItem()
+    while item is not None:
+        title = item.property("title")
+        if isinstance(title, str) and title in PAGE_TITLES.values():
+            return title
+        item = item.parentItem()
+    return ""
+
+
+def test_ctrl_f_focuses_the_visible_pages_field(ui):
+    controller, window, (warnings, messages) = ui
+    controller.updates._on_checked(_scan())
+    for key in ("installed", "flatpak", "repos", "history", "updates"):
+        controller.navigate(key)   # every page now exists, hidden or not
+        _spin()
+    for key in ("repos", "updates", "installed", "history"):
+        controller.navigate(key)
+        _spin()
+        controller.focusSearch()
+        _spin()
+        assert _focused_page_title(window) == PAGE_TITLES[key], key
+    assert _problems(warnings, messages) == []
+
+
+def test_show_all_updates_clears_the_filter(ui):
+    controller, window, (warnings, messages) = ui
+    controller.updates._on_checked(_scan())
+    _spin()
+    controller.updates.filtered.query = "zzzz"
+    controller.updates.filtered.category = "security"
+    _spin()
+    from PyQt6.QtQuick import QQuickItem
+    updates_page = next(p for p in window.findChildren(QQuickItem)
+                        if p.property("title") == "Updates" and p.metaObject().indexOfMethod("showAllUpdates()") >= 0)
+    QMetaObject.invokeMethod(updates_page, "showAllUpdates", Qt.ConnectionType.DirectConnection)
+    assert controller.updates.filtered.query == ""
+    assert controller.updates.filtered.category == "all"
+    assert controller.updates.filtered.count == 3
+    assert _problems(warnings, messages) == []
+
+
+def test_summary_stays_at_the_top_when_results_arrive(ui):
+    controller, window, (warnings, messages) = ui
+    from PyQt6.QtQuick import QQuickItem
+    _spin()
+    controller.updates._on_checked(_scan(40))
+    _spin(200)
+    lists = [i for i in window.findChildren(QQuickItem)
+             if i.property("objectName") == "" and i.metaObject().className().startswith("QQuickListView")
+             and i.property("pinnedTop") is not None]
+    assert lists
+    view = lists[0]
+    assert abs(view.property("contentY") - view.property("originY")) < 1
+    assert _problems(warnings, messages) == []
+
+
+def _items(root):
+    stack = [root]
+    while stack:
+        item = stack.pop()
+        yield item
+        stack.extend(item.childItems())
+
+
+def test_collapsed_sidebar_keeps_its_icons(ui):
+    controller, window, (warnings, messages) = ui
+    window.resize(820, 700)   # below the compact width
+    _spin(300)
+    nav = [i for i in _items(window.contentItem())
+           if i.property("key") == "updates" and i.property("collapsed") is not None]
+    assert nav and nav[0].property("collapsed") is True
+    item = nav[0]
+    assert item.isVisible()
+    # Its icon sits in the rail at the window's left edge, and is drawn.
+    from PyQt6.QtCore import QPointF
+    centre = item.mapToScene(QPointF(item.width() / 2, item.height() / 2))
+    assert 0 < centre.x() < 120
+    opacity, parent = 1.0, item
+    while parent is not None:
+        opacity *= parent.opacity()
+        parent = parent.parentItem()
+    assert opacity > 0.5
+    assert _problems(warnings, messages) == []

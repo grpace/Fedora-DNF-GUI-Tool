@@ -49,9 +49,9 @@ Kirigami.ScrollablePage {
         }
     ]
 
-    Connections {
-        target: App
-        function onFocusSearchRequested() { search.forceActiveFocus(); search.selectAll(); }
+    function focusSearch() {
+        search.forceActiveFocus();
+        search.selectAll();
     }
 
     header: QQC2.ToolBar {
@@ -78,6 +78,7 @@ Kirigami.ScrollablePage {
                 Layout.fillWidth: true
                 placeholderText: page.mode === "installed" ? "Filter installed apps…"
                                                            : "Search Flathub, then press Enter…"
+                Accessible.name: page.mode === "installed" ? "Filter installed apps" : "Search Flathub"
                 autoAccept: page.mode === "installed"
                 delaySearch: false
                 onAccepted: page.mode === "installed" ? page.f.installed.query = text : page.f.search(text)
@@ -128,7 +129,7 @@ Kirigami.ScrollablePage {
             highlighted: ListView.isCurrentItem
             Accessible.description: appId + (version ? ", version " + version : "")
             onClicked: ListView.view.currentIndex = index
-            Keys.onMenuPressed: menu.popup(more, 0, more.height)
+            Keys.onMenuPressed: if (more.visible) menu.popup(more, 0, more.height)
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing

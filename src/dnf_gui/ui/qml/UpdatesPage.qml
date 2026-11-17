@@ -51,9 +51,22 @@ Kirigami.ScrollablePage {
         }
     ]
 
-    Connections {
-        target: App
-        function onFocusSearchRequested() { search.forceActiveFocus(); search.selectAll(); }
+    // The filter field lives in the list header (its own component scope).
+    property var searchField: null
+
+    function focusSearch() {
+        list.positionViewAtBeginning();
+        if (searchField) {
+            searchField.forceActiveFocus();
+            searchField.selectAll();
+        }
+    }
+
+    function showAllUpdates() {
+        if (searchField)
+            searchField.text = "";
+        u.filtered.query = "";
+        u.filtered.category = "all";
     }
 
     ListView {
@@ -63,6 +76,13 @@ Kirigami.ScrollablePage {
         keyNavigationEnabled: true
         activeFocusOnTab: true
         Accessible.name: "Pending Updates"
+
+        // The header (summary and banners) grows once a scan arrives; stay
+        // at the top unless the user has scrolled away.
+        property bool pinnedTop: true
+        onMovementEnded: pinnedTop = atYBeginning
+        onOriginYChanged: if (pinnedTop) contentY = originY
+        onContentHeightChanged: if (pinnedTop) contentY = originY
 
         section.property: "section"
         section.delegate: Kirigami.ListSectionHeader {
@@ -154,10 +174,12 @@ Kirigami.ScrollablePage {
                 ]
             }
 
-            // ── Filter bar ──
-            RowLayout {
+            // ── Filter bar (stacks on narrow windows) ──
+            GridLayout {
                 visible: page.u.total > 0
-                spacing: Kirigami.Units.smallSpacing
+                columns: root.compact ? 1 : 2
+                columnSpacing: Kirigami.Units.smallSpacing
+                rowSpacing: Kirigami.Units.smallSpacing
                 Layout.fillWidth: true
                 Layout.leftMargin: Kirigami.Units.largeSpacing
                 Layout.rightMargin: Kirigami.Units.largeSpacing
@@ -165,12 +187,16 @@ Kirigami.ScrollablePage {
                 Kirigami.SearchField {
                     id: search
                     placeholderText: "Filter updates…"
+                    Accessible.name: "Filter updates"
+                    Component.onCompleted: page.searchField = search
                     Layout.fillWidth: true
                     Layout.maximumWidth: Kirigami.Units.gridUnit * 18
                     onTextChanged: page.u.filtered.query = text
                     KeyNavigation.down: list
                 }
-                Item { Layout.fillWidth: true }
+                RowLayout {
+                spacing: 0
+                Layout.alignment: root.compact ? Qt.AlignLeft : Qt.AlignRight
                 Repeater {
                     model: [
                         { key: "all", label: "All", count: page.u.total },
@@ -188,6 +214,7 @@ Kirigami.ScrollablePage {
                         onClicked: page.u.filtered.category = modelData.key
                         Accessible.role: Accessible.RadioButton
                     }
+                }
                 }
             }
         }
@@ -211,7 +238,7 @@ Kirigami.ScrollablePage {
                 helpfulAction: Kirigami.Action {
                     text: "Show All Updates"
                     icon.name: "edit-clear"
-                    onTriggered: { search.clear(); page.u.filtered.category = "all"; }
+                    onTriggered: page.showAllUpdates()
                 }
             }
         }

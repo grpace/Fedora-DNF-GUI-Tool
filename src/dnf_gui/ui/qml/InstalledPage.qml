@@ -31,9 +31,9 @@ Kirigami.ScrollablePage {
         }
     ]
 
-    Connections {
-        target: App
-        function onFocusSearchRequested() { search.forceActiveFocus(); search.selectAll(); }
+    function focusSearch() {
+        search.forceActiveFocus();
+        search.selectAll();
     }
 
     header: QQC2.ToolBar {
@@ -61,6 +61,7 @@ Kirigami.ScrollablePage {
                 Layout.fillWidth: true
                 placeholderText: page.mode === "installed" ? "Filter installed packages…"
                                                            : "Search Fedora's repositories, then press Enter…"
+                Accessible.name: page.mode === "installed" ? "Filter installed packages" : "Search repositories"
                 // Installed filters as you type; Find searches on Enter.
                 autoAccept: page.mode === "installed"
                 delaySearch: false

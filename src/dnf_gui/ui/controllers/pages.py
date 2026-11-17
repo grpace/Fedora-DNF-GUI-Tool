@@ -136,8 +136,8 @@ class PackagesController(_Loader):
         self.app.prompts.confirm(
             "Install Package?",
             f"Install {name} and its dependencies?\n\n"
-            "DNF lists everything it installs in the output. You'll be asked "
-            "for your password.",
+            "DNF lists everything it installs in the output. "
+            + self.app.password_note(self.app.backend.build_install_command(name)),
             lambda: self.app.runner.run(
                 self.app.backend.build_install_command(name), f"Installing {name}"),
             confirm_label="Install")
@@ -147,10 +147,15 @@ class PackagesController(_Loader):
         self.app.prompts.confirm(
             "Remove Package?",
             f"Remove {name}?\n\nThis also removes packages that depend on it. "
-            "You'll be asked for your password.",
+            + self.app.password_note(self.app.backend.build_remove_command(name)),
             lambda: self.app.runner.run(
                 self.app.backend.build_remove_command(name), f"Removing {name}"),
             confirm_label="Remove", destructive=True)
+
+    def reload_details(self) -> None:
+        """After an operation: refresh an open details pane (installed?)."""
+        if self._details_name:
+            self.loadDetails(self._details_name)
 
     @pyqtSlot(str)
     def loadDetails(self, name: str) -> None:
@@ -251,9 +256,15 @@ class FlatpakController(_Loader):
         self._set(searching=True, searchQuery=query, searchDone=False)
         worker = FlatpakSearchWorker(self.app.flatpak_backend, query, parent=self)
         worker.finished.connect(lambda apps: self._on_search(generation, apps))
-        worker.error.connect(lambda e: self._on_search(generation, []))
+        worker.error.connect(lambda e: self._on_search_error(generation, e))
         self._search_worker = worker
         worker.start()
+
+    def _on_search_error(self, generation: int, error: str) -> None:
+        if generation == self._search_generation:
+            self._results.set_rows([])
+            self._set(searching=False, searchDone=True)
+            self.app.show_error("Flathub Search Failed", error)
 
     def _on_search(self, generation: int, apps) -> None:
         if generation != self._search_generation:
@@ -458,7 +469,7 @@ class HistoryController(_Loader):
         self.app.prompts.confirm(
             "Undo Transaction?",
             f"Undo transaction #{txn_id}?\n\nThis reverses the changes made in "
-            "that transaction. You'll be asked for your password.",
+            "that transaction. " + self.app.password_note(cmd),
             lambda: self.app.runner.run(cmd, f"Undoing transaction #{txn_id}"),
             confirm_label="Undo", destructive=True)
 

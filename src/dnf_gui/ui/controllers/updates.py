@@ -178,6 +178,7 @@ class UpdatesController(StateObject):
 
     def _on_checked(self, result: dict) -> None:
         info = result.get("dnf")
+        self._reboot_dismissed = False  # a fresh scan may need a restart again
         self._apply(result)
         if getattr(info, "check_failed", False):
             self._cache = None  # unknown, not zero: rescan next visit
@@ -192,10 +193,9 @@ class UpdatesController(StateObject):
         self._security = result.get("security")
         self.upgrade_preview = result.get("preview")
         self.security_preview = result.get("security_preview")
-        self._reboot_dismissed = False
         self._release_upgrade = result.get("release_upgrade")
         dnf_count = len(info.packages) if info and info.packages else 0
-        self._set(rebootRequired=bool(result.get("reboot")),
+        self._set(rebootRequired=bool(result.get("reboot")) and not self._reboot_dismissed,
                   dnfCount=dnf_count, flatpakCount=len(self._flatpaks),
                   total=dnf_count + len(self._flatpaks),
                   securityTotal=self._security.total if self._security else 0,
@@ -510,13 +510,12 @@ class UpdatesController(StateObject):
     def upgrade_all(self) -> None:
         preview = self._preview_line(self.upgrade_preview)
         detail = f"\n\n{preview}." if preview else ""
+        cmd = self.app.backend.build_upgrade_command()
         self.app.prompts.confirm(
             "Upgrade All?",
             f"This upgrades every package on your system.{detail}\n\n"
-            "You'll be asked for your password unless passwordless updates "
-            "are on.",
-            lambda: self.app.runner.run(
-                self.app.backend.build_upgrade_command(), "System Upgrade"),
+            + self.app.password_note(cmd),
+            lambda: self.app.runner.run(cmd, "System Upgrade"),
             confirm_label="Upgrade All", default_yes=False)
 
     def update_everything(self) -> None:
@@ -548,8 +547,8 @@ class UpdatesController(StateObject):
             "Install only security advisories?\n\nRuns: dnf upgrade --security"
             f"{detail}\n\n"
             "Recommended when you want the important fixes fast without "
-            "pulling every feature update. You'll be asked for your password "
-            "unless passwordless updates are on.",
+            "pulling every feature update. "
+            + self.app.password_note(build_security_update_command()),
             lambda: self.app.runner.run(
                 build_security_update_command(), "Security Upgrade"),
             confirm_label="Install Security Updates")
@@ -609,8 +608,9 @@ class UpdatesController(StateObject):
             "Update Without Major?",
             "Install everything except major updates (kernel, graphics "
             f"drivers, firmware, bootloader)?{detail}\n\n{held_text}\n\n"
-            "What counts as major can be changed in Settings. You'll be asked "
-            "for your password unless passwordless updates are on.",
+            "What counts as major can be changed in Settings. "
+            + self.app.password_note(
+                self.app.backend.build_upgrade_without_major_command(patterns)),
             lambda: self.app.runner.run(
                 self.app.backend.build_upgrade_without_major_command(patterns),
                 "Update without Major"),
@@ -621,7 +621,7 @@ class UpdatesController(StateObject):
         self.app.prompts.confirm(
             "Update Package?",
             f"Update only {name} (and anything it needs)?\n\n"
-            "You'll be asked for your password.",
+            + self.app.password_note(self.app.backend.build_upgrade_package_command(name)),
             lambda: self.app.runner.run(
                 self.app.backend.build_upgrade_package_command(name),
                 f"Updating {name}"),
@@ -763,6 +763,10 @@ class UpdatesController(StateObject):
     @pyqtSlot()
     def autoremove(self) -> None:
         """Preview what dnf autoremove would remove, then confirm."""
+        running = getattr(self, "_autoremove_worker", None)
+        if running is not None and running.isRunning():
+            return  # already looking
+        self.app.prompts.toast("Looking for packages nothing needs…")
         worker = CallWorker(self.app.backend.unneeded_packages, parent=self)
         worker.finished.connect(self._confirm_autoremove)
         worker.error.connect(lambda e: self.app.show_error(

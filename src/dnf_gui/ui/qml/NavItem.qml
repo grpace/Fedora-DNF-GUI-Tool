@@ -28,6 +28,7 @@ QQC2.ItemDelegate {
     Accessible.role: Accessible.PageTab
     Accessible.name: text
     Accessible.selected: current
+    Accessible.onPressAction: clicked()
 
     QQC2.ToolTip.text: label + (badge > 0 ? " (" + badge + ")" : "")
     QQC2.ToolTip.visible: collapsed && hovered

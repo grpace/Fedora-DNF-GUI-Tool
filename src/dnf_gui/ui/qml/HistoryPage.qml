@@ -20,9 +20,9 @@ Kirigami.ScrollablePage {
         }
     ]
 
-    Connections {
-        target: App
-        function onFocusSearchRequested() { search.forceActiveFocus(); search.selectAll(); }
+    function focusSearch() {
+        search.forceActiveFocus();
+        search.selectAll();
     }
 
     header: QQC2.ToolBar {
@@ -30,6 +30,7 @@ Kirigami.ScrollablePage {
         contentItem: Kirigami.SearchField {
             id: search
             placeholderText: "Filter by command, action or number…"
+            Accessible.name: "Filter transactions"
             onTextChanged: page.h.items.query = text
             KeyNavigation.down: list
         }
@@ -68,6 +69,7 @@ Kirigami.ScrollablePage {
                 page.h.loadDetail(model.id);
                 root.openColumn("HistoryDetailsPage.qml", { transactionId: model.id, command: command });
             }
+            Accessible.onPressAction: clicked()
             Keys.onReturnPressed: clicked()
             Keys.onEnterPressed: clicked()
 

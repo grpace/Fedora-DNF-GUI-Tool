@@ -266,9 +266,11 @@ class SettingsController(StateObject):
                     "The generated rule did not pass visudo -c, so nothing was "
                     f"changed:\n\n{validation_msg}", level="error")
                 return
+            previous = self.pending_passwordless_scope
             self.pending_passwordless_scope = scope
-            self.app.runner.run(pw.build_install_commands(content),
-                                "Enabling passwordless updates")
+            if not self.app.runner.run(pw.build_install_commands(content),
+                                       "Enabling passwordless updates"):
+                self.pending_passwordless_scope = previous  # busy: nothing ran
         self.app.prompts.confirm(title, text, go, confirm_label="Turn On",
                                  destructive=destructive)
 
@@ -277,9 +279,11 @@ class SettingsController(StateObject):
         from dnf_gui.core import passwordless as pw
 
         def go() -> None:
+            previous = self.pending_passwordless_scope
             self.pending_passwordless_scope = "off"
-            self.app.runner.run(pw.build_remove_commands(),
-                                "Disabling passwordless updates")
+            if not self.app.runner.run(pw.build_remove_commands(),
+                                       "Disabling passwordless updates"):
+                self.pending_passwordless_scope = previous
         self.app.prompts.confirm(
             "Restore Password Prompts?",
             "Remove the sudoers rule so every privileged step asks for your "

@@ -33,6 +33,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.5.1" date="2026-11-16">
+      <description>
+        <p>Fixes a warning Qt printed at every start about the app's desktop file name.</p>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-11-16">
       <description>
         <p>Notifications are clickable. Clicking an update reminder, or its View Updates button, opens the Updates page with a fresh scan, even when the reminder came from the background check while the app was closed. Notifications show the app's icon and clearer text, and a failed operation's notification opens its output. Opening the app again brings the existing window forward.</p>

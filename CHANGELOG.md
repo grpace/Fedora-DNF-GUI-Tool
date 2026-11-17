@@ -5,7 +5,7 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.1] - 2026-11-16
 
 ### Fixed
 
@@ -202,6 +202,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Packaging** — RPM spec file, build script, and install script
 - **Auto-Update** — Update checker with direct RPM install via DNF
 
+[1.5.1]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.5.1
 [1.5.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.5.0
 [1.4.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.4.0
 [1.3.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.3.0

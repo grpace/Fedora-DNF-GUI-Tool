@@ -3,7 +3,7 @@
 %global install_dir /opt/%{app_name}
 
 Name:           %{app_name}
-Version:        1.5.0
+Version:        1.5.1
 Release:        1%{?dist}
 Summary:        Discover alternative for Fedora: updates you can see and control
 License:        GPL-3.0-or-later
@@ -82,6 +82,9 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 /usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
+* Mon Nov 16 2026 Greg.Tech <hello@greg.tech> - 1.5.1-1
+- Pass the desktop entry id to setDesktopFileName (no startup warning from Qt)
+
 * Mon Nov 16 2026 Greg.Tech <hello@greg.tech> - 1.5.0-1
 - Clicking an update reminder opens the Updates page; View Updates and Show Output buttons
 - Notifications carry the app icon and desktop entry, with clearer titles and text

@@ -1,98 +1,95 @@
-"""WCAG contrast check for the DNF GUI theme (both modes).
+#!/usr/bin/env python3
+"""WCAG AA contrast check of the colors the QML UI pairs itself.
 
-Run: QT_QPA_PLATFORM=offscreen PYTHONPATH=src python3 scripts/check_contrast.py
-Exits non-zero if any pair fails its threshold.
+The UI takes every color from the Plasma color scheme (Kirigami.Theme), so
+the scheme authors own most contrast. This checks the pairings this app
+chooses on top of that, against Breeze Light and Breeze Dark:
+
+  * status pills (negative/neutral/link/positive tones, blended toward
+    the text color so they stay readable, on the view background),
+  * secondary text (text blended 30% toward
+    the background) on the view and window backgrounds.
+
+Exit status is non-zero if any pairing is below its minimum.
+Usage: python3 scripts/check_contrast.py [scheme.colors ...]
 """
-import os
+
+from __future__ import annotations
+
+import configparser
 import sys
+from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-sys.path.insert(0, "src")
-
-from dnf_gui.ui.styles.theme import get_palette
-
-
-def lum(hexcolor: str) -> float:
-    h = hexcolor.lstrip("#")
-    if len(h) == 8:  # strip alpha
-        h = h[:6]
-    r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
-
-    def lin(x: float) -> float:
-        return x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4
-
-    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+SCHEMES = [Path("/usr/share/color-schemes/BreezeLight.colors"),
+           Path("/usr/share/color-schemes/BreezeDark.colors")]
+SECONDARY_MIX = 0.30  # must match the QML's secondary text blend
+PILL_MIX = 0.40       # must match Pill.qml (tone blended toward text)
 
 
-def ratio(fg: str, bg: str) -> float:
-    a, b = lum(fg), lum(bg)
-    hi, lo = max(a, b), min(a, b)
-    return (hi + 0.05) / (lo + 0.05)
+def _rgb(value: str) -> tuple[int, int, int]:
+    r, g, b = (int(x) for x in value.split(",")[:3])
+    return r, g, b
 
 
-def blend(fg: str, alpha: float, bg: str) -> str:
-    """Flatten a translucent fill (QSS #rrggbbaa) over its background."""
-    f = [int(fg.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
-    b = [int(bg.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)]
-    return "#" + "".join(f"{round(fc * alpha + bc * (1 - alpha)):02x}"
-                         for fc, bc in zip(f, b, strict=True))
+def _luminance(rgb) -> float:
+    def channel(c):
+        c /= 255
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (channel(c) for c in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-# (name, fg_key, bg_key, min_ratio)
-PAIRS = [
-    # nav
-    ("nav idle", "text_dim", "bg_sidebar", 4.5),
-    ("nav idle on card", "text_dim", "bg_card", 4.5),
-    ("nav active", "accent", "bg_card", 4.5),  # active item sits on a card
-    ("count badge", "on_accent", "accent", 4.5),
-    ("section/version", "text_dim", "bg_sidebar", 4.5),
-    # content
-    ("card title", "text", "bg_card", 4.5),
-    ("card detail", "text_dim", "bg_card", 4.5),
-    ("card detail on app", "text_dim", "bg_app", 4.5),
-    ("stat number", "accent", "bg_card", 3.0),
-    ("stat label", "text_dim", "bg_card", 4.5),
-    ("header", "text", "bg_app", 3.0),
-    ("subheader", "text_dim", "bg_app", 4.5),
-    # buttons
-    ("primary", "on_accent", "accent", 4.5),
-    ("success", "on_fill", "green", 4.5),
-    ("warning", "on_fill", "amber", 4.5),
-    ("accent btn", "accent", "bg_card", 4.5),
-    ("ghost", "text_dim", "bg_card", 4.5),
-    ("danger", "danger", "bg_card", 4.5),
-    # badges
-    ("update pill", "badge_update_text", "badge_update_bg", 4.5),
-    ("ok pill", "badge_ok_text", "bg_card", 4.5),
-    ("muted pill", "text_dim", "bg_card", 4.5),
-    ("txn badge", "accent", "bg_card", 4.5),
-    ("security badge", "danger", "badge_security_bg", 4.5),
-    # banners / status
-    ("reboot banner", "amber", "amber_bg", 4.5),
-    ("status title", "text", "bg_banner", 4.5),
-    ("status detail", "text_dim", "bg_banner", 4.5),
-    # terminal (always light text on a dark console surface)
-    ("terminal", "terminal_text", "terminal_bg", 4.5),
-]
+def contrast(a, b) -> float:
+    la, lb = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
 
 
-def main() -> int:
-    failures = 0
-    for mode in ("dark", "light"):
-        pal = get_palette(mode)
-        # badge_security: danger text on a danger fill at 0x10 alpha
-        pal["badge_security_bg"] = blend(pal["danger"], 0x10 / 255, pal["bg_card"])
-        print(f"--- {mode} ---")
-        for name, fgk, bgk, minimum in PAIRS:
-            r = ratio(pal[fgk], pal[bgk])
-            ok = r >= minimum
-            failures += not ok
-            print(f"  {'PASS' if ok else 'FAIL'} {name:20s} {r:.2f}:1 "
-                  f"(min {minimum})  {pal[fgk]} on {pal[bgk]}")
-    print("OK" if failures == 0 else f"{failures} FAILURES")
+def mix(a, b, t: float):
+    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+
+def check(path: Path) -> list[str]:
+    scheme = configparser.ConfigParser(interpolation=None)
+    scheme.read(path)
+    view = {k: _rgb(v) for k, v in scheme["Colors:View"].items()}
+    window = {k: _rgb(v) for k, v in scheme["Colors:Window"].items()}
+    selection = {k: _rgb(v) for k, v in scheme["Colors:Selection"].items()}
+    bg, fg = view["backgroundnormal"], view["foregroundnormal"]
+    pairs = [
+        ("pill negative", mix(view["foregroundnegative"], fg, PILL_MIX), bg, 4.5),
+        ("pill neutral", mix(view["foregroundneutral"], fg, PILL_MIX), bg, 4.5),
+        ("pill link (Major)", mix(view["foregroundlink"], fg, PILL_MIX), bg, 4.5),
+        ("pill positive", mix(view["foregroundpositive"], fg, PILL_MIX), bg, 4.5),
+        ("secondary text (view)", mix(fg, bg, SECONDARY_MIX), bg, 4.5),
+        ("secondary text (window)",
+         mix(window["foregroundnormal"], window["backgroundnormal"], SECONDARY_MIX),
+         window["backgroundnormal"], 4.5),
+        ("body text", fg, bg, 4.5),
+    ]
+    failures = []
+    print(path.stem)
+    # Selected rows use the scheme's own selection colors (as every KDE
+    # app does); reported for information, not something this app picks.
+    sel = contrast(selection["foregroundnormal"], selection["backgroundnormal"])
+    print(f"  INFO {'scheme selection':26} {sel:5.2f}:1")
+    for name, a, b, minimum in pairs:
+        ratio = contrast(a, b)
+        ok = ratio >= minimum
+        print(f"  {'PASS' if ok else 'FAIL'} {name:26} {ratio:5.2f}:1 (min {minimum})")
+        if not ok:
+            failures.append(f"{path.stem}: {name} {ratio:.2f}:1")
+    return failures
+
+
+def main(argv: list[str]) -> int:
+    paths = [Path(a) for a in argv] or [p for p in SCHEMES if p.exists()]
+    if not paths:
+        print("No color schemes found (install plasma-breeze or pass a .colors file).")
+        return 1
+    failures = [f for p in paths for f in check(p)]
+    print("FAIL" if failures else "OK")
     return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

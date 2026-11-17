@@ -36,7 +36,7 @@ Fedora's documented steps:
 2. `dnf system-upgrade download --releasever=N`
 3. `dnf system-upgrade reboot`, only when you click **Restart & Install**
 
-If step 2 fails because some packages (often from a COPR or third-party repo) have no build for the new release yet, the app offers to retry with `--allowerasing`. Check the terminal output first to see which packages would be removed. A finished download can be cancelled from the Updates page (`dnf system-upgrade clean`).
+If step 2 fails because some packages (often from a COPR or third-party repo) have no build for the new release yet, the app offers to retry with `--allowerasing`. Check the output first to see which packages would be removed. A finished download can be cancelled from the Updates page (`dnf system-upgrade clean`).
 
 On Fedora 40, which uses dnf4, release upgrades need dnf's system-upgrade plugin: `sudo dnf install dnf-plugin-system-upgrade`. Fedora 41 and later include it.
 
@@ -74,4 +74,4 @@ There's no telemetry or analytics.
 
 ### Something failed. How do I report it?
 
-Open the **Terminal** page, click **Copy Output**, and paste the log into a [GitHub issue](https://github.com/grpace/Fedora-DNF-GUI-Tool/issues) along with your Fedora version (`cat /etc/fedora-release`).
+Open the output (the bar at the bottom, or `Ctrl+T`), click **Copy Output**, and paste the log into a [GitHub issue](https://github.com/grpace/Fedora-DNF-GUI-Tool/issues) along with your Fedora version (`cat /etc/fedora-release`).

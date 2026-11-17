@@ -4,7 +4,7 @@ This guide moves update duty from KDE Discover to DNF Package Manager on Fedora 
 
 You don't have to uninstall Discover. Most people keep it for browsing apps and Plasma add-ons; this only turns off its *update* checks so the two apps don't both nag you about the same updates.
 
-<p align="center"><img src="screenshots/settings-discover-dark.png" width="80%" alt="Settings page, Discover Update Checks card"></p>
+<p align="center"><img src="screenshots/settings-discover-dark.png" width="80%" alt="Settings page, KDE Discover section"></p>
 
 ## 1. Install DNF Package Manager
 
@@ -18,16 +18,16 @@ Open it from the application menu (**System → DNF Package Manager**) or run `d
 
 ## 2. Turn off Discover's update checks
 
-Go to **Settings → Discover Update Checks** and click **Use This App Instead**. This is per-user and needs no password. It:
+Go to **Settings → KDE Discover** and click **Use This App for Updates…**. This is per-user and needs no password. It:
 
 - hides Discover's background update checker for your account (a `Hidden=true` override in `~/.config/autostart/org.kde.discover.notifier.desktop`), and
 - sets Discover's own update notifications to "never" (`~/.config/PlasmaDiscoverUpdates`).
 
-The takeover also stops the checker that's already running. If it ever comes back (for example after you restore Discover and take over again), **Advanced Options → Stop Checker Now** stops it.
+The takeover also stops the checker that's already running. If it ever comes back (for example after you restore Discover and take over again), turn on **Show advanced options** and choose **Stop the Checker Now**.
 
 ### If Discover already scheduled an update
 
-Discover on Fedora KDE installs system updates during a restart. If it has already scheduled one, the takeover offers to cancel it, and the Settings card shows **Cancel Restart Update** until it's gone. Cancelling is the better choice: otherwise PackageKit installs its own, possibly out-of-date, set of updates at your next restart, even after this app has updated those packages. Nothing is uninstalled; the downloaded packages simply stay in PackageKit's cache.
+Discover on Fedora KDE installs system updates during a restart. If it has already scheduled one, the takeover offers to cancel it, and Settings shows **Cancel Discover's Restart Update…** until it's gone. Cancelling is the better choice: otherwise PackageKit installs its own, possibly out-of-date, set of updates at your next restart, even after this app has updated those packages. Nothing is uninstalled; the downloaded packages simply stay in PackageKit's cache.
 
 From a terminal, the same thing is:
 
@@ -38,7 +38,7 @@ pkcon offline-cancel          # unschedule it
 
 ### For every account on this computer (optional)
 
-**Advanced Options → Turn Off for All Users** asks for an administrator password and:
+**Show advanced options → Turn Off for All Users…** asks for an administrator password and:
 
 - masks the checker's systemd unit for all users (`systemctl --global mask app-org.kde.discover.notifier@autostart.service`),
 - silences Discover's update notifications by default in `/etc/xdg/PlasmaDiscoverUpdates`, leaving any file an administrator already put there alone, and
@@ -46,7 +46,7 @@ pkcon offline-cancel          # unschedule it
 
 These changes survive Discover package updates. PackageKit itself keeps running, so installing apps from Discover still works. Fedora release upgrades started from DNF Package Manager use dnf's own offline mechanism and aren't affected.
 
-**Advanced Options → Uninstall Checker** goes further and removes the `plasma-discover-notifier` package while keeping Discover itself.
+**Show advanced options → Uninstall the Update Checker…** goes further and removes the `plasma-discover-notifier` package while keeping Discover itself.
 
 ## 3. Set up reminders
 
@@ -92,8 +92,8 @@ It's only a cache. Discover rebuilds what it needs the next time you open it.
 
 ## Going back to Discover
 
-1. **Settings → Discover Update Checks → Restore Discover** undoes the per-user takeover.
-2. If you used **Turn Off for All Users**, click **Advanced Options → Turn Back On**. This unmasks everything and restores the checker's autostart entry if an older version of this app removed it.
+1. **Settings → KDE Discover → Let Discover Check Again** undoes the per-user takeover.
+2. If you used **Turn Off for All Users**, choose **Show advanced options → Turn Back On for All Users…**. This unmasks everything and restores the checker's autostart entry if an older version of this app removed it.
 3. If you used **Uninstall Checker**, reinstall it: `sudo dnf install plasma-discover-notifier`.
 4. Turn off **Update Reminders** so you don't get two sets of notifications.
 

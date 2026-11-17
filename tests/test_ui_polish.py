@@ -1,69 +1,28 @@
-"""Tests for the UI polish batch: theme system, updates cache, reboot dismiss."""
+"""Tests for the UI polish batch: updates cache, reboot dismiss, plain-language
+status text, history details, and the dnf list parsers."""
 
+import gc
 import os
+import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication
-
-_app = None
+from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 
-def _ensure_app():
-    global _app
-    if _app is None:
-        _app = QApplication.instance() or QApplication([])
-    return _app
-
-
-class TestThemeSystem(unittest.TestCase):
-    def test_button_variants_exist(self):
-        from dnf_gui.ui.styles.theme import get_stylesheet
-        sheet = get_stylesheet()
-        for name in ("primary_button", "success_button", "accent_button",
-                     "warning_button", "danger_button", "ghost_button"):
-            self.assertIn(f"QPushButton#{name}", sheet, name)
-        self.assertIn('[compact="true"]', sheet)
-
-    def test_checkbox_and_labels_exist(self):
-        from dnf_gui.ui.styles.theme import get_stylesheet
-        sheet = get_stylesheet()
-        self.assertIn("QCheckBox::indicator", sheet)
-        self.assertIn("QCheckBox::indicator:checked", sheet)
-        for name in ("hint", "section_label", "reboot_banner"):
-            self.assertIn(name, sheet)
-
-    def test_no_inline_button_styles_remain(self):
-        import pathlib
-        src = pathlib.Path(__file__).resolve().parent.parent / "src" / "dnf_gui"
-        offenders = []
-        for path in (src / "ui" / "pages").glob("*.py"):
-            text = path.read_text()
-            # Inline QPushButton{...} blocks are banned; semantic label
-            # colors and card gradients are fine.
-            if "QPushButton {" in text or "QPushButton{" in text:
-                offenders.append(path.name)
-        for path in (src / "ui" / "widgets").glob("*.py"):
-            text = path.read_text()
-            if "QPushButton {" in text or "QPushButton{" in text:
-                offenders.append(f"widgets/{path.name}")
-        self.assertEqual(offenders, [])
+def _controller():
+    # Free controllers left by earlier tests now, while none of their
+    # threads run: a later processEvents() would otherwise fire their
+    # pending start-up timers and GC could destroy a running QThread.
+    gc.collect()
+    from dnf_gui.ui.controllers.app_controller import AppController
+    return AppController()
 
 
 class TestUpdatesCache(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        _ensure_app()
-
-    def _window(self):
-        from dnf_gui.ui.main_window import MainWindow
-        window = MainWindow()
-        self.addCleanup(window.close)
-        self.addCleanup(window.deleteLater)
-        return window
-
     def _cached_result(self):
         from dnf_gui.core.package import UpdateInfo
         from dnf_gui.core.security import SecuritySummary
@@ -77,121 +36,64 @@ class TestUpdatesCache(unittest.TestCase):
         }
 
     def test_revisit_reuses_cache_without_rescan(self):
-        from dnf_gui.ui.main_window import PAGE_UPDATES
-        window = self._window()
-        window._stack.setCurrentIndex(PAGE_UPDATES)
-        window._updates_cache = self._cached_result()
-        with patch.object(window, "_check_updates") as check:
-            window._refresh_current()
+        app = _controller()
+        self.assertEqual(app.currentPage, "updates")
+        app.updates._cache = self._cached_result()
+        with patch.object(app.updates, "check") as check:
+            app.refreshCurrent(revisit=True)  # page visit
         check.assert_not_called()
-        self.assertIn("up to date", window._updates_page._empty_label.text().lower())
+        self.assertIn("up to date", app.updates.headline.lower())
+
+    def test_navigating_back_reuses_cache(self):
+        app = _controller()
+        app.updates._cache = self._cached_result()
+        with patch.object(app.updates, "check") as check, \
+                patch.object(app.settings_controller, "show"):
+            app.navigate("settings")
+            app.navigate("updates")
+        check.assert_not_called()
 
     def test_empty_cache_triggers_scan(self):
-        from dnf_gui.ui.main_window import PAGE_UPDATES
-        window = self._window()
-        window._stack.setCurrentIndex(PAGE_UPDATES)
-        window._updates_cache = None
-        with patch.object(window, "_check_updates") as check:
-            window._refresh_current()
+        app = _controller()
+        app.updates._cache = None
+        with patch.object(app.updates, "check") as check:
+            app.refreshCurrent(revisit=True)
         check.assert_called_once()
 
     def test_successful_command_invalidates_cache(self):
-        window = self._window()
-        window._updates_cache = self._cached_result()
-        window._on_command_done(0, "System Upgrade")
-        self.assertIsNone(window._updates_cache)
+        app = _controller()
+        app.updates._cache = self._cached_result()
+        with patch.object(app, "refreshCurrent"), \
+                patch.object(app.updates, "recheck_reboot"):
+            app._on_operation_finished(0, "System Upgrade", False)
+        self.assertIsNone(app.updates._cache)
 
     def test_failed_command_keeps_cache(self):
-        window = self._window()
-        window._updates_cache = self._cached_result()
-        window._on_command_done(1, "System Upgrade")
-        self.assertIsNotNone(window._updates_cache)
+        app = _controller()
+        app.updates._cache = self._cached_result()
+        app._on_operation_finished(1, "System Upgrade", False)
+        self.assertIsNotNone(app.updates._cache)
 
 
 class TestRebootDismiss(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        _ensure_app()
-
-    def test_page_header_inset(self):
-        """Headings sit at 20px (aligned with body content)."""
-        from PyQt6.QtWidgets import QLabel
-        from PyQt6.QtCore import QPoint
-        from dnf_gui.ui.pages.updates_page import UpdatesPage
-        from dnf_gui.ui.pages.settings_page import SettingsPage
-        from dnf_gui.ui.pages.history_page import HistoryPage
-        for cls in (UpdatesPage, SettingsPage, HistoryPage):
-            page = cls()
-            page.show()
-            page.resize(1100, 750)
-            self.addCleanup(page.close)
-            self.addCleanup(page.deleteLater)
-            title = page.findChild(QLabel, "page_header")
-            self.assertIsNotNone(title, cls.__name__)
-            title_x = title.mapTo(page, QPoint(0, 0)).x()
-            self.assertEqual(title_x, 20, cls.__name__)
-
-    def test_page_header_action_variant(self):
-        from dnf_gui.ui.pages.history_page import HistoryPage
-        from dnf_gui.ui.widgets.page_header import PageHeader
-        page = HistoryPage()
-        page.show()
-        self.addCleanup(page.close)
-        self.addCleanup(page.deleteLater)
-        headers = page.findChildren(PageHeader)
-        self.assertEqual(len(headers), 1)
-        self.assertEqual(headers[0].title_label.text(), "Transaction History")
-
     def test_dismiss_survives_redisplay_until_fresh_scan(self):
-        from dnf_gui.ui.pages.updates_page import UpdatesPage
         from dnf_gui.core.package import UpdateInfo
-        page = UpdatesPage()
-        page.show()
-        self.addCleanup(page.close)
-        page.set_reboot_banner(True)
-        self.assertFalse(page._reboot_banner.isHidden())
-        page._dismiss_reboot_banner()
-        page.set_reboot_banner(True)  # e.g. post-upgrade recheck
-        self.assertTrue(page._reboot_banner.isHidden())
+        updates = _controller().updates
+        updates.set_reboot_required(True)
+        self.assertTrue(updates.rebootRequired)
+        updates.dismissReboot()
+        self.assertFalse(updates.rebootRequired)
+        updates.set_reboot_required(True)  # e.g. post-upgrade recheck
+        self.assertFalse(updates.rebootRequired)
         # A fresh scan resets the dismissal
-        page.display_combined(UpdateInfo(), [], None, reboot=True)
-        self.assertFalse(page._reboot_banner.isHidden())
+        updates._on_checked({"dnf": UpdateInfo(), "flatpak": [], "security": None,
+                             "reboot": True})
+        self.assertTrue(updates.rebootRequired)
 
 
 class TestSettingsPolish(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        _ensure_app()
-
-    def _page(self):
-        from dnf_gui.ui.pages.settings_page import SettingsPage
-        page = SettingsPage()
-        page.show()
-        self.addCleanup(page.close)
-        self.addCleanup(page.deleteLater)
-        return page
-
-    def test_section_titles_have_no_em_dash(self):
-        from PyQt6.QtWidgets import QLabel
-        page = self._page()
-        sections = [w for w in page.findChildren(QLabel)
-                    if w.objectName() == "section_label"]
-        self.assertGreater(len(sections), 0)
-        for label in sections:
-            self.assertNotIn("—", label.text(), label.text)
-
-    def test_advanced_options_hidden_until_toggled(self):
-        page = self._page()
-        self.assertTrue(page._disc_advanced.isHidden())
-        page._btn_disc_advanced.setChecked(True)
-        self.assertFalse(page._disc_advanced.isHidden())
-        self.assertIn("Hide", page._btn_disc_advanced.text())
-        page._btn_disc_advanced.setChecked(False)
-        self.assertTrue(page._disc_advanced.isHidden())
-
     def test_discover_status_is_plain_language(self):
-        from types import SimpleNamespace
-        page = self._page()
+        settings = _controller().settings_controller
 
         def show(**kwargs):
             base = dict(discover_installed=True,
@@ -205,50 +107,98 @@ class TestSettingsPolish(unittest.TestCase):
                         restart_update_scheduled=False,
                         system_disabled=False)
             base.update(kwargs)
-            page.display_discover_status(SimpleNamespace(**base))
+            settings._on_discover_status(SimpleNamespace(**base))
+            for text in (settings.discoverTitle, settings.discoverText):
+                self.assertNotIn("—", text)
+                for jargon in ("PlasmaDiscoverUpdates", "packagekit-offline-update",
+                               "DiscoverNotifier", "autostart"):
+                    self.assertNotIn(jargon, text)
 
-        # Active takeover: banner ok, only Restore offered.
+        # Active takeover: positive, only Restore offered.
         show(per_user_disabled=True)
-        self.assertEqual(page._discover_banner.objectName(), "status_ok")
-        self.assertIn("This app handles updates", page._discover_title.text())
-        self.assertFalse(page._btn_takeover.isVisibleTo(page))
-        self.assertTrue(page._btn_restore.isVisibleTo(page))
+        self.assertEqual(settings.discoverLevel, "positive")
+        self.assertIn("this app handles updates", settings.discoverTitle.lower())
+        self.assertTrue(settings.discoverActive)
 
-        # Discover checking on its own: banner warn, only Takeover offered.
+        # Discover checking on its own: warning, only Takeover offered.
         show(notifier_running=True, restart_update_scheduled=True)
-        self.assertEqual(page._discover_banner.objectName(), "status_warn")
-        self.assertTrue(page._btn_takeover.isVisibleTo(page))
-        self.assertFalse(page._btn_restore.isVisibleTo(page))
-        self.assertIn("running right now", page._discover_status.text())
-        self.assertIn("restart", page._discover_status.text())
+        self.assertEqual(settings.discoverLevel, "warning")
+        self.assertFalse(settings.discoverActive)
+        self.assertIn("running right now", settings.discoverText)
+        self.assertIn("restart", settings.discoverText)
 
         # Nothing installed: no jargon, no actions.
         show(discover_installed=False, system_autostart_present=False)
-        self.assertEqual(page._discover_banner.objectName(), "status_info")
-        self.assertFalse(page._btn_takeover.isVisibleTo(page))
-        self.assertFalse(page._btn_restore.isVisibleTo(page))
-
-        for widget in (page._discover_title, page._discover_status):
-            self.assertNotIn("—", widget.text())
-            for jargon in ("PlasmaDiscoverUpdates", "packagekit-offline-update",
-                           "DiscoverNotifier", "autostart"):
-                self.assertNotIn(jargon, widget.text())
+        self.assertEqual(settings.discoverLevel, "info")
+        self.assertFalse(settings.discoverInstalled)
 
     def test_passwordless_status_has_no_em_dash(self):
-        page = self._page()
+        from dnf_gui.core import passwordless as pw
+        app = _controller()
+        self.addCleanup(setattr, app.settings, "passwordless_scope", "off")
         for remembered, live in (("off", "off"), ("updates", "updates"),
                                  ("updates", "off"), ("off", "full")):
-            page.display_passwordless_status(remembered, live)
-            self.assertNotIn("—", page._pw_status.text())
+            app.settings.passwordless_scope = remembered
+            with patch.object(pw, "live_status", return_value=(live, True, False)):
+                app.settings_controller.load_passwordless_status()
+            controller = app.settings_controller
+            for text in [controller.passwordlessTitle, controller.passwordlessText,
+                         *controller.passwordlessNotes]:
+                self.assertNotIn("—", text)
+
+    def test_passwordless_status_levels(self):
+        from dnf_gui.core import passwordless as pw
+        app = _controller()
+        self.addCleanup(setattr, app.settings, "passwordless_scope", "off")
+        controller = app.settings_controller
+
+        def status(remembered, live, legacy=False, covered=True):
+            app.settings.passwordless_scope = remembered
+            with patch.object(pw, "live_status", return_value=(live, legacy, covered)):
+                controller.load_passwordless_status()
+            return controller.passwordlessLevel, controller.passwordlessTitle
+
+        self.assertEqual(status("off", "off"), ("info", "Off"))
+        self.assertEqual(status("updates", "updates"), ("positive", "On: Updates Only"))
+        self.assertEqual(status("updates", "off"), ("warning", "Not Working"))
+        # An old wildcard rule is a security warning even when it works.
+        self.assertEqual(status("updates", "updates", legacy=True)[0], "warning")
+        self.assertTrue(any("overly broad" in n for n in controller.passwordlessNotes))
+        self.assertEqual(status("updates", "updates", covered=False)[0], "warning")
 
 
+class TestHistoryDetail(unittest.TestCase):
+    def test_detail_loads_for_the_selected_transaction(self):
+        app = _controller()
+        history = app.history
+        with patch.object(app.backend, "history_info", return_value="Line 1\nLine 2"):
+            history.loadDetail("42")
+            self.assertTrue(history.detailLoading)
+            deadline = time.monotonic() + 2
+            while history.detailLoading and time.monotonic() < deadline:
+                time.sleep(0.02)
+                QApplication.instance().processEvents()
+        self.assertEqual(history.detailId, "42")
+        self.assertEqual(history.detailText, "Line 1\nLine 2")
+        history._on_detail("41", "stale")  # an older request finishing late
+        self.assertEqual(history.detailText, "Line 1\nLine 2")
+
+    def test_undo_confirms_then_runs(self):
+        from tests.conftest import answer
+        app = _controller()
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.history.undo("42")
+        self.assertTrue(shown[0].destructive)
+        run.assert_called_once_with(app.backend.build_history_undo_command("42"),
+                                    "Undoing transaction #42")
+        answer(app, "no")
+        with patch.object(app.runner, "run") as run:
+            app.history.undo("42")
+        run.assert_not_called()
 
 
-class TestAlignmentAndPolish(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        _ensure_app()
-
+class TestListParsing(unittest.TestCase):
     def test_repolist_parsing_status(self):
         from dnf_gui.core.dnf_backend import DNFBackend
         from unittest.mock import patch
@@ -286,110 +236,6 @@ class TestAlignmentAndPolish(unittest.TestCase):
             self.assertEqual(txns[1]["id"], "238")
             self.assertEqual(txns[1]["command"], "System / PackageKit")
             self.assertEqual(txns[1]["altered"], "2")
-
-    def test_toolkit_buttons_uniform_width(self):
-        from dnf_gui.ui.pages.toolkit_page import ToolkitPage, ToolCard
-        from PyQt6.QtWidgets import QPushButton
-        page = ToolkitPage()
-        page.show()
-        self.addCleanup(page.close)
-        self.addCleanup(page.deleteLater)
-        cards = page.findChildren(ToolCard)
-        self.assertGreater(len(cards), 0)
-        for card in cards:
-            btn = card.findChild(QPushButton)
-            self.assertIsNotNone(btn)
-            self.assertEqual(btn.width(), 100)
-
-    def test_history_card_altered_alignment(self):
-        from dnf_gui.ui.pages.history_page import HistoryCard
-        from PyQt6.QtWidgets import QLabel
-        from PyQt6.QtCore import Qt
-        card = HistoryCard({"id": "242", "command": "upgrade", "date": "2026-09-09", "altered": "12"})
-        card.show()
-        self.addCleanup(card.close)
-        self.addCleanup(card.deleteLater)
-        labels = card.findChildren(QLabel, "card_detail")
-        altered_label = next((lbl for lbl in labels if "12 packages altered" in lbl.text()), None)
-        self.assertIsNotNone(altered_label)
-        self.assertEqual(altered_label.width(), 160)
-        self.assertTrue(altered_label.alignment() & Qt.AlignmentFlag.AlignRight)
-
-
-    def test_repo_card_uniform_dimensions(self):
-        from dnf_gui.ui.pages.repo_manager_page import RepoCard
-        from PyQt6.QtWidgets import QPushButton, QLabel
-        card_on = RepoCard({'id': 'fedora', 'name': 'Fedora', 'enabled': True})
-        card_off = RepoCard({'id': 'copr:bar', 'name': 'Bar', 'enabled': False})
-        for c in (card_on, card_off):
-            c.show()
-            self.addCleanup(c.close)
-            self.addCleanup(c.deleteLater)
-        btn_on = card_on.findChild(QPushButton)
-        btn_off = card_off.findChild(QPushButton)
-        badge_on = card_on.findChild(QLabel, 'badge_ok')
-        badge_off = card_off.findChild(QLabel, 'badge_muted')
-        self.assertEqual(btn_on.width(), 84)
-        self.assertEqual(btn_off.width(), 84)
-        self.assertEqual(btn_on.height(), btn_off.height())
-        self.assertEqual(badge_on.width(), 96)
-        self.assertEqual(badge_off.width(), 96)
-        self.assertIn('Enabled', badge_on.text())
-        self.assertIn('Disabled', badge_off.text())
-
-    def test_history_detail_is_scrollable_text_edit(self):
-        from dnf_gui.ui.pages.history_page import HistoryPage
-        from PyQt6.QtWidgets import QPlainTextEdit
-        page = HistoryPage()
-        page.show()
-        self.addCleanup(page.close)
-        self.addCleanup(page.deleteLater)
-        self.assertIsInstance(page._detail_text, QPlainTextEdit)
-        self.assertTrue(page._detail_text.isReadOnly())
-        page.show_detail("Line 1\nLine 2", txn_id="42")
-        self.assertEqual(page._drawer_title.text(), 'Transaction #42 Details')
-        self.assertEqual(page._detail_text.toPlainText(), "Line 1\nLine 2")
-
-    def test_theme_toggle_round_trip(self):
-        from dnf_gui.ui.main_window import MainWindow
-        from dnf_gui.ui.styles.theme import save_theme_mode, get_saved_theme_mode, resolve_mode
-        save_theme_mode('dark')
-        win = MainWindow()
-        win.show()
-        self.addCleanup(win.close)
-        self.addCleanup(win.deleteLater)
-
-        # Initially in dark mode -> button says Light Mode
-        self.assertEqual(resolve_mode(), 'dark')
-        self.assertEqual(win._sidebar._theme_btn.text(), 'Light Mode')
-
-        # First toggle -> switches to light mode
-        win._toggle_theme()
-        self.assertEqual(get_saved_theme_mode(), 'light')
-        self.assertEqual(resolve_mode(), 'light')
-        self.assertEqual(win._sidebar._theme_btn.text(), 'Dark Mode')
-
-        # Second toggle -> switches back to dark mode!
-        win._toggle_theme()
-        self.assertEqual(get_saved_theme_mode(), 'dark')
-        self.assertEqual(resolve_mode(), 'dark')
-        self.assertEqual(win._sidebar._theme_btn.text(), 'Light Mode')
-
-    def test_sidebar_brand_alignment(self):
-        from dnf_gui.ui.sidebar import Sidebar
-        from PyQt6.QtWidgets import QLabel
-        from PyQt6.QtCore import QPoint
-        sb = Sidebar()
-        sb.show()
-        self.addCleanup(sb.close)
-        self.addCleanup(sb.deleteLater)
-        t = sb.findChild(QLabel, "sidebar_title")
-        sub = sb.findChild(QLabel, "sidebar_subtitle")
-        self.assertIsNotNone(t)
-        self.assertIsNotNone(sub)
-        tx = t.mapTo(sb, QPoint(0, 0)).x()
-        subx = sub.mapTo(sb, QPoint(0, 0)).x()
-        self.assertEqual(tx, subx)
 
 
 if __name__ == "__main__":

@@ -75,6 +75,10 @@ class InstanceServer(QObject):
         self._server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)
         self._server.newConnection.connect(self._on_connection)
 
+    def close(self) -> None:
+        """Stop listening (before the app replaces itself after an update)."""
+        self._server.close()
+
     def listen(self) -> bool:
         name = socket_name()
         if self._server.listen(name):

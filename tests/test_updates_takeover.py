@@ -1,5 +1,6 @@
 """Tests for Discover takeover, security summaries, and combined updates."""
 
+import gc
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ from dnf_gui.core.security import (
     get_security_summary,
 )
 from dnf_gui.core.discover_manager import DiscoverManager
+from tests.conftest import answer
 
 
 class TestSecuritySummary(unittest.TestCase):
@@ -118,10 +120,6 @@ class TestDiscoverManager(unittest.TestCase):
         self.assertIsInstance(status.per_user_disabled, bool)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestSystemWideDiscoverTakeover(unittest.TestCase):
     def setUp(self):
         self.mgr = DiscoverManager()
@@ -184,11 +182,11 @@ class TestRestartUpdateCancel(unittest.TestCase):
                         script.index("systemctl mask packagekit-offline-update"))
 
 
-class TestRestartUpdateUi(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        from PyQt6.QtWidgets import QApplication
-        cls.app = QApplication.instance() or QApplication([])
+class TestRestartUpdateSettings(unittest.TestCase):
+    def _app(self):
+        from dnf_gui.ui.controllers.app_controller import AppController
+        gc.collect()  # see test_audit_fixes._controller
+        return AppController()
 
     def _status(self, **kwargs):
         from dnf_gui.core.discover_manager import DiscoverStatus
@@ -197,29 +195,62 @@ class TestRestartUpdateUi(unittest.TestCase):
         return DiscoverStatus(**base)
 
     def test_settings_warns_even_after_takeover(self):
-        from dnf_gui.ui.pages.settings_page import SettingsPage
-        page = SettingsPage()
-        page.display_discover_status(self._status(per_user_disabled=True))
-        self.assertEqual(page._discover_banner.objectName(), "status_ok")
-        self.assertFalse(page._btn_cancel_restart.isVisibleTo(page))
-        page.display_discover_status(self._status(per_user_disabled=True,
+        settings = self._app().settings_controller
+        settings._on_discover_status(self._status(per_user_disabled=True))
+        self.assertEqual(settings.discoverLevel, "positive")
+        self.assertFalse(settings.discoverScheduled)  # no Cancel button
+        settings._on_discover_status(self._status(per_user_disabled=True,
                                                   restart_update_scheduled=True))
-        self.assertEqual(page._discover_banner.objectName(), "status_warn")
-        self.assertIn("scheduled", page._discover_title.text())
-        self.assertTrue(page._btn_cancel_restart.isVisibleTo(page))
+        self.assertEqual(settings.discoverLevel, "warning")
+        self.assertIn("scheduled", settings.discoverTitle.lower())
+        self.assertTrue(settings.discoverScheduled)
+
+    def _take_over(self, *choices, scheduled=True):
+        app = self._app()
+        shown = answer(app, *choices)
+        manager = app.discover_manager
+        with patch.object(manager, "restart_update_scheduled", return_value=scheduled), \
+             patch.object(manager, "set_per_user_enabled") as set_enabled, \
+             patch.object(app.settings_controller, "load_discover_status"), \
+             patch("subprocess.run"), \
+             patch.object(app.runner, "run") as run:
+            app.settings_controller.takeOver()
+        confirms = [p for p in shown if any(b == "no" for b, _ in p.buttons)]
+        return confirms, set_enabled, run
 
     def test_takeover_offers_to_cancel_scheduled_update(self):
-        from PyQt6.QtWidgets import QMessageBox
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        with patch.object(QMessageBox, "question",
-                          return_value=QMessageBox.StandardButton.Yes) as ask, \
-             patch.object(QMessageBox, "information"), \
-             patch.object(win._discover_manager, "restart_update_scheduled", return_value=True), \
-             patch.object(win._discover_manager, "set_per_user_enabled"), \
-             patch("subprocess.run"), \
-             patch.object(win, "_run_command") as run:
-            win._discover_takeover()
-        self.assertEqual(ask.call_count, 2)  # takeover, then cancel?
+        confirms, set_enabled, run = self._take_over("yes", "yes")
+        self.assertEqual(len(confirms), 2)  # takeover, then cancel?
+        set_enabled.assert_called_once_with(False)
         run.assert_called_once_with(["pkcon", "offline-cancel"],
                                     "Cancelling Discover's restart update")
+
+    def test_takeover_keeping_scheduled_update_runs_nothing(self):
+        confirms, set_enabled, run = self._take_over("yes", "no")
+        self.assertEqual(len(confirms), 2)
+        set_enabled.assert_called_once_with(False)
+        run.assert_not_called()
+
+    def test_takeover_declined_changes_nothing(self):
+        confirms, set_enabled, run = self._take_over("no")
+        self.assertEqual(len(confirms), 1)
+        set_enabled.assert_not_called()
+        run.assert_not_called()
+
+    def test_system_wide_disable_runs_pkexec_script_after_yes(self):
+        app = self._app()
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.settings_controller.disableDiscoverSystem()
+        self.assertTrue(shown[0].destructive)
+        run.assert_called_once_with(
+            app.discover_manager.build_system_disable_commands()[0],
+            "Disabling Discover system-wide")
+        answer(app, "no")
+        with patch.object(app.runner, "run") as run:
+            app.settings_controller.disableDiscoverSystem()
+        run.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

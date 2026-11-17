@@ -1,17 +1,14 @@
-"""Tests for the Updates page main button, favorites, and package rows."""
+"""Tests for the Updates page modes, favorites, and package rows."""
 
+import gc
 import unittest
 from unittest.mock import patch
 
-from PyQt6.QtWidgets import QApplication, QLabel
-
 from dnf_gui.core.app_settings import UPDATE_MODE_KEYS, AppSettings
+from dnf_gui.core.flatpak_backend import FlatpakApp
 from dnf_gui.core.package import Package, PackageStatus, UpdateInfo
-from dnf_gui.core.security import SecuritySummary
-from dnf_gui.ui.widgets.package_card import PackageCard
-from dnf_gui.ui.widgets.update_action_button import (
-    MODES_BY_KEY, UpdateActionButton,
-)
+from dnf_gui.core.security import SecuritySummary, build_security_update_command
+from tests.conftest import answer
 
 
 def _info(*names):
@@ -20,101 +17,163 @@ def _info(*names):
         for n in names])
 
 
-class TestUpdateActionButton(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
+def _controller(test):
+    # Free controllers left by earlier tests now, while none of their
+    # threads run: a later processEvents() would otherwise fire their
+    # pending start-up timers and GC could destroy a running QThread.
+    gc.collect()
+    from dnf_gui.ui.controllers.app_controller import AppController
+    app = AppController()
+    settings = app.settings
+    saved = (settings.update_favorite, settings.held_back_patterns)
 
+    def restore():
+        settings.update_favorite, settings.held_back_patterns = saved
+    test.addCleanup(restore)
+    return app
+
+
+def _scanned(test, flatpaks=(), security=None):
+    app = _controller(test)
+    app.updates._on_checked({"dnf": _info("kernel-core", "firefox"),
+                             "flatpak": list(flatpaks),
+                             "security": security or SecuritySummary(total=2)})
+    return app
+
+
+def _mode(app, key):
+    return next(m for m in app.updates.modes if m["key"] == key)
+
+
+class TestUpdateModes(unittest.TestCase):
     def test_modes_match_settings_keys(self):
-        self.assertEqual(tuple(MODES_BY_KEY), UPDATE_MODE_KEYS)
+        from dnf_gui.ui.controllers.updates import UPDATE_MODES
+        self.assertEqual(tuple(k for k, _, _ in UPDATE_MODES), UPDATE_MODE_KEYS)
+        app = _controller(self)
+        self.assertEqual(tuple(m["key"] for m in app.updates.modes), UPDATE_MODE_KEYS)
 
     def test_main_button_runs_favorite_only_when_enabled(self):
-        button = UpdateActionButton()
-        fired = []
-        button.mode_triggered.connect(fired.append)
-        button.set_favorite("security")
-        self.assertEqual(button._main.text(), "Security Only")
-        button.trigger_favorite()
-        self.assertEqual(fired, [])  # nothing to do yet
-        button.set_mode_state("security", True, "3 advisories")
-        button._main.click()
-        self.assertEqual(fired, ["security"])
+        app = _controller(self)
+        updates = app.updates
+        updates.setFavorite("security")
+        favorite = next(m for m in updates.modes if m["favorite"])
+        self.assertEqual(favorite["title"], "Security Only")
+        with patch.object(updates, "runMode") as run:
+            updates.runFavorite()
+        run.assert_not_called()  # nothing to do yet
+        updates._on_checked({"dnf": _info("firefox"), "flatpak": [],
+                             "security": SecuritySummary(
+                                 total=3, package_severity={"firefox": "low"})})
+        with patch.object(updates, "runMode") as run:
+            updates.runFavorite()
+        run.assert_called_once_with("security")
 
-    def test_starring_changes_favorite_and_emits(self):
-        button = UpdateActionButton()
-        changed = []
-        button.favorite_changed.connect(changed.append)
-        button._rows["minor"].starred.emit("minor")
-        self.assertEqual(changed, ["minor"])
-        self.assertEqual(button.favorite, "minor")
-        self.assertEqual(button._main.text(), "Update without Major")
+    def test_starring_changes_favorite_and_saves_it(self):
+        app = _controller(self)
+        app.updates.setFavorite("minor")
+        self.assertEqual(app.updates.favorite, "minor")
+        self.assertEqual(app.settings.update_favorite, "minor")
+        favorite = next(m for m in app.updates.modes if m["favorite"])
+        self.assertEqual(favorite["key"], "minor")
 
-    def test_unknown_favorite_falls_back_to_default(self):
-        button = UpdateActionButton()
-        button.set_favorite("bogus")
-        self.assertEqual(button.favorite, "all")
+    def test_unknown_favorite_is_ignored(self):
+        app = _controller(self)
+        app.updates.setFavorite("all")
+        app.updates.setFavorite("bogus")
+        self.assertEqual(app.updates.favorite, "all")
+        self.assertEqual(app.settings.update_favorite, "all")
 
 
-class TestUpdatesPageRows(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
-    def _page(self):
-        from dnf_gui.ui.pages.updates_page import UpdatesPage
-        page = UpdatesPage()
-        page.display_combined(_info("kernel-core", "firefox"), [object()],
-                              SecuritySummary(total=2))
-        return page
-
-    def test_row_buttons_reach_page_signals(self):
-        page = self._page()
-        upgraded, details = [], []
-        page.upgrade_package_clicked.connect(upgraded.append)
-        page.details_requested.connect(details.append)
-        card = page._list_container.findChildren(PackageCard)[0]
-        card.install_clicked.emit(card.package.name)
-        card.info_clicked.emit(card.package.name)
-        self.assertEqual(upgraded, [card.package.name])
-        self.assertEqual(details, [card.package.name])
+class TestUpdateRows(unittest.TestCase):
+    def test_row_update_button_confirms_then_runs(self):
+        app = _scanned(self)
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.updates.upgradePackage("firefox")
+        self.assertEqual(shown[0].title, "Update Package?")
+        run.assert_called_once_with(
+            app.backend.build_upgrade_package_command("firefox"), "Updating firefox")
+        answer(app, "no")
+        with patch.object(app.runner, "run") as run:
+            app.updates.upgradePackage("firefox")
+        run.assert_not_called()
 
     def test_held_back_rows_are_tagged(self):
-        page = self._page()
-        tags = {card.package.name: [label.text() for label in card.findChildren(QLabel)
-                                    if label.objectName() == "badge_muted"]
-                for card in page._list_container.findChildren(PackageCard)}
-        self.assertEqual(tags, {"kernel-core": ["Major"], "firefox": []})
-        self.assertIn("1 major (Update without Major skips these)", page._list_summary.text())
-        card = [c for c in page._list_container.findChildren(PackageCard)
-                if c.package.name == "kernel-core"][0]
-        badge = [label for label in card.findChildren(QLabel) if label.objectName() == "badge_muted"][0]
+        app = _scanned(self)
+        model = app.updates.model
+        self.assertEqual({r["name"]: r["major"] for r in model.rows()},
+                         {"kernel-core": True, "firefox": False})
+        self.assertEqual(app.updates.majorCount, 1)
+        self.assertIn("skips 1 major", _mode(app, "minor")["detail"])
+        reason = model.find("name", "kernel-core")["majorReason"]
         # The tooltip says why it's major and what that means.
-        self.assertIn("kernel*", badge.toolTip())
-        self.assertIn("Update without Major skips it", badge.toolTip())
+        self.assertIn("kernel*", reason)
+        self.assertIn("Update Without Major skips it", reason)
 
     def test_mode_states_follow_scan(self):
-        page = self._page()
-        button = page._action_button
+        app = _scanned(self, flatpaks=[FlatpakApp(name="A", application_id="org.a.A")],
+                       security=SecuritySummary(total=2, package_severity={"firefox": "low"}))
         for key in UPDATE_MODE_KEYS:
-            self.assertTrue(button.is_mode_enabled(key), key)
-        self.assertEqual(button._counts["everything"], "2 packages + 1 Flatpak")
+            self.assertTrue(_mode(app, key)["enabled"], key)
+        self.assertEqual(_mode(app, "everything")["detail"], "2 packages + 1 Flatpak")
 
     def test_filter_narrows_rows(self):
-        page = self._page()
-        page._filter_input.setText("fire")
-        layout = page._list_layout
-        names = [layout.itemAt(i).widget().package.name for i in range(layout.count())
-                 if isinstance(layout.itemAt(i).widget(), PackageCard)]
-        self.assertEqual(names, ["firefox"])
+        app = _scanned(self)
+        view = app.updates.filtered
+        view.query = "fire"
+        self.assertEqual([view.get(i)["name"] for i in range(view.count)], ["firefox"])
 
-    def test_triggered_modes_map_to_signals(self):
-        page = self._page()
+    def test_triggered_modes_map_to_actions(self):
+        app = _scanned(self)
         fired = []
-        page.upgrade_without_major_clicked.connect(lambda: fired.append("minor"))
-        page.update_everything_clicked.connect(lambda: fired.append("everything"))
-        page._action_button.mode_triggered.emit("minor")
-        page._action_button.mode_triggered.emit("everything")
-        self.assertEqual(fired, ["minor", "everything"])
+        with patch.object(app.updates, "upgrade_without_major",
+                          side_effect=lambda: fired.append("minor")), \
+                patch.object(app.updates, "update_everything",
+                             side_effect=lambda: fired.append("everything")), \
+                patch.object(app.updates, "upgrade_all",
+                             side_effect=lambda: fired.append("all")), \
+                patch.object(app.updates, "security_upgrade",
+                             side_effect=lambda: fired.append("security")):
+            for key in ("minor", "everything", "all", "security"):
+                app.updates.runMode(key)
+        self.assertEqual(fired, ["minor", "everything", "all", "security"])
+
+
+class TestModeCommands(unittest.TestCase):
+    """Each mode runs the exact argv the passwordless rule lists, only on Yes."""
+
+    def _run(self, action, *choices):
+        app = _scanned(self)
+        shown = answer(app, *choices)
+        with patch.object(app.runner, "run") as run, \
+                patch.object(app.runner, "run_chain") as chain:
+            getattr(app.updates, action)()
+        return app, shown, run, chain
+
+    def test_upgrade_all(self):
+        app, shown, run, _ = self._run("upgrade_all", "yes")
+        run.assert_called_once_with(app.backend.build_upgrade_command(), "System Upgrade")
+        self.assertEqual(shown[0].default, "no")
+
+    def test_update_everything_chains_dnf_then_flatpak(self):
+        app, _, run, chain = self._run("update_everything", "yes")
+        run.assert_not_called()
+        chain.assert_called_once_with(
+            [app.backend.build_upgrade_command(),
+             app.flatpak_backend.build_update_all_command()],
+            "Update Everything (DNF + Flatpak)")
+
+    def test_security_only(self):
+        _, shown, run, _ = self._run("security_upgrade", "yes")
+        self.assertIn("dnf upgrade --security", shown[0].text)
+        run.assert_called_once_with(build_security_update_command(), "Security Upgrade")
+
+    def test_no_runs_nothing(self):
+        for action in ("upgrade_all", "update_everything", "security_upgrade",
+                       "upgrade_without_major"):
+            _, _, run, chain = self._run(action, "no")
+            run.assert_not_called()
+            chain.assert_not_called()
 
 
 class TestFavoriteSetting(unittest.TestCase):
@@ -128,25 +187,3 @@ class TestFavoriteSetting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class TestSidebarHighlight(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
-    def test_only_active_label_is_highlighted(self):
-        from dnf_gui.ui.sidebar import Sidebar
-        from dnf_gui.ui.styles.theme import get_palette, get_stylesheet
-        self.app.setStyleSheet(get_stylesheet("dark"))
-        sidebar = Sidebar()
-        sidebar.show()
-        sidebar.set_active_page(0)
-        sidebar.set_active_page(1)
-        self.app.processEvents()
-        accent = get_palette("dark")["accent"].lower()
-        colors = [b._text_label.palette().windowText().color().name()
-                  for b in sidebar._buttons[:2]]
-        self.assertNotEqual(colors[0], accent)
-        self.assertEqual(colors[1], accent)
-        self.app.setStyleSheet("")

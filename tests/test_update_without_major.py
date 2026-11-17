@@ -1,12 +1,11 @@
 """Tests for 'Update without Major' (upgrade with core packages held back)."""
 
+import gc
 import os
 import unittest
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-from PyQt6.QtWidgets import QApplication
 
 from dnf_gui.core.dnf_backend import (
     DEFAULT_HELD_BACK_PATTERNS, DNFBackend, is_held_back,
@@ -14,13 +13,7 @@ from dnf_gui.core.dnf_backend import (
 )
 from dnf_gui.core.package import Package, PackageStatus, UpdateInfo, UpgradePreview
 from dnf_gui.core.passwordless import SCOPE_UPDATES, maybe_passwordless
-
-_app = None
-
-
-def setUpModule():
-    global _app
-    _app = QApplication.instance() or QApplication([])
+from tests.conftest import answer
 
 
 def _backend():
@@ -84,37 +77,76 @@ class TestPreviewFiltering(unittest.TestCase):
         self.assertFalse(preview.excluding(["kernel*"]).has_preview)
 
 
-class TestUpdatesPageButton(unittest.TestCase):
+class TestUpdatesMinorMode(unittest.TestCase):
+    def setUp(self):
+        from dnf_gui.ui.controllers.app_controller import AppController
+        gc.collect()  # see test_audit_fixes._controller
+        self.app = AppController()
+        settings = self.app.settings
+        saved = settings.held_back_patterns
+        self.addCleanup(setattr, settings, "held_back_patterns", saved)
+        settings.held_back_patterns = list(DEFAULT_HELD_BACK_PATTERNS)
+        self.app.updates.set_held_back_patterns(list(DEFAULT_HELD_BACK_PATTERNS))
+
     def _info(self, *names):
         return UpdateInfo(packages=[
             Package(name=n, version="1", status=PackageStatus.UPDATE_AVAILABLE)
             for n in names])
 
+    def _scan(self, info):
+        self.app.updates._on_checked({"dnf": info, "flatpak": [], "security": None})
+
+    def _enabled(self):
+        return next(m for m in self.app.updates.modes if m["key"] == "minor")["enabled"]
+
     def test_enabled_only_when_non_core_updates_pending(self):
-        from dnf_gui.ui.pages.updates_page import UpdatesPage
-        page = UpdatesPage()
-        page.display_updates(self._info("kernel", "kernel-core", "mesa-libGL"))
-        self.assertFalse(page._action_button.is_mode_enabled("minor"))
-        self.assertEqual(page.held_back_package_names(),
+        updates = self.app.updates
+        self._scan(self._info("kernel", "kernel-core", "mesa-libGL"))
+        self.assertFalse(self._enabled())
+        self.assertEqual(updates.held_back_package_names(),
                          ["kernel", "kernel-core", "mesa-libGL"])
 
-        page.display_updates(self._info("kernel", "firefox"))
-        self.assertTrue(page._action_button.is_mode_enabled("minor"))
-        self.assertEqual(page.minor_package_names(), ["firefox"])
+        self._scan(self._info("kernel", "firefox"))
+        self.assertTrue(self._enabled())
+        self.assertEqual(updates.minor_package_names(), ["firefox"])
 
     def test_custom_patterns_update_button(self):
-        from dnf_gui.ui.pages.updates_page import UpdatesPage
-        page = UpdatesPage()
-        page.display_updates(self._info("firefox"))
-        self.assertTrue(page._action_button.is_mode_enabled("minor"))
-        page.set_held_back_patterns(["firefox"])
-        self.assertFalse(page._action_button.is_mode_enabled("minor"))
+        self._scan(self._info("firefox"))
+        self.assertTrue(self._enabled())
+        self.app.updates.set_held_back_patterns(["firefox"])
+        self.assertFalse(self._enabled())
 
     def test_empty_disables(self):
-        from dnf_gui.ui.pages.updates_page import UpdatesPage
-        page = UpdatesPage()
-        page.display_updates(UpdateInfo())
-        self.assertFalse(page._action_button.is_mode_enabled("minor"))
+        self._scan(UpdateInfo())
+        self.assertFalse(self._enabled())
+
+    def test_confirm_lists_skipped_packages_and_runs_exact_command(self):
+        self._scan(self._info("kernel-core", "firefox"))
+        shown = answer(self.app, "yes")
+        with patch.object(self.app.runner, "run") as run:
+            self.app.updates.upgrade_without_major()
+        self.assertIn("Major updates skipped (1): kernel-core.", shown[0].text)
+        run.assert_called_once_with(
+            self.app.backend.build_upgrade_without_major_command(
+                list(DEFAULT_HELD_BACK_PATTERNS)),
+            "Update without Major")
+
+    def test_saving_patterns_updates_rows_and_settings(self):
+        from dnf_gui.core import passwordless as pw
+        self._scan(self._info("firefox"))
+        with patch.object(pw, "live_status", return_value=("off", False, True)):
+            self.app.settings_controller.saveHeldBack("kernel*, firefox")
+        self.assertEqual(self.app.settings.held_back_patterns, ["kernel*", "firefox"])
+        self.assertFalse(self._enabled())
+        self.assertTrue(self.app.updates.model.find("name", "firefox")["major"])
+
+    def test_invalid_patterns_are_not_saved(self):
+        shown = answer(self.app)
+        self.app.settings_controller.saveHeldBack("kernel*, bad;rm")
+        self.assertEqual(shown[-1].title, "Invalid Patterns")
+        self.assertIn("bad;rm", shown[-1].text)
+        self.assertEqual(self.app.settings.held_back_patterns,
+                         list(DEFAULT_HELD_BACK_PATTERNS))
 
 
 if __name__ == "__main__":

@@ -232,7 +232,7 @@ class DNFBackend:
         preview = UpgradePreview()
         cmd = [
             self._dnf_path, "repoquery", "--upgrades",
-            "--queryformat", "%{name} %{evr} %{arch} %{downloadsize}",
+            "--queryformat", "%{name} %{evr} %{arch} %{downloadsize}\n",
         ]
         if security_only:
             cmd.insert(2, "--security")

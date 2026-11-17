@@ -121,6 +121,7 @@ class OperationRunner(StateObject):
         "progress": -1.0,   # 0..1, or -1 for indeterminate
         "statusText": "",
         "cancelling": False,
+        "cancellable": False,
     }
 
     def __init__(self, settings, prompts, parent=None):
@@ -134,6 +135,7 @@ class OperationRunner(StateObject):
         self.failed_steps_left = 0  # steps a failed chain didn't reach
         self._operation = ""
         self._on_done: Callable[[int], None] | None = None
+        self._external = None  # a non-command worker (app download) counts as busy
 
     busy = state_property(bool, "busy", changed)
     status = state_property(str, "status", changed)
@@ -142,6 +144,7 @@ class OperationRunner(StateObject):
     progress = state_property(float, "progress", changed)
     statusText = state_property(str, "statusText", changed)
     cancelling = state_property(bool, "cancelling", changed)
+    cancellable = state_property(bool, "cancellable", changed)
 
     @pyqtProperty(QObject, constant=True)
     def log(self) -> LogModel:
@@ -164,7 +167,9 @@ class OperationRunner(StateObject):
 
     def running(self) -> bool:
         worker = self._worker
-        return worker is not None and worker.isRunning()
+        external = self._external
+        return bool((worker is not None and worker.isRunning())
+                    or (external is not None and external.isRunning()))
 
     def check_busy(self) -> bool:
         """True (and tell the user) if an operation is already running."""
@@ -199,12 +204,18 @@ class OperationRunner(StateObject):
         self._next_in_chain(operation)
         return True
 
-    def start_external(self, operation: str) -> None:
-        """Show progress for work that isn't a CommandWorker (app download)."""
+    def start_external(self, operation: str, worker=None) -> None:
+        """Show progress for work that isn't a CommandWorker (app download).
+
+        While it runs the runner is busy (nothing else starts), but it
+        can't be cancelled.
+        """
         self._begin(operation, f"  {operation}")
-        self._set(busy=True)
+        self._external = worker
+        self._set(busy=True, cancellable=False)
 
     def finish_external(self, ok: bool, text: str = "") -> None:
+        self._external = None
         self._set(busy=False, status="succeeded" if ok else "failed",
                   statusText=text or ("Completed" if ok else "Failed"),
                   progress=-1.0, step="")
@@ -332,6 +343,7 @@ class OperationRunner(StateObject):
             self.append(f"\n❌ Error: {error}")
             on_done(-1)
 
+        self._set(cancellable=True)
         worker.output_line.connect(on_line)
         worker.finished.connect(on_done)
         worker.error.connect(on_error)
@@ -347,5 +359,6 @@ class OperationRunner(StateObject):
         else:
             status, text = "failed", f"Failed (exit code {code})"
         self._set(busy=False, status=status, statusText=text, cancelling=False,
+                  cancellable=False,
                   progress=1.0 if code == 0 else self._state["progress"])
         self.finished.emit(code, operation, chain_failed)

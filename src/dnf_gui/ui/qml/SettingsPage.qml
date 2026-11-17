@@ -14,6 +14,19 @@ FormCard.FormCardPage {
 
     title: "Settings"
 
+    // Text fields and switches lose their bindings once edited; put the
+    // saved values back whenever the settings change (unless mid-edit).
+    Connections {
+        target: page.s
+        function onChanged() {
+            if (!heldBackField.activeFocus)
+                heldBackField.text = page.s.heldBack;
+            remindSwitch.checked = page.s.remindersEnabled;
+            securitySwitch.checked = page.s.securityOnly;
+            flatpakSwitch.checked = page.s.notifyFlatpak;
+        }
+    }
+
     function saveReminders() {
         s.saveReminders(remindSwitch.checked, securitySwitch.checked, flatpakSwitch.checked,
                         s.intervals[intervalBox.currentIndex].hours);
@@ -53,13 +66,19 @@ FormCard.FormCardPage {
             text: "Save Major Packages"
             icon.name: "document-save"
             enabled: heldBackField.text !== page.s.heldBack
-            onClicked: page.s.saveHeldBack(heldBackField.text)
+            onClicked: {
+                page.s.saveHeldBack(heldBackField.text);
+                heldBackField.text = page.s.heldBack;
+            }
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
             text: "Reset to Defaults"
             icon.name: "edit-reset"
-            onClicked: page.s.resetHeldBack()
+            onClicked: {
+                page.s.resetHeldBack();
+                heldBackField.text = page.s.heldBack;
+            }
         }
     }
 
@@ -71,7 +90,7 @@ FormCard.FormCardPage {
             text: "Remind me about pending updates"
             description: "Checks in the background, even while this app is closed, and sends a notification when updates are waiting."
             checked: page.s.remindersEnabled
-            onToggled: page.saveReminders()
+            onClicked: page.saveReminders()
         }
         FormCard.FormDelegateSeparator { above: remindSwitch; below: securitySwitch }
         FormCard.FormSwitchDelegate {
@@ -80,7 +99,7 @@ FormCard.FormCardPage {
             description: "Stay quiet about routine updates."
             enabled: remindSwitch.checked
             checked: page.s.securityOnly
-            onToggled: page.saveReminders()
+            onClicked: page.saveReminders()
         }
         FormCard.FormDelegateSeparator { above: securitySwitch; below: flatpakSwitch }
         FormCard.FormSwitchDelegate {
@@ -88,7 +107,7 @@ FormCard.FormCardPage {
             text: "Include Flatpak updates"
             enabled: remindSwitch.checked
             checked: page.s.notifyFlatpak
-            onToggled: page.saveReminders()
+            onClicked: page.saveReminders()
         }
         FormCard.FormDelegateSeparator { above: flatpakSwitch; below: intervalBox }
         FormCard.FormComboBoxDelegate {

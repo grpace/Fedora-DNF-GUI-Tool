@@ -112,6 +112,11 @@ Kirigami.ApplicationWindow {
     Connections {
         target: App
         function onCurrentPageChanged() { root.showPage(App.currentPage); }
+        function onFocusSearchRequested() {
+            const page = root.pageStack.depth > 0 ? root.pageStack.get(0) : null;
+            if (page && page.focusSearch)
+                page.focusSearch();
+        }
         function onErrorRaised(text) { root.showPassiveNotification(text, "long"); }
     }
     Connections {

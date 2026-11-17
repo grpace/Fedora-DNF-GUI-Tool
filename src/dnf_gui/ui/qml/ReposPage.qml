@@ -27,9 +27,9 @@ Kirigami.ScrollablePage {
         }
     ]
 
-    Connections {
-        target: App
-        function onFocusSearchRequested() { search.forceActiveFocus(); search.selectAll(); }
+    function focusSearch() {
+        search.forceActiveFocus();
+        search.selectAll();
     }
 
     header: QQC2.ToolBar {
@@ -37,6 +37,7 @@ Kirigami.ScrollablePage {
         contentItem: Kirigami.SearchField {
             id: search
             placeholderText: "Filter repositories…"
+            Accessible.name: "Filter repositories"
             onTextChanged: page.r.repos.query = text
             KeyNavigation.down: list
         }
@@ -67,7 +68,15 @@ Kirigami.ScrollablePage {
             text: name || model.id
             highlighted: ListView.isCurrentItem
             Accessible.description: (model.enabled ? "Enabled" : "Disabled") + ", " + model.id
-            onClicked: { ListView.view.currentIndex = index; toggle.toggled(); }
+            // The row and its switch both ask; nothing changes until dnf has.
+            function requestToggle() {
+                if (!App.Runner.busy)
+                    page.r.setEnabled(row.model.id, !row.model.enabled);
+            }
+            onClicked: { ListView.view.currentIndex = index; requestToggle(); }
+            Accessible.onPressAction: requestToggle()
+            Keys.onReturnPressed: requestToggle()
+            Keys.onEnterPressed: requestToggle()
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
@@ -101,9 +110,9 @@ Kirigami.ScrollablePage {
                     checked: row.model.enabled
                     enabled: !App.Runner.busy
                     Accessible.name: (row.model.enabled ? "Disable " : "Enable ") + (row.name || row.model.id)
-                    onToggled: {
+                    onClicked: {
                         checked = Qt.binding(() => row.model.enabled);
-                        page.r.setEnabled(row.model.id, !row.model.enabled);
+                        row.requestToggle();
                     }
                 }
             }

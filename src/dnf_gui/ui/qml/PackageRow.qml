@@ -27,6 +27,7 @@ QQC2.ItemDelegate {
         ListView.view.currentIndex = index;
         root.openPackageDetails(name);
     }
+    Accessible.onPressAction: clicked()
     Keys.onReturnPressed: clicked()
     Keys.onEnterPressed: clicked()
     Keys.onMenuPressed: menu.popup(more, 0, more.height)

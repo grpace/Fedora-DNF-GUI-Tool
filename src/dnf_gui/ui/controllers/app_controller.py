@@ -9,7 +9,6 @@ page controllers; every worker is parented to a controller so
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -25,7 +24,7 @@ from dnf_gui.core.discover_manager import DiscoverManager
 from dnf_gui.core.dnf_backend import DNFBackend
 from dnf_gui.core.flatpak_backend import FlatpakBackend
 from dnf_gui.core.notifications import Notification, Notifier, reminder_notification
-from dnf_gui.core.security import parse_blocked_updates
+from dnf_gui.core.security import parse_blocked_updates, parse_unavailable_updates
 from dnf_gui.core.worker import (
     AppUpdateDownloadWorker, AppUpdateWorker, ReminderCheckWorker,
 )
@@ -116,10 +115,17 @@ class AppController(StateObject):
         elif initial_page in PAGES:
             self._set(currentPage=initial_page)
 
-        QTimer.singleShot(0, self.refreshCurrent)
-        QTimer.singleShot(3000, self._check_app_update)
-        QTimer.singleShot(15000, self._maybe_background_reminder)
-        QTimer.singleShot(0, self._refresh_background_checker)
+        # Startup work on timers owned by the controller, so they stop with it.
+        self._startup_timers = []
+        for delay, slot in ((0, self.refreshCurrent), (3000, self._check_app_update),
+                            (15000, self._maybe_background_reminder),
+                            (0, self._refresh_background_checker)):
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(slot)
+            timer.start(delay)
+            self._startup_timers.append(timer)
+        self._closing_prompt = False
         self._reminder_timer = QTimer(self)
         self._reminder_timer.setInterval(3600 * 1000)  # hourly throttle check
         self._reminder_timer.timeout.connect(self._maybe_background_reminder)
@@ -222,23 +228,44 @@ class AppController(StateObject):
         if not (self.runner.running() or self.runner.queue):
             self._shutdown()
             return True
+        if self._closing_prompt:
+            return False  # already asking
 
         def hide() -> None:
+            self._closing_prompt = False
+            if not (self.runner.running() or self.runner.queue):
+                # It finished while the question was open: just quit.
+                self._quit_now()
+                return
             self._quit_when_done = True
             self._set_quit_on_close(False)
             if self._window is not None:
                 self._window.hide()
+
+        def keep() -> None:
+            self._closing_prompt = False
+        self._closing_prompt = True
         self.prompts.confirm(
             "Operation Still Running",
             "A package operation is still running. If you close the window, it "
             "keeps running in the background and you'll get a notification "
             "when it finishes.",
-            hide, confirm_label="Close Window", cancel_label="Keep Open")
+            hide, on_no=keep, confirm_label="Close Window", cancel_label="Keep Open")
         return False
 
+    def _quit_now(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+
+        def quit_app() -> None:
+            self._shutdown()
+            QApplication.quit()
+        QTimer.singleShot(0, quit_app)
+
     def _shutdown(self) -> None:
+        for timer in self._startup_timers:
+            timer.stop()
         self._reminder_timer.stop()
-        self.prompts.cancel_all()
+        self.prompts.cancel_all(run_callbacks=False)
         self.shutdown_threads()
 
     def shutdown_threads(self, timeout_ms: int = 2000) -> list:
@@ -255,8 +282,11 @@ class AppController(StateObject):
         still_running = [t for t in self.findChildren(QThread) if t.isRunning()]
         for thread in still_running:
             thread.setParent(None)
-        self.detached_threads = still_running
-        return still_running
+        # Keep earlier ones too: a second call no longer finds them as
+        # children, and the caller's os._exit guard depends on this list.
+        self.detached_threads.extend(t for t in still_running
+                                     if t not in self.detached_threads)
+        return list(self.detached_threads)
 
     def _operation_finished(self, failed: bool) -> None:
         """After a closed window's operation ends: quit, or reopen the
@@ -269,11 +299,7 @@ class AppController(StateObject):
             self.activate(ACTIVITY)
             return
 
-        def quit_app() -> None:
-            from PyQt6.QtWidgets import QApplication
-            self._shutdown()
-            QApplication.quit()
-        QTimer.singleShot(0, quit_app)
+        self._quit_now()
 
     # ── navigation ─────────────────────────────────────────────
 
@@ -380,6 +406,14 @@ class AppController(StateObject):
 
     # ── errors ─────────────────────────────────────────────────
 
+    def password_note(self, cmd: list[str]) -> str:
+        """What the confirmation should say about a password for ``cmd``."""
+        from dnf_gui.core.passwordless import maybe_passwordless
+        if cmd and cmd[0] == "pkexec" and \
+                maybe_passwordless(cmd, self.settings.passwordless_scope) != cmd:
+            return "No password needed: your passwordless updates rule covers this."
+        return "You'll be asked for your password."
+
     def show_error(self, title: str, text: str) -> None:
         self.prompts.inform(title, text, level="error")
 
@@ -410,16 +444,19 @@ class AppController(StateObject):
         if chain_failed:
             self._on_chain_failed(exit_code, operation)
             return
-        output = self.runner.output
-        skipped = (parse_blocked_updates("\n".join(output))
-                   if exit_code == 0 and operation in UPGRADE_OPERATIONS else None)
+        output = "\n".join(self.runner.output)
+        upgrade_ok = exit_code == 0 and operation in UPGRADE_OPERATIONS
+        skipped = parse_blocked_updates(output) if upgrade_ok else None
+        unavailable = parse_unavailable_updates(output) if upgrade_ok and not skipped else []
+        not_installed = len(skipped.packages) if skipped else len(unavailable)
         self._notify_if_unfocused(
             exit_code, operation,
-            f"{len(skipped.packages)} update(s) couldn't be installed yet."
-            if skipped else "")
+            f"{not_installed} update(s) couldn't be installed yet." if not_installed else "")
         if exit_code == 0:
             if skipped:
                 self._report_skipped(skipped, operation)
+            elif unavailable:
+                self._report_unavailable(unavailable)
             if operation == "Forced Security Upgrade" and self.forced_removals:
                 names = " ".join(self.forced_removals)
                 self.runner.append(
@@ -460,9 +497,15 @@ class AppController(StateObject):
             self.updates.recheck_reboot()
             self.notifier.close(self._reminder_notification_id)  # out of date now
             self._reminder_notification_id = 0
-        if exit_code == 0 and self._state["currentPage"] in (
-                "updates", "installed", "flatpak", "repos", "history"):
-            self.refreshCurrent(revisit=True)
+        if operation == "Removing plasma-discover-notifier":
+            self.settings_controller.load_discover_status()
+        if exit_code == 0 and not self._quit_when_done and operation != "Installing app update":
+            # Show the new state where the user is looking.
+            page = self._state["currentPage"]
+            if page in ("updates", "installed", "flatpak", "repos", "history",
+                        "tools", "sysinfo"):
+                self.refreshCurrent(revisit=True)
+            self.packages.reload_details()
         self._operation_finished(
             failed=exit_code != 0 and exit_code not in CANCELLED_EXIT_CODES)
 
@@ -499,6 +542,17 @@ class AppController(StateObject):
                          "then. To install it now anyway, use Force Install on "
                          "the Updates page.")
         self.runner.append("\n".join(lines))
+
+    def _report_unavailable(self, names: list[str]) -> None:
+        """Updates whose repository published them before their dependencies."""
+        count = len(names)
+        self.runner.set_result_text(
+            f"Completed · {count} Update{'s' if count != 1 else ''} Skipped")
+        self.runner.append(
+            f"\n⚠ {count} update{'s' if count != 1 else ''} couldn't be installed: "
+            f"{', '.join(names)}\n  Their repository published them before "
+            "something they need. This usually clears up within a few days; "
+            "they install with your next update once it does.")
 
     def _notify_if_unfocused(self, exit_code: int, operation: str,
                              note: str = "") -> None:
@@ -600,7 +654,8 @@ class AppController(StateObject):
         if manual:
             worker.finished.connect(
                 lambda info: None if info is not None else self.prompts.toast(
-                    f"You have the latest version ({__version__})"))
+                    f"No newer version found (you have {__version__}). "
+                    "If you're offline, try again later."))
         self._app_update_worker = worker  # keep a ref (QThread GC safety)
         worker.start()
 
@@ -639,10 +694,21 @@ class AppController(StateObject):
         info = self._pending_update_info
         if info is None or not info.download_url or self.runner.check_busy():
             return
+        self.prompts.confirm(
+            f"Install Version {info.latest_version}?",
+            f"Download DNF Package Manager {info.latest_version} from GitHub, check "
+            "it against the digest GitHub published, and install it with dnf. "
+            f"You have version {__version__}.",
+            self._start_app_update_download, confirm_label="Install Update")
+
+    def _start_app_update_download(self) -> None:
+        info = self._pending_update_info
+        if info is None or self.runner.check_busy():
+            return
         self.toggleActivity(True)
-        self.runner.start_external("Downloading app update")
         worker = AppUpdateDownloadWorker(
             info.download_url, getattr(info, "sha256", ""), parent=self)
+        self.runner.start_external("Downloading app update", worker)
         worker.finished.connect(self._on_update_downloaded)
         worker.error.connect(self._on_update_download_error)
         worker.progress.connect(self.runner.append)
@@ -670,15 +736,33 @@ class AppController(StateObject):
             "The new version is installed. Restart the app now to use it?",
             self.relaunch, confirm_label="Restart App", cancel_label="Later")
 
+    @staticmethod
+    def _launcher() -> list[str]:
+        """The installed launcher, else this interpreter on this package."""
+        if os.access("/usr/bin/dnf-gui", os.X_OK):
+            return ["/usr/bin/dnf-gui"]
+        return [sys.executable, "-P", "-m", "dnf_gui"]
+
     def relaunch(self) -> None:
-        """Replace this process with the newly installed version."""
-        launcher = shutil.which("dnf-gui")
-        argv = [launcher] if launcher else [sys.executable, "-m", "dnf_gui"]
+        """Replace this process with the newly installed version.
+
+        Tears nothing down until it knows the exec will happen: when a
+        worker won't stop in time, the user restarts it, and the running
+        app keeps working meanwhile.
+        """
+        busy = [t for t in self.findChildren(QThread) if t.isRunning()]
+        for thread in busy:
+            thread.wait(3000)
+        if self.runner.running() or any(t.isRunning() for t in busy):
+            self.prompts.inform(
+                "Restart the App Yourself",
+                "Something is still running, so the app can't restart right now. "
+                "Close it and open it again to use the new version.")
+            return
+        argv = self._launcher()
         self._shutdown()
         if self._instance_server is not None:
             self._instance_server.close()
-        if self.detached_threads:
-            return  # can't exec safely; the user restarts it themselves
         sys.stdout.flush()
         sys.stderr.flush()
         os.execv(argv[0], argv)

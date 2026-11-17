@@ -112,11 +112,18 @@ class Prompts(QObject):
         self.notices.append(text)
         self.notice.emit(text)
 
-    def cancel_all(self) -> None:
-        """Answer every open prompt with its safe default (quitting)."""
+    def cancel_all(self, run_callbacks: bool = True) -> None:
+        """Close every open prompt with its safe answer.
+
+        When the app is shutting down (``run_callbacks=False``) nothing
+        runs at all: a "no" can still have side effects (e.g. the Discover
+        takeover's "keep the scheduled update" applies the takeover).
+        """
         queue, self._queue = self._queue, []
         if queue:
             self.currentChanged.emit()
+        if not run_callbacks:
+            return
         for prompt in queue:
             safe = NO if any(i == NO for i, _ in prompt.buttons) else prompt.default
             self._resolve(prompt, safe)

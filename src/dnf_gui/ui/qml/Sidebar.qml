@@ -11,7 +11,8 @@ Kirigami.GlobalDrawer {
     modal: false
     collapsible: true
     showHeaderWhenCollapsed: true
-    width: collapsed ? implicitWidth : Kirigami.Units.gridUnit * 13
+    // Keep the nav entries (icons, badge dot, tooltips) as a rail.
+    showContentWhenCollapsed: true
     padding: 0
 
     readonly property var sections: [
@@ -116,7 +117,7 @@ Kirigami.GlobalDrawer {
         QQC2.Label {
             text: "Version " + App.version
             visible: !drawer.collapsed
-            opacity: 0.7
+            color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
             font: Kirigami.Theme.smallFont
             Layout.margins: Kirigami.Units.largeSpacing
         }

@@ -47,7 +47,8 @@ Kirigami.ScrollablePage {
             width: ListView.view.width
             text: title
             Accessible.description: description + (done ? " Already set up." : "")
-            onClicked: if (!(done && isSource)) runButton.clicked()
+            onClicked: if (!(done && isSource) && !App.Runner.busy) page.s.runTool(row.model.id)
+            Accessible.onPressAction: clicked()
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing

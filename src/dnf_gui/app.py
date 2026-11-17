@@ -4,6 +4,8 @@ import os
 import sys
 
 
+DESKTOP_FILE_NAME = "dnf-gui"  # assets/dnf-gui.desktop
+
 # Pages ``--page`` (and notification clicks) can open; sidebar keys.
 PAGE_CHOICES = ("updates", "installed", "flatpak", "sysinfo", "tools",
                 "repos", "history", "terminal", "settings")
@@ -133,8 +135,9 @@ def main():
     app.setOrganizationName("Greg.Tech")
     app.setOrganizationDomain("greg.tech")
     app.setApplicationVersion(__version__)
-    if hasattr(app, "setDesktopFileName"):
-        app.setDesktopFileName("dnf-gui.desktop")
+    # The desktop entry's id, without ".desktop" (Qt warns and strips it).
+    # Wayland uses it as the app id to match the window to its icon.
+    app.setDesktopFileName(DESKTOP_FILE_NAME)
 
     # One window per user: a second launch (the menu, or a clicked
     # notification) brings the running window to the requested page.

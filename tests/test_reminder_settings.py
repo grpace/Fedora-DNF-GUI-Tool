@@ -453,6 +453,13 @@ class TestPageArgument(unittest.TestCase):
         self.assertEqual(args.page, "terminal")
         self.assertFalse(args.check)
 
+    def test_desktop_file_name_has_no_suffix(self):
+        from pathlib import Path
+        from dnf_gui.app import DESKTOP_FILE_NAME
+        self.assertFalse(DESKTOP_FILE_NAME.endswith(".desktop"))
+        root = Path(__file__).resolve().parent.parent
+        self.assertTrue((root / "assets" / f"{DESKTOP_FILE_NAME}.desktop").exists())
+
     def test_every_page_choice_exists_in_the_window(self):
         from dnf_gui.app import PAGE_CHOICES
         from dnf_gui.ui.main_window import PAGE_NAMES

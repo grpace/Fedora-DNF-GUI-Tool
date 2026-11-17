@@ -53,6 +53,10 @@ def _make_button(text: str, style: str = "primary_button") -> QPushButton:
     return btn
 
 
+# How the passwordless scopes read in sentences.
+_SCOPE_LABELS = {"updates": "Updates Only", "full": "All DNF Operations"}
+
+
 def _hint(text: str) -> QLabel:
     lbl = QLabel(text)
     lbl.setObjectName("hint")
@@ -102,7 +106,7 @@ class SettingsPage(QWidget):
         # ── Header (own left inset, closer to the sidebar) ──
         layout.addWidget(PageHeader(
             "Settings",
-            "Take over updates from Discover, and get reminded about security updates"))
+            "Take Over Updates from Discover and Get Update Reminders"))
 
         # ── Body ──
         body = QWidget()
@@ -292,9 +296,9 @@ class SettingsPage(QWidget):
         pw_card.add_row(pw_status_frame)
 
         pw_card.add_row(_hint(
-            "'Updates only' (recommended) makes dnf upgrade passwordless, so "
+            "'Updates Only' (recommended) makes dnf upgrade passwordless, so "
             "daily updates just run. Installs, removals, repo changes and "
-            "firmware updates still ask for your password. 'All DNF operations' "
+            "firmware updates still ask for your password. 'All DNF Operations' "
             "removes every prompt but lets any program running as you change "
             "system packages. Only use it on a single-user desktop. "
             "Enabling asks for your password once to install a validated "
@@ -409,15 +413,15 @@ class SettingsPage(QWidget):
             text = ("• Passwordless updates are off. "
                     "Every privileged step asks for your password.")
         elif live == remembered and live != "off":
-            text = (f"• Passwordless updates are on ({live}). "
+            text = (f"• Passwordless updates are on ({_SCOPE_LABELS.get(live, live)}). "
                     "Verified working, updates run without a prompt.")
         elif live == "off":
-            text = (f"• Passwordless updates are set to {remembered} but are "
+            text = (f"• Passwordless updates are set to {_SCOPE_LABELS.get(remembered, remembered)} but are "
                     "not working. The system rule is missing, so enable it "
                     "again below.")
         else:
-            text = (f"• Passwordless updates: {live} is active "
-                    f"(your setting: {remembered}).")
+            text = (f"• Passwordless updates: {_SCOPE_LABELS.get(live, live)} is active "
+                    f"(your setting: {_SCOPE_LABELS.get(remembered, remembered)}).")
         if held_back_stale:
             text += ("\n• Update without Major still asks for a password: your "
                      "list of major packages changed after the rule was installed. Click "

@@ -3,7 +3,7 @@
 %global install_dir /opt/%{app_name}
 
 Name:           %{app_name}
-Version:        1.4.0
+Version:        1.5.0
 Release:        1%{?dist}
 Summary:        Discover alternative for Fedora: updates you can see and control
 License:        GPL-3.0-or-later
@@ -45,8 +45,9 @@ cp -r src/%{app_module} %{buildroot}%{install_dir}/
 mkdir -p %{buildroot}%{_bindir}
 cat > %{buildroot}%{_bindir}/%{app_name} << 'EOF'
 #!/bin/bash
-export PYTHONPATH="%{install_dir}:${PYTHONPATH}"
-exec python3 -m %{app_module} "$@"
+# -P and no empty PYTHONPATH entry: never import from the current directory.
+export PYTHONPATH="%{install_dir}${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -P -m %{app_module} "$@"
 EOF
 chmod 0755 %{buildroot}%{_bindir}/%{app_name}
 
@@ -81,6 +82,16 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 /usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
+* Mon Nov 16 2026 Greg.Tech <hello@greg.tech> - 1.5.0-1
+- Clicking an update reminder opens the Updates page; View Updates and Show Output buttons
+- Notifications carry the app icon and desktop entry, with clearer titles and text
+- Opening the app again brings the running window forward (--page opens a given page)
+- Closing the window during an operation no longer kills dnf; it finishes in the background
+- A failed update check no longer reports the system as up to date
+- dnf5 fixes: reboot banner sees core library updates, package details, list headers, history order
+- Flatpak installs use the remote the app comes from; dnf4 repo enable/disable works
+- Launcher never imports Python modules from the current directory
+
 * Sun Nov 01 2026 Greg.Tech <hello@greg.tech> - 1.4.0-1
 - Explain security updates dnf skips because a dependency isn't ready (e.g. RPM Fusion libheif-freeworld): Updates page banner, Waiting tags and count
 - Security Only explains when there's nothing installable yet instead of rerunning dnf

@@ -5,6 +5,37 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-11-16
+
+### Added
+
+- **Clicking a notification opens the app where you need it.** Clicking an update reminder, or its **View Updates** button, opens the Updates page with a fresh scan. This also works for reminders from the background check while the app is closed: after sending one, the check stays until the reminder is clicked or dismissed, at most until shortly before the next check, and then exits. A notification for a failed operation has a **Show Output** button that opens the terminal, and one for skipped updates has **Show Details**.
+- **One window.** Opening the app while it's already running brings the existing window forward instead of starting a second copy, which could run dnf next to the first.
+- `dnf-gui --page NAME` opens the app on a page (`updates`, `installed`, `flatpak`, `sysinfo`, `tools`, `repos`, `history`, `terminal` or `settings`). `dnf-gui --help` lists the options.
+- Flatpak search results show **Remove** for apps that are already installed.
+
+### Changed
+
+- **Better-looking notifications.** They're sent straight to the desktop's notification service with the app's icon and desktop entry, so Plasma shows them under DNF Package Manager and lists them in its notification settings. Titles are short ("Security Updates Available"), and the text says what's waiting ("343 system updates (2 security) and 6 Flatpak updates are ready to install.") without the ⚠ symbol and capitals. `notify-send` is now only a fallback.
+- **Send Test Notification** sends a sample reminder you can click to check that it opens the Updates page.
+- The background reminder service is now `Type=exec` with `--wait`, and it stops when you log out. Existing setups switch over the next time you open the app.
+
+### Fixed
+
+- **Closing the window during an update could kill dnf.** dnf writes its output to the app, so exiting mid-operation stopped it the next time it printed anything, possibly mid-transaction. Closing the window now only hides it. The operation finishes in the background, you get a notification, and the app quits afterwards. A failure brings the window back with the output.
+- **An offline update check said "Your system is completely up to date!"** It now says it couldn't check, shows **Failed** under Last Checked, keeps the sidebar count, and rescans on the next visit.
+- **The reboot banner missed core library updates on dnf5.** Fedora 41 and later have no standalone `needs-restarting`, so only kernel updates were noticed. The app now asks `dnf needs-restarting -r`.
+- **Package details on dnf5** showed installed packages as "Available", with no repository and only the first line of the description.
+- The Packages list included a bogus "Installed packages" entry on dnf5.
+- History now lists the newest transaction first.
+- Enabling and disabling repositories works on dnf4 (Fedora 40).
+- Flatpak apps are installed from the remote search found them in, not always Flathub.
+- **Cancel Operation** stays disabled after an operation finishes.
+- Installing an app update while another operation runs no longer drops the update.
+- RPM installs use the app's own window icon.
+- The launcher no longer imports Python modules from the current directory.
+- Title Case for the Updates filter, page subtitles and passwordless scope names.
+
 ## [1.4.0] - 2026-11-01
 
 ### Added
@@ -165,6 +196,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Packaging** — RPM spec file, build script, and install script
 - **Auto-Update** — Update checker with direct RPM install via DNF
 
+[1.5.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.5.0
+[1.4.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.4.0
+[1.3.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.3.0
+[1.2.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.2.0
 [1.1.1]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.1.1
 [1.1.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.1.0
 [1.0.1]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.0.1

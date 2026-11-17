@@ -58,7 +58,7 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
 | Search and install RPMs | ✅ | ✅ |
 | Flatpak apps and Flathub | ✅ | ✅ |
 | Firmware updates (fwupd) | ✅ | ✅ |
-| Update reminders | ✅ notification at login | ✅ |
+| Update reminders | ✅ on your schedule; click to open Updates | ✅ |
 | Automatic unattended updates | ❌ reminders only | ✅ |
 | Curated app catalog with screenshots, ratings and reviews | ❌ | ✅ |
 | KDE add-ons (widgets, themes) | ❌ | ✅ |
@@ -95,12 +95,14 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
 
 ### Settings
 - **Discover takeover** for your account, or for every account on the computer. Fully reversible. If Discover already scheduled updates for your next restart, the app tells you and can cancel them (`pkcon offline-cancel`), so PackageKit doesn't install a stale update set when you reboot.
-- **Update reminders:** a login check with a desktop notification, optionally only for security updates.
+- **Update reminders** on your Check Every schedule, even while the app is closed, optionally only for security updates. Click a reminder (or its **View Updates** button) to open the Updates page with a fresh scan.
 - **Passwordless updates (optional):** a validated sudoers rule that lets the app's exact upgrade commands run without a password prompt, while installs and removals still ask. See [Security model](#security-model).
 
 ### Desktop
 - **Light and dark themes** in the Breeze style, with colors that meet WCAG AA contrast.
-- **Completion notifications** when a long operation finishes while you're in another window.
+- **Completion notifications** when a long operation finishes while you're in another window. Click one to return to the app; if the operation failed, **Show Output** opens the terminal.
+- **One window.** Opening the app while it's already running brings the existing window forward.
+- **Close during an update.** If you close the window while dnf is running, the operation finishes in the background and you get a notification. A failure brings the window back with the output.
 
 ---
 
@@ -149,13 +151,16 @@ The full walkthrough, including how to undo it, is in [Switching from Discover](
 ## Command line
 
 ```bash
-dnf-gui                                 # open the app
-dnf-gui --check                         # headless update check (run by the reminder timer)
+dnf-gui                                 # open the app (or bring the open window forward)
+dnf-gui --page updates                  # open on a page: updates, installed, flatpak, sysinfo,
+                                        #   tools, repos, history, terminal or settings
+dnf-gui --check                         # headless update check
+dnf-gui --check --wait                  # ...and stay until the reminder is clicked (what the timer runs)
 dnf-gui --check --security-only         # only notify about security updates, this run only
 DNF_GUI_FORCE_CHECK=1 dnf-gui --check   # ignore the reminder interval
 ```
 
-`--check` exits with `0` when nothing needs attention (or no check is due), `2` when updates are pending, and `1` when it couldn't check or deliver the notification (the reminder timer retries on `1`).
+`--check` exits with `0` when nothing needs attention (or no check is due), `2` when updates are pending, and `1` when it couldn't check or deliver the notification (the reminder timer retries on `1`). Without `--wait`, the reminder has no buttons, because nothing is left running to answer a click.
 
 ---
 

@@ -17,8 +17,9 @@ from dnf_gui.core.security import (
 )
 from dnf_gui.core import release_upgrade
 from dnf_gui.core.release_upgrade import RELEASE_NOTES_URL, UPGRADE_DOCS_URL
-from dnf_gui.core.app_settings import (
-    AppSettings, send_desktop_notification,
+from dnf_gui.core.app_settings import AppSettings
+from dnf_gui.core.notifications import (
+    Notification, Notifier, reminder_notification,
 )
 from dnf_gui.core.worker import (
     CallWorker, PackageListWorker, PackageInfoWorker, CommandWorker,
@@ -51,6 +52,14 @@ PAGE_REPOS = 5
 PAGE_HISTORY = 6
 PAGE_TERMINAL = 7
 PAGE_SETTINGS = 8
+# Names for ``--page`` and notification clicks (the sidebar's keys).
+PAGE_NAMES = {
+    "updates": PAGE_UPDATES, "installed": PAGE_INSTALLED,
+    "flatpak": PAGE_FLATPAK, "sysinfo": PAGE_SYSINFO, "tools": PAGE_TOOLKIT,
+    "repos": PAGE_REPOS, "history": PAGE_HISTORY,
+    "terminal": PAGE_TERMINAL, "settings": PAGE_SETTINGS,
+}
+CANCELLED_EXIT_CODES = (-15, 143, -9, 137)
 
 
 # dnf upgrades: report skipped packages and recheck the reboot banner after.
@@ -63,7 +72,7 @@ UPGRADE_OPERATIONS = (
 class MainWindow(QMainWindow):
     """Main application window with sidebar navigation and stacked pages."""
 
-    def __init__(self):
+    def __init__(self, initial_page: str = ""):
         super().__init__()
         self._backend = DNFBackend()
         self._flatpak_backend = FlatpakBackend()
@@ -79,6 +88,10 @@ class MainWindow(QMainWindow):
         self._app_update_worker = None  # Must keep ref to avoid QThread GC crash
         self._pending_update_info = None  # App update available
         self._updates_cache: dict | None = None  # last scan; revisit reuses it
+        self._update_check_worker = None
+        self._reminder_notification_id = 0  # in-app reminder still on screen
+        self._cmd_queue: list[list[str]] = []  # remaining steps of a chain
+        self._quit_when_done = False  # window closed during an operation
 
         from dnf_gui.ui.polish import install_ui_polish
         install_ui_polish()
@@ -89,6 +102,11 @@ class MainWindow(QMainWindow):
         self._updates_page.set_favorite(self._app_settings.update_favorite)
         self._connect_signals()
         self._setup_shortcuts()
+        self._notifier = Notifier(self)
+        self._notifier.activated.connect(self.activate_request)
+        if initial_page in PAGE_NAMES:
+            self._stack.setCurrentIndex(PAGE_NAMES[initial_page])
+            self._sidebar.set_active_page(PAGE_NAMES[initial_page])
 
         QTimer.singleShot(0, self._refresh_current)
         QTimer.singleShot(3000, self._check_app_update)  # Check for app updates after 3s
@@ -101,22 +119,52 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Don't let Qt destroy running worker threads (that aborts)."""
-        worker = self._command_worker
-        if worker is not None and worker.isRunning():
+        if self._operation_running() or self._cmd_queue:
             reply = QMessageBox.question(
                 self, "Operation Still Running",
-                "A package operation is still running. Closing the window "
-                "will not stop it; it keeps running in the background "
-                "without visible output.\n\nClose anyway?",
+                "A package operation is still running. If you close the "
+                "window, it keeps running in the background and you'll get "
+                "a notification when it finishes.\n\nClose the window?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
-            if reply != QMessageBox.StandardButton.Yes:
-                event.ignore()
-                return
+            if reply == QMessageBox.StandardButton.Yes:
+                # Only hide: dnf writes to a pipe this process reads, so
+                # exiting now would kill it mid-transaction (SIGPIPE). The
+                # app quits once the operation is done.
+                self._quit_when_done = True
+                self._set_quit_on_close(False)
+                self.hide()
+            event.ignore()
+            return
         self._reminder_timer.stop()
         self.shutdown_threads()
         super().closeEvent(event)
+
+    @staticmethod
+    def _set_quit_on_close(enabled: bool):
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            app.setQuitOnLastWindowClosed(enabled)
+
+    def _operation_finished(self, failed: bool = False):
+        """After a closed window's operation ends: quit, or reopen the
+        window on the Terminal page when it failed."""
+        if not self._quit_when_done:
+            return
+        self._quit_when_done = False
+        if failed:
+            self._set_quit_on_close(True)
+            self.activate_request("terminal")
+            return
+
+        def quit_app():
+            from PyQt6.QtWidgets import QApplication
+            self._reminder_timer.stop()
+            self.shutdown_threads()
+            QApplication.quit()
+        QTimer.singleShot(0, quit_app)
 
     def shutdown_threads(self, timeout_ms: int = 2000) -> list:
         """Wait briefly for worker threads; detach any still running.
@@ -142,11 +190,16 @@ class MainWindow(QMainWindow):
         
         # Determine the assets path relative to the module
         try:
-            icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "assets", "icons", "app_icon.svg")
-            if os.path.exists(icon_path):
-                self.setWindowIcon(QIcon(icon_path))
-            else:
-                self.setWindowIcon(QIcon.fromTheme("system-software-install"))
+            # Installed copies have the icon in the theme; a source checkout
+            # has it under assets/.
+            icon = QIcon.fromTheme("dnf-gui")
+            if icon.isNull():
+                icon_path = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(
+                        os.path.dirname(__file__)))), "assets", "icons", "app_icon.svg")
+                icon = (QIcon(icon_path) if os.path.exists(icon_path)
+                        else QIcon.fromTheme("system-software-install"))
+            self.setWindowIcon(icon)
         except Exception:
             pass
 
@@ -347,6 +400,38 @@ class MainWindow(QMainWindow):
         self._sidebar.set_active_page(index)
         self._on_page_changed(index)
 
+    def activate_request(self, page: str = "", token: str = ""):
+        """Bring the window forward, e.g. for a clicked notification or a
+        second launch, and show ``page`` (a ``PAGE_NAMES`` key) if given."""
+        try:
+            if token:
+                # Qt hands this to the compositor on activateWindow(), so
+                # Wayland lets the window take focus.
+                os.environ["XDG_ACTIVATION_TOKEN"] = token
+            if page == "updates" and not self._operation_running():
+                # The click comes from a reminder newer than the last scan.
+                self._updates_cache = None
+            if page in PAGE_NAMES:
+                if self._stack.currentIndex() == PAGE_NAMES[page]:
+                    self._refresh_current()
+                else:
+                    self._switch_page(PAGE_NAMES[page])
+            if self._quit_when_done:  # reopened while finishing in the background
+                self._quit_when_done = False
+                self._set_quit_on_close(True)
+            if self.isMinimized():
+                self.showNormal()
+            self.show()
+            self.raise_()
+            self.activateWindow()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _operation_running(self) -> bool:
+        worker = self._command_worker
+        return worker is not None and worker.isRunning()
+
     def _toggle_theme(self):
         """Cycle dark -> light -> dark, persist, and re-apply stylesheet."""
         try:
@@ -400,6 +485,9 @@ class MainWindow(QMainWindow):
     # ═══════════════════════════════════════════════════════════════
 
     def _check_updates(self):
+        running = self._update_check_worker
+        if running is not None and running.isRunning():
+            return  # a scan is already on its way
         self._updates_page.set_loading(True)
         self._progress_bar.start_indeterminate()
 
@@ -409,6 +497,7 @@ class MainWindow(QMainWindow):
         worker.error.connect(self._on_worker_error)
         worker.start()
         self._current_worker = worker
+        self._update_check_worker = worker
 
     def _redisplay_cached_updates(self):
         """Show the last scan instantly — no worker, no progress bar."""
@@ -446,6 +535,10 @@ class MainWindow(QMainWindow):
                 reboot=result.get("reboot", False))
             self._updates_page.set_release_upgrade(
                 result.get("release_upgrade"), self._app_settings.dismissed_release)
+            if getattr(info, "check_failed", False):
+                # Unknown, not zero: keep the badge, and rescan next visit.
+                self._updates_cache = None
+                return
             self._sidebar.set_update_badge(total)
             self._updates_cache = result  # revisit reuses this scan
         except Exception as e:
@@ -915,7 +1008,7 @@ class MainWindow(QMainWindow):
         self._progress_bar.stop()
         self._flatpak_page.display_search_results(apps)
 
-    def _flatpak_install(self, app_id: str):
+    def _flatpak_install(self, app_id: str, remotes: str = ""):
         reply = QMessageBox.question(
             self, "Install Flatpak",
             f"Install Flatpak app: {app_id}?",
@@ -924,7 +1017,7 @@ class MainWindow(QMainWindow):
         )
         if reply == QMessageBox.StandardButton.Yes:
             self._run_command(
-                self._flatpak_backend.build_install_command(app_id),
+                self._flatpak_backend.build_install_command(app_id, remotes),
                 f"Installing Flatpak: {app_id}",
             )
 
@@ -1299,6 +1392,8 @@ class MainWindow(QMainWindow):
 
     def _install_app_update(self, update_info, dialog: QDialog):
         """Download RPM and run dnf install."""
+        if self._command_busy():
+            return  # keep the dialog open so the update isn't lost
         dialog.accept()
         self._switch_page(PAGE_TERMINAL)
         self._terminal_page.set_running(True, "Installing app update")
@@ -1402,7 +1497,7 @@ class MainWindow(QMainWindow):
             self._notify_if_unfocused(exit_code, operation)
             target = getattr(self, "_pending_release_target", None)
             if (target and operation == self._release_operation(target)
-                    and not self._cmd_queue and exit_code not in (-15, 143, -9, 137)):
+                    and not self._cmd_queue and exit_code not in CANCELLED_EXIT_CODES):
                 # The download (last step) failed, not the regular update.
                 QTimer.singleShot(0, lambda: self._on_release_download_failed(target))
             self._terminal_page.set_error()
@@ -1412,6 +1507,8 @@ class MainWindow(QMainWindow):
             # Invalidate caches so data reloads on next visit
             self._installed_page._all_packages = []
             self._flatpak_page._all_apps = []
+            self._cmd_queue = []
+            self._operation_finished(failed=exit_code not in CANCELLED_EXIT_CODES)
             return
         if self._cmd_queue:
             self._run_next_in_chain(operation)
@@ -1502,7 +1599,7 @@ class MainWindow(QMainWindow):
                 self._app_settings.passwordless_scope = scope
             elif operation == "Disabling passwordless updates":
                 self._app_settings.passwordless_scope = "off"
-        elif exit_code in (-15, 143, -9, 137):
+        elif exit_code in CANCELLED_EXIT_CODES:
             self._terminal_page.set_error("Operation Cancelled")
             if operation == "Enabling passwordless updates":
                 self._app_settings.passwordless_scope = "off"
@@ -1536,6 +1633,11 @@ class MainWindow(QMainWindow):
         # A finished upgrade may leave a reboot pending (new kernel etc.)
         if exit_code == 0 and operation in UPGRADE_OPERATIONS:
             self._recheck_reboot_banner()
+            # Its reminder is out of date now.
+            self._notifier.close(self._reminder_notification_id)
+            self._reminder_notification_id = 0
+        self._operation_finished(
+            failed=exit_code != 0 and exit_code not in CANCELLED_EXIT_CODES)
 
     def _report_skipped(self, skipped, operation: str):
         """dnf exits 0 when it skips blocked updates; say so plainly."""
@@ -1552,17 +1654,33 @@ class MainWindow(QMainWindow):
         self._terminal_page.append_line("\n".join(lines))
 
     def _notify_if_unfocused(self, exit_code: int, operation: str, note: str = ""):
-        """Desktop notification for operations that finish while you're away."""
+        """Desktop notification for operations that finish while you're away.
+
+        Clicking it brings the window back; a failure or skipped updates
+        open the Terminal page with dnf's output.
+        """
         if self.isActiveWindow():
             return
-        if exit_code == 0:
-            title, body = f"{operation} finished", note or "Completed successfully."
-        elif exit_code in (-15, 143, -9, 137):
-            title, body = f"{operation} cancelled", "The operation was cancelled."
+        if exit_code == 0 and not note:
+            notification = Notification(
+                title=operation, body="Finished successfully.")
+        elif exit_code == 0:
+            notification = Notification(
+                title=operation, body=f"Finished. {note}", page="terminal",
+                icon="dialog-warning", actions=[("terminal", "Show Details")])
+        elif exit_code in CANCELLED_EXIT_CODES:
+            notification = Notification(title=operation, body="Cancelled.")
         else:
-            title, body = (f"{operation} failed",
-                           "Open DNF Package Manager to see the terminal output.")
-        send_desktop_notification(title, body, urgent=exit_code not in (0, -15, 143, -9, 137))
+            notification = Notification(
+                title=operation,
+                body=f"Failed (exit code {exit_code}). The output shows what went wrong.",
+                icon="dialog-error", page="terminal",
+                actions=[("terminal", "Show Output")])
+        if self._quit_when_done and (exit_code == 0
+                                     or exit_code in CANCELLED_EXIT_CODES):
+            # The window was closed and the app quits now: nothing to open.
+            notification.clickable = False
+        self._notifier.send(notification)
 
     def _on_worker_error(self, error: str):
         self._progress_bar.stop()
@@ -1787,26 +1905,33 @@ class MainWindow(QMainWindow):
             pass
 
     def _test_reminder(self):
-        targets = []
-        if self._app_settings.security_only:
-            targets.append("security updates")
-        else:
-            targets.append("system updates")
+        targets = ["security updates" if self._app_settings.security_only
+                   else "system updates"]
         if self._app_settings.notify_flatpak:
             targets.append("Flatpak updates")
-        target_str = " + ".join(targets) if targets else "updates"
-        sent = send_desktop_notification(
-            "DNF Package Manager",
-            f"Test: reminders are working. You'll be notified about {target_str}.")
-        if sent:
-            QMessageBox.information(self, "Test Sent",
-                                    "Test notification sent via notify-send.")
-        else:
+        target_str = " and ".join(targets)
+        notification = Notification(
+            title="Test Reminder",
+            body=f"Reminders are working. You'll hear about {target_str}. "
+                 "Click this to open the Updates page.",
+            page="updates", actions=[("updates", "View Updates")])
+        sent = self._notifier.send(notification)
+        if sent > 0:
             QMessageBox.information(
-                self, "Test Notification",
-                "notify-send isn't available, but in-app reminders are configured.\n\n"
-                "This is what you'd see:\n"
-                f"“Updates are pending ({target_str}) — open DNF Package Manager.”")
+                self, "Test Sent",
+                "A test reminder was sent. Click it (or its View Updates "
+                "button) to check that it opens the Updates page.")
+        elif sent:
+            QMessageBox.information(
+                self, "Test Sent",
+                "A test reminder was sent with notify-send. The desktop's "
+                "notification service couldn't be reached directly, so "
+                "clicking reminders won't open the app.")
+        else:
+            QMessageBox.warning(
+                self, "Test Not Delivered",
+                "No notification service answered, so reminders can't be "
+                "shown. Updates are still counted on the Updates page.")
 
     def _maybe_background_reminder(self):
         """Hourly in-app check — only notifies when due + something pending."""
@@ -1827,11 +1952,10 @@ class MainWindow(QMainWindow):
         try:
             if not result.should_notify:
                 return
-            title = ("⚠ Security updates pending!"
-                     if result.security_urgent else "System updates available")
-            delivered = send_desktop_notification(title, result.message,
-                                                  urgent=result.security_urgent)
-            if not delivered:
+            self._notifier.close(self._reminder_notification_id)
+            nid = self._notifier.send(reminder_notification(result))
+            self._reminder_notification_id = max(nid, 0)
+            if not nid:
                 # Fall back to updating the sidebar badge + status so the
                 # user still sees it inside the app.
                 self._sidebar.set_update_badge(result.total)

@@ -12,7 +12,7 @@ from dnf_gui.core.flatpak_backend import FlatpakApp
 class FlatpakCard(QFrame):
     """Card displaying a Flatpak application."""
 
-    install_clicked = pyqtSignal(str)   # app_id
+    install_clicked = pyqtSignal(str, str)  # app_id, remotes
     remove_clicked = pyqtSignal(str)    # app_id
 
     def __init__(self, app: FlatpakApp, installed: bool = True, parent=None):
@@ -91,7 +91,8 @@ class FlatpakCard(QFrame):
             install_btn.setObjectName("success_button")
             install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             install_btn.clicked.connect(
-                lambda: self.install_clicked.emit(self._app.application_id)
+                lambda: self.install_clicked.emit(
+                    self._app.application_id, self._app.origin or "")
             )
             layout.addWidget(install_btn)
 
@@ -99,7 +100,7 @@ class FlatpakCard(QFrame):
 class FlatpakPage(QWidget):
     """Page for managing Flatpak applications."""
 
-    install_clicked = pyqtSignal(str)
+    install_clicked = pyqtSignal(str, str)  # app_id, remotes
     remove_clicked = pyqtSignal(str)
     update_all_clicked = pyqtSignal()
     remove_unused_clicked = pyqtSignal()
@@ -125,7 +126,7 @@ class FlatpakPage(QWidget):
         # ── Header (own left inset, closer to the sidebar) ──
         layout.addWidget(PageHeader(
             "Flatpak Manager",
-            "Install, update, and manage Flatpak applications from Flathub"))
+            "Install, Update and Manage Flatpak Apps from Flathub"))
 
         # ── Body ──
         body = QWidget()
@@ -318,9 +319,12 @@ class FlatpakPage(QWidget):
         else:
             self._search_status.hide()
             self._search_count.setText(f"{len(apps)} results")
+            installed = {a.application_id for a in (self._all_apps or [])}
             for app in apps[:80]:
-                card = FlatpakCard(app, installed=False)
+                is_installed = app.application_id in installed
+                card = FlatpakCard(app, installed=is_installed)
                 card.install_clicked.connect(self.install_clicked.emit)
+                card.remove_clicked.connect(self.remove_clicked.emit)
                 self._search_layout.insertWidget(self._search_layout.count() - 1, card)
 
     def set_unavailable(self):

@@ -1,7 +1,8 @@
 """Shared test setup: keep MainWindow tests hermetic and crash-free.
 
 Building a MainWindow schedules a real ``dnf check-upgrade --refresh``, a
-GitHub release check and a reminder check. Tests must not touch the network,
+GitHub release check and a reminder check, and it can send desktop
+notifications. Tests must not touch the network,
 and a window garbage-collected while one of those QThreads is still running
 aborts the whole pytest process ("QThread: Destroyed while thread is still
 running"). So: stub those workers, and keep every window alive until its
@@ -45,6 +46,12 @@ def _hermetic_main_window(monkeypatch):
     monkeypatch.setattr(worker.AppUpdateWorker, "run",
                         lambda self: self.finished.emit(None))
     monkeypatch.setattr(worker.ReminderCheckWorker, "run", lambda self: None)
+    # Never show real desktop notifications; tests patch send to inspect them.
+    from dnf_gui.core import notifications
+    monkeypatch.setattr(notifications.Notifier, "_dbus_notify",
+                        lambda self, n, replaces_id=0: 0)
+    monkeypatch.setattr(notifications, "_notify_send", lambda n: False)
+    monkeypatch.setattr(notifications.Notifier, "close", lambda self, nid: None)
     # Never enable, start or reload the real user's systemd units.
     from dnf_gui.core import app_settings
     monkeypatch.setattr(app_settings, "_systemctl_user", lambda *a: True)

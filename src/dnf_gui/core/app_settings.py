@@ -13,13 +13,15 @@ Owns:
    - ``updates/held_back`` (comma-separated globs for "Update without Major")
    - ``updates/favorite`` (update mode on the main Updates button)
    - ``upgrade/dismissed_release`` (Fedora release the upgrade banner was dismissed for)
-2. **Background checker** — ``dnf-gui --check --scheduled`` runs from a
-   per-user systemd service, started by a timer whose schedule follows
-   ``reminders/interval_hours`` and once at each login. The service only
-   runs inside a graphical session, so nothing fires before login. Each
+2. **Background checker** — ``dnf-gui --check --scheduled --wait`` runs
+   from a per-user systemd service, started by a timer whose schedule
+   follows ``reminders/interval_hours`` and once at each login. The service
+   only runs inside a graphical session, so nothing fires before login. Each
    run compares the last check with the interval and exits at once unless
    a check is due. A failed check (offline) is retried at most 3 times,
-   15 minutes apart. Nothing stays resident and nothing polls.
+   15 minutes apart. When it sends a reminder, the run stays until the
+   notification is clicked (opening the Updates page) or dismissed, or the
+   next check is near. Otherwise nothing stays resident and nothing polls.
    Without systemd, an XDG autostart entry runs the check at login instead.
 """
 
@@ -47,6 +49,7 @@ class ReminderResult:
     # Advisories left out of security_total because they can't install yet.
     security_waiting: int = 0
     should_notify: bool = False
+    title: str = ""  # notification title; ``message`` is its body
     message: str = ""
     # dnf couldn't check (e.g. offline): counts are unknown, and the
     # check doesn't count against the interval.
@@ -57,14 +60,26 @@ class ReminderResult:
         return self.dnf_updates + self.flatpak_updates
 
 
-def _checker_command(scheduled: bool = False) -> list[str]:
-    """argv for the check: the RPM/install.sh launcher if present, else
-    this interpreter + module (pip installs only ship fedora-dnf-gui)."""
+def _app_command() -> list[str]:
+    """argv that starts the app: the RPM/install.sh launcher if present,
+    else this interpreter + module (pip installs only ship fedora-dnf-gui)."""
     import shutil
     import sys
     launcher = shutil.which("dnf-gui")
-    argv = [launcher] if launcher else [sys.executable, "-m", "dnf_gui"]
-    return argv + (["--check", "--scheduled"] if scheduled else ["--check"])
+    return [launcher] if launcher else [sys.executable, "-m", "dnf_gui"]
+
+
+def _checker_command(scheduled: bool = False) -> list[str]:
+    """argv for the background check. ``--wait`` keeps it around so a
+    click on its notification can open the app."""
+    return _app_command() + (["--check", "--scheduled", "--wait"] if scheduled
+                             else ["--check", "--wait"])
+
+
+def reminder_wait_seconds(interval_hours: int) -> float:
+    """How long a reminder stays clickable: until shortly before the next
+    scheduled check (which sends a fresh one), at most a day."""
+    return max(1, min(int(interval_hours) - 1, 23)) * 3600
 
 
 def _quote_exec(argv: list[str]) -> str:
@@ -359,9 +374,11 @@ def _service_unit() -> str:
         "Description=DNF Package Manager update reminder\n"
         "Documentation=https://github.com/grpace/Fedora-DNF-GUI-Tool\n"
         "# Only inside a desktop session: before login there's nobody to\n"
-        "# notify, and the login start below catches up.\n"
+        "# notify, and the login start below catches up. Logging out stops a\n"
+        "# run that is waiting for its notification to be clicked.\n"
         "Requisite=graphical-session.target\n"
         "After=graphical-session.target\n"
+        "PartOf=graphical-session.target\n"
         "# The first run plus at most 3 retries an hour.\n"
         "StartLimitIntervalSec=1h\n"
         "StartLimitBurst=4\n"
@@ -369,7 +386,9 @@ def _service_unit() -> str:
         f"{unit_condition}"
         "\n"
         "[Service]\n"
-        "Type=oneshot\n"
+        "# exec, not oneshot: after a reminder the run waits (up to a day)\n"
+        "# for a click on it.\n"
+        "Type=exec\n"
         f"{exec_condition}"
         f"ExecStart={_quote_exec(_checker_command(scheduled=True))}\n"
         "# Exit code 2 means updates are pending, not a failure.\n"
@@ -379,7 +398,7 @@ def _service_unit() -> str:
         "RestartSec=15min\n"
         "Nice=10\n"
         "IOSchedulingClass=idle\n"
-        "TimeoutStartSec=15min\n"
+        "RuntimeMaxSec=1d\n"
         "\n"
         "[Install]\n"
         "# Also start at login; the run exits at once unless a check is due.\n"
@@ -431,22 +450,6 @@ def _autostart_entry() -> str:
         "X-KDE-AutostartScript=true\n"
         "NoDisplay=true\n"
     )
-
-
-def send_desktop_notification(title: str, body: str, urgent: bool = False) -> bool:
-    """Send a desktop notification. Returns True if one was delivered."""
-    # Preferred: notify-send (works headless under --check)
-    try:
-        cmd = ["notify-send", "--app-name=DNF Package Manager", title, body]
-        if urgent:
-            cmd[2:2] = ["--urgency=critical"]
-        result = subprocess.run(cmd, capture_output=True, timeout=5)
-        if result.returncode == 0:
-            return True
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
-    # Fallback is handled by the GUI caller (QSystemTray / QMessageBox).
-    return False
 
 
 def perform_background_check(settings: AppSettings | None = None,
@@ -508,29 +511,7 @@ def perform_background_check(settings: AppSettings | None = None,
     result.should_notify = system_notify or flatpak_notify
 
     if result.should_notify:
-        parts = []
-        if result.dnf_updates and (not security_only or result.security_total):
-            if security_only:
-                parts.append(f"{result.security_total} security")
-            else:
-                parts.append(f"{result.dnf_updates} system")
-        elif result.security_total:
-            parts.append(f"{result.security_total} security")
-
-        if result.flatpak_updates and settings.notify_flatpak:
-            parts.append(f"{result.flatpak_updates} Flatpak")
-
-        updates_str = " + ".join(parts) if parts else "updates"
-        if result.security_urgent:
-            result.message = (
-                f"⚠ {result.security_total} SECURITY updates pending "
-                f"({updates_str}) — open DNF Package Manager to install."
-            )
-        elif result.security_total:
-            result.message = (
-                f"{result.security_total} security advisories ready "
-                f"({updates_str}). Open DNF Package Manager to apply."
-            )
-        else:
-            result.message = f"{updates_str} updates available."
+        from dnf_gui.core.notifications import reminder_text
+        result.title, result.message = reminder_text(
+            result, security_only, settings.notify_flatpak)
     return result

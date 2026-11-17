@@ -116,6 +116,7 @@ class TerminalPage(QWidget):
 
     def set_success(self, message: str = ""):
         """Show success status."""
+        self._cancel_btn.setEnabled(False)  # nothing left to cancel
         self._status_indicator.setObjectName("term_dot_ok")
         self._status_text.setText(message or "Operation Completed Successfully")
         self._status_indicator.style().unpolish(self._status_indicator)
@@ -123,6 +124,7 @@ class TerminalPage(QWidget):
 
     def set_error(self, message: str = ""):
         """Show error status."""
+        self._cancel_btn.setEnabled(False)  # nothing left to cancel
         self._status_indicator.setObjectName("term_dot_err")
         self._status_text.setText(message or "Operation Failed")
         self._status_indicator.style().unpolish(self._status_indicator)

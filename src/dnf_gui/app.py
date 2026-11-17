@@ -1,33 +1,59 @@
 """Application entry point — initializes and runs the DNF GUI."""
 
+import os
 import sys
 
 
-def _run_headless_check() -> int:
+# Pages ``--page`` (and notification clicks) can open; sidebar keys.
+PAGE_CHOICES = ("updates", "installed", "flatpak", "sysinfo", "tools",
+                "repos", "history", "terminal", "settings")
+
+
+def _parse_args(argv: list[str] | None = None):
+    """Our options; anything unknown (e.g. Qt's -platform) is left for Qt."""
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog="dnf-gui",
+        description="DNF Package Manager: update and manage Fedora with "
+                    "real DNF and Flatpak commands.")
+    parser.add_argument("--page", choices=PAGE_CHOICES,
+                        help="open this page (or switch the running window to it)")
+    check = parser.add_argument_group("background reminder")
+    check.add_argument("--check", action="store_true",
+                       help="check for updates without opening a window and "
+                            "send a reminder if any are waiting")
+    check.add_argument("--security-only", action="store_true",
+                       help="with --check: only remind about security updates")
+    # Run by the systemd timer: the timer's schedule is the interval, so
+    # only skip if the app itself checked recently.
+    check.add_argument("--scheduled", action="store_true", help=argparse.SUPPRESS)
+    check.add_argument("--wait", action="store_true",
+                       help="with --check: stay until the reminder is clicked "
+                            "or dismissed, so a click can open the Updates page")
+    args, _unknown = parser.parse_known_args(
+        sys.argv[1:] if argv is None else argv)
+    return args
+
+
+def _run_headless_check(args=None) -> int:
     """Run `dnf-gui --check` — headless reminder run by the background timer.
 
     Returns process exit code: 0 = no updates, 2 = updates pending,
-    1 = error. Never opens a window.
+    1 = error. Never opens a window (a click on the reminder starts the
+    app as a separate process).
     """
-    import argparse
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--check", action="store_true")
-    parser.add_argument("--security-only", action="store_true")
-    # Run by the systemd timer: the timer's schedule is the interval, so
-    # only skip if the app itself checked recently.
-    parser.add_argument("--scheduled", action="store_true")
-    args, _ = parser.parse_known_args()
+    args = args or _parse_args()
     if not args.check:
         return -1  # not a check invocation
 
     # Headless check needs no QApplication.
     from dnf_gui.core.app_settings import (
         AppSettings, notification_server_available, perform_background_check,
-        send_desktop_notification, wait_for_desktop,
+        reminder_wait_seconds, wait_for_desktop,
     )
+    from dnf_gui.core import notifications
     settings = AppSettings()
     # Respect the configured interval unless forced via env (useful for testing)
-    import os
     force = os.environ.get("DNF_GUI_FORCE_CHECK") == "1"
     if not force:
         if not settings.reminders_enabled:
@@ -54,15 +80,27 @@ def _run_headless_check() -> int:
           f"Flatpak: {result.flatpak_updates}, "
           f"security: {result.security_total}")
     if result.should_notify:
-        title = ("Security updates pending!"
-                 if result.security_urgent else "System updates available")
-        if not send_desktop_notification(title, result.message,
-                                         urgent=result.security_urgent):
+        notification = notifications.reminder_notification(result)
+        if args.wait:
+            print("DNF GUI: reminder sent; waiting for it to be clicked "
+                  "or dismissed.", flush=True)
+            outcome = notifications.notify_and_wait(
+                notification,
+                reminder_wait_seconds(settings.check_interval_hours))
+        else:
+            # Nothing would be left to answer a click, so offer none.
+            notification.clickable = False
+            outcome = notifications.Activation(
+                delivered=notifications.send_once(notification))
+        if not outcome.delivered:
             # Undelivered: keep the check due so the reminder isn't lost.
             settings.set("reminders/last_check", previous_check or "")
             print("DNF GUI: notification could not be delivered; will retry.")
             return 1
-        print(f"Notify: {result.message}")
+        print(f"Notify: {result.title}: {result.message}")
+        if outcome.page is not None:
+            print(f"DNF GUI: reminder clicked; opening {outcome.page or 'the app'}.")
+            notifications.launch_app(outcome.page, outcome.token)
         return 2
     if result.check_failed:
         return 1
@@ -72,7 +110,8 @@ def _run_headless_check() -> int:
 
 def main():
     """Launch the Fedora DNF GUI application."""
-    check_code = _run_headless_check()
+    args = _parse_args()
+    check_code = _run_headless_check(args)
     if check_code >= 0:
         sys.exit(check_code)
 
@@ -97,6 +136,14 @@ def main():
     if hasattr(app, "setDesktopFileName"):
         app.setDesktopFileName("dnf-gui.desktop")
 
+    # One window per user: a second launch (the menu, or a clicked
+    # notification) brings the running window to the requested page.
+    from dnf_gui.core import single_instance
+    request = {"page": args.page or "",
+               "token": os.environ.get("XDG_ACTIVATION_TOKEN", "")}
+    if single_instance.forward_to_running(request):
+        sys.exit(0)
+
     # Set default font
     font = QFont("Inter", 10)
     font.setStyleHint(QFont.StyleHint.SansSerif)
@@ -106,7 +153,12 @@ def main():
     app.setStyleSheet(get_stylesheet(resolve_mode()))
 
     # Create and show main window
-    window = MainWindow()
+    window = MainWindow(initial_page=args.page or "")
+    server = single_instance.InstanceServer(app)
+    server.request_received.connect(
+        lambda req: window.activate_request(req.get("page", ""),
+                                            req.get("token", "")))
+    server.listen()
     window.show()
 
     code = app.exec()
@@ -114,7 +166,6 @@ def main():
         # A background thread (e.g. a long dnf call) outlived the window.
         # Normal interpreter shutdown would destroy it mid-run and abort,
         # so exit hard; its child processes run in their own sessions.
-        import os
         sys.stdout.flush()
         sys.stderr.flush()
         os._exit(code)

@@ -209,9 +209,9 @@ class UpdatesPage(QWidget):
         self._filter_input.textChanged.connect(self._render_list)
         list_header.addWidget(self._filter_input)
         self._show_combo = QComboBox()
-        self._show_combo.addItem("All updates", "all")
-        self._show_combo.addItem("Security updates", "security")
-        self._show_combo.addItem("Major updates", "held")
+        self._show_combo.addItem("All Updates", "all")
+        self._show_combo.addItem("Security Updates", "security")
+        self._show_combo.addItem("Major Updates", "held")
         self._show_combo.setToolTip("Show only some of the pending updates")
         self._show_combo.currentIndexChanged.connect(self._render_list)
         list_header.addWidget(self._show_combo)
@@ -430,7 +430,9 @@ class UpdatesPage(QWidget):
         self._show_blocked_banner()
         self._flatpak_count = len(flatpaks) if flatpaks else 0
         self._flatpak_card._val_label.setText(str(self._flatpak_count))
-        if not (dnf_info and dnf_info.last_checked):
+        if dnf_info is not None and getattr(dnf_info, "check_failed", False):
+            self._last_check_card._val_label.setText("Failed")
+        elif not (dnf_info and dnf_info.last_checked):
             self._last_check_card._val_label.setText("Today")
 
         self.display_updates(dnf_info)
@@ -509,6 +511,10 @@ class UpdatesPage(QWidget):
                 self._empty_label.setText(
                     f"System packages are up to date. {self._flatpak_count} "
                     "Flatpak update(s) available: choose Update Everything.")
+            elif getattr(self._update_info, "check_failed", False):
+                self._empty_label.setText(
+                    "Couldn't check for system updates. Check your internet "
+                    "connection, then choose Check for Updates.")
             elif self._update_info is not None:
                 self._empty_label.setText("Your system is completely up to date!")
             self._list_layout.insertWidget(0, self._empty_label)

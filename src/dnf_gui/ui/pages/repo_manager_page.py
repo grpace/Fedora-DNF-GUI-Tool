@@ -94,7 +94,7 @@ class RepoManagerPage(QWidget):
         # ── Header (own left inset, closer to the sidebar) ──
         layout.addWidget(PageHeader(
             "Repository Manager",
-            "Manage DNF package repositories, enable/disable repos, and add COPRs"))
+            "Enable, Disable and Add DNF Repositories and COPRs"))
 
         # ── Body ──
         body = QWidget()

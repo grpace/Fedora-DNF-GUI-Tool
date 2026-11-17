@@ -19,6 +19,17 @@ class FlatpakApp:
     is_runtime: bool = False
 
 
+def pick_remote(remotes: str) -> str:
+    """The remote to install from: Flathub when the app is there, else
+    the first remote search listed it in."""
+    import re
+    names = [r.strip() for r in (remotes or "").split(",")]
+    names = [r for r in names if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", r)]
+    if not names or "flathub" in names:
+        return "flathub"
+    return names[0]
+
+
 class FlatpakBackend:
     """Interface to Flatpak CLI for managing Flatpak applications."""
 
@@ -72,9 +83,10 @@ class FlatpakBackend:
 
     # ─── Commands (for CommandWorker) ───────────────────────────────
 
-    def build_install_command(self, app_id: str) -> list[str]:
-        """Build command to install a Flatpak app."""
-        return [self._flatpak, "install", "-y", "flathub", app_id]
+    def build_install_command(self, app_id: str, remotes: str = "") -> list[str]:
+        """Build command to install a Flatpak app from one of ``remotes``
+        (search's comma-separated remotes column)."""
+        return [self._flatpak, "install", "-y", pick_remote(remotes), app_id]
 
     def build_remove_command(self, app_id: str) -> list[str]:
         """Build command to remove a Flatpak app."""

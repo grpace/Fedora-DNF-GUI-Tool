@@ -23,7 +23,7 @@ Go to **Settings → Discover Update Checks** and click **Use This App Instead**
 - hides Discover's background update checker for your account (a `Hidden=true` override in `~/.config/autostart/org.kde.discover.notifier.desktop`), and
 - sets Discover's own update notifications to "never" (`~/.config/PlasmaDiscoverUpdates`).
 
-The checker that's already running stops at your next login. Click **Advanced Options → Stop Checker Now** to stop it immediately.
+The takeover also stops the checker that's already running. If it ever comes back (for example after you restore Discover and take over again), **Advanced Options → Stop Checker Now** stops it.
 
 ### If Discover already scheduled an update
 
@@ -50,12 +50,12 @@ These changes survive Discover package updates. PackageKit itself keeps running,
 
 ## 3. Set up reminders
 
-Under **Settings → Update Reminders**, turn on **Remind Me About Pending Updates** and choose how often to check. A systemd user timer then runs `dnf-gui --check` on that schedule (at 9 AM), even while the app is closed, and sends a desktop notification when updates are waiting. It also takes a quick look at login and checks only if one is due, so a check missed while the PC was off or asleep isn't lost. Nothing stays running or polls between checks, and nothing runs before you log in. If you're offline, it retries at most three times, 15 minutes apart.
+Under **Settings → Update Reminders**, turn on **Remind Me About Pending Updates** and choose how often to check. A systemd user timer then runs `dnf-gui --check` on that schedule (at 9 AM), even while the app is closed, and sends a desktop notification when updates are waiting. Click the notification, or its **View Updates** button, to open the Updates page with a fresh scan; if the app is already open, its window comes forward. It also takes a quick look at login and checks only if one is due, so a check missed while the PC was off or asleep isn't lost. Nothing polls, and nothing runs before you log in. After sending a reminder, the check stays around (at most until shortly before the next check) only so it can answer a click, then exits. If you're offline, it retries at most three times, 15 minutes apart.
 
 - **Security Updates Only** keeps quiet about routine updates and only notifies you about security fixes.
 - **Include Flatpak Updates** notifies you about Flatpak updates either way.
 
-Click **Send Test Notification** to see what it looks like.
+Click **Send Test Notification** to see what it looks like, and click the notification to check that it opens the Updates page.
 
 ## 4. Pick your update style
 

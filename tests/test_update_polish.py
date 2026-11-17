@@ -82,7 +82,7 @@ class TestRebootRequired(unittest.TestCase):
         backend = _backend()
 
         def fake_run(cmd, **kwargs):
-            if cmd[0] == "needs-restarting":
+            if "needs-restarting" in cmd:  # dnf5 built-in and legacy binary
                 raise FileNotFoundError()
             raise AssertionError("should not reach rpm query")
 
@@ -95,7 +95,7 @@ class TestRebootRequired(unittest.TestCase):
         backend = _backend()
 
         def fake_run(cmd, **kwargs):
-            if cmd[0] == "needs-restarting":
+            if "needs-restarting" in cmd:  # dnf5 built-in and legacy binary
                 raise FileNotFoundError()
             if cmd[0] == "rpm":
                 return MagicMock(returncode=0,
@@ -114,7 +114,7 @@ class TestRebootRequired(unittest.TestCase):
         backend = _backend()
 
         def fake_run(cmd, **kwargs):
-            if cmd[0] == "needs-restarting":
+            if "needs-restarting" in cmd:  # dnf5 built-in and legacy binary
                 raise FileNotFoundError()
             if cmd[0] == "rpm":
                 return MagicMock(returncode=0,
@@ -129,6 +129,19 @@ class TestRebootRequired(unittest.TestCase):
                            return_value="6.18.5-200.fc44.x86_64"):
                     self.assertFalse(backend.reboot_required())
 
+    def test_dnf4_skips_the_dnf_subcommand(self):
+        backend = _backend()
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return MagicMock(returncode=0)
+
+        with patch.object(DNFBackend, "is_dnf5", False), \
+                patch("dnf_gui.core.dnf_backend.subprocess.run", side_effect=fake_run):
+            self.assertFalse(backend.reboot_required())
+        self.assertEqual(calls, [["needs-restarting", "-r"]])
+
     def test_never_raises(self):
         backend = _backend()
         with patch("dnf_gui.core.dnf_backend.subprocess.run",
@@ -138,3 +151,64 @@ class TestRebootRequired(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFailedUpdateCheck(unittest.TestCase):
+    """An offline scan must not claim the system is up to date."""
+
+    def test_failed_check_is_not_up_to_date(self):
+        from dnf_gui.core.package import UpdateInfo
+        from dnf_gui.ui.main_window import MainWindow
+        win = MainWindow()
+        win._sidebar.set_update_badge(5)
+        win._on_combined_checked({"dnf": UpdateInfo(check_failed=True),
+                                  "flatpak": [], "security": None})
+        page = win._updates_page
+        self.assertIn("Couldn't check", page._empty_label.text())
+        self.assertNotIn("up to date", page._empty_label.text())
+        self.assertEqual(page._last_check_card._val_label.text(), "Failed")
+        self.assertIsNone(win._updates_cache)  # next visit rescans
+
+
+class TestCloseDuringOperation(unittest.TestCase):
+    """Closing mid-operation must not exit: dnf writes to our pipe."""
+
+    def _close(self, win):
+        from PyQt6.QtGui import QCloseEvent
+        from PyQt6.QtWidgets import QMessageBox
+        event = QCloseEvent()
+        with patch.object(win, "_operation_running", return_value=True), \
+                patch.object(QMessageBox, "question",
+                             return_value=QMessageBox.StandardButton.Yes):
+            win.closeEvent(event)
+        return event
+
+    def test_close_hides_and_keeps_running(self):
+        from PyQt6.QtWidgets import QApplication
+        from dnf_gui.ui.main_window import MainWindow
+        win = MainWindow()
+        win.show()
+        event = self._close(win)
+        self.assertFalse(event.isAccepted())
+        self.assertFalse(win.isVisible())
+        self.assertFalse(QApplication.instance().quitOnLastWindowClosed())
+        # A failure brings the window back with the output.
+        win._operation_finished(failed=True)
+        self.assertTrue(win.isVisible())
+        self.assertTrue(QApplication.instance().quitOnLastWindowClosed())
+        from dnf_gui.ui.main_window import PAGE_TERMINAL
+        self.assertEqual(win._stack.currentIndex(), PAGE_TERMINAL)
+        win.hide()
+
+    def test_success_quits_once_done(self):
+        from PyQt6.QtWidgets import QApplication
+        from dnf_gui.ui.main_window import MainWindow
+        win = MainWindow()
+        win.show()
+        self._close(win)
+        with patch.object(QApplication, "quit") as quit_app, \
+                patch("dnf_gui.ui.main_window.QTimer.singleShot",
+                      side_effect=lambda ms, fn: fn()):
+            win._operation_finished()
+        quit_app.assert_called_once()
+        QApplication.instance().setQuitOnLastWindowClosed(True)

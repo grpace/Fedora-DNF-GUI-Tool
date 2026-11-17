@@ -33,6 +33,12 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.5.0" date="2026-11-16">
+      <description>
+        <p>Notifications are clickable. Clicking an update reminder, or its View Updates button, opens the Updates page with a fresh scan, even when the reminder came from the background check while the app was closed. Notifications show the app's icon and clearer text, and a failed operation's notification opens its output. Opening the app again brings the existing window forward.</p>
+        <p>Closing the window during an update no longer stops dnf partway: the operation finishes in the background. An offline update check no longer claims the system is up to date. On dnf5, the reboot banner notices core library updates again, and package details, the package list and history order are fixed.</p>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-11-01">
       <description>
         <p>Explains security updates that dnf skips because another package isn't ready for them yet, such as RPM Fusion's libheif-freeworld. The Updates page names the package holding them back and tags the affected updates Waiting. Security Only says when there's nothing to install yet, and Force Install lists exactly what it would remove. Every update run now reports skipped packages, and reminders no longer warn about updates that can't be installed yet.</p>

@@ -213,15 +213,53 @@ class TestMainWindowFeatures(unittest.TestCase):
     def test_notifies_only_when_unfocused(self):
         from dnf_gui.ui import main_window as mw
         win = mw.MainWindow()
-        with patch.object(mw, "send_desktop_notification") as notify, \
+        with patch.object(win._notifier, "send") as notify, \
              patch.object(win, "isActiveWindow", return_value=True):
             win._notify_if_unfocused(0, "System Upgrade")
         notify.assert_not_called()
-        with patch.object(mw, "send_desktop_notification") as notify, \
+        with patch.object(win._notifier, "send") as notify, \
              patch.object(win, "isActiveWindow", return_value=False):
             win._notify_if_unfocused(1, "System Upgrade")
-        self.assertEqual(notify.call_args.args[0], "System Upgrade failed")
-        self.assertTrue(notify.call_args.kwargs["urgent"])
+        sent = notify.call_args.args[0]
+        self.assertEqual(sent.title, "System Upgrade")
+        self.assertIn("Failed", sent.body)
+        self.assertEqual(sent.page, "terminal")  # click shows the output
+        self.assertIn(("terminal", "Show Output"), sent.actions)
+
+    def test_success_notification_just_raises_the_window(self):
+        from dnf_gui.ui import main_window as mw
+        win = mw.MainWindow()
+        with patch.object(win._notifier, "send") as notify, \
+             patch.object(win, "isActiveWindow", return_value=False):
+            win._notify_if_unfocused(0, "System Upgrade")
+        sent = notify.call_args.args[0]
+        self.assertEqual(sent.page, "")
+        self.assertEqual(sent.urgency, "normal")
+
+
+class TestFlatpakRemotes(unittest.TestCase):
+    def test_prefers_flathub_then_the_listed_remote(self):
+        from dnf_gui.core.flatpak_backend import FlatpakBackend, pick_remote
+        self.assertEqual(pick_remote(""), "flathub")
+        self.assertEqual(pick_remote("fedora,flathub"), "flathub")
+        self.assertEqual(pick_remote("fedora"), "fedora")
+        self.assertEqual(pick_remote("--user"), "flathub")  # never an option
+        cmd = FlatpakBackend().build_install_command("org.example.App", "fedora")
+        self.assertEqual(cmd[-2:], ["fedora", "org.example.App"])
+
+    def test_search_marks_installed_apps(self):
+        from PyQt6.QtWidgets import QPushButton
+        from dnf_gui.core.flatpak_backend import FlatpakApp
+        from dnf_gui.ui.pages.flatpak_page import FlatpakPage
+        page = FlatpakPage()
+        page._all_apps = [FlatpakApp(name="A", application_id="org.a.A")]
+        page.display_search_results([
+            FlatpakApp(name="A", application_id="org.a.A", origin="flathub"),
+            FlatpakApp(name="B", application_id="org.b.B", origin="fedora")])
+        labels = [b.text() for b in page.findChildren(QPushButton)
+                  if b.text() in ("Install", "Remove")]
+        self.assertIn("Remove", labels)
+        self.assertIn("Install", labels)
 
 
 if __name__ == "__main__":

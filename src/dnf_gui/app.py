@@ -110,6 +110,33 @@ def _run_headless_check(args=None) -> int:
     return 0
 
 
+def _show_load_error(error) -> None:
+    """Kirigami (or another QML module) is missing: say which packages."""
+    from PyQt6.QtWidgets import QMessageBox
+    from dnf_gui.ui.window import REQUIRED_PACKAGES
+    QMessageBox.critical(
+        None, "DNF Package Manager Can't Start",
+        "The app's interface couldn't load. It needs these Fedora packages:\n\n"
+        + "\n".join(f"  • {p}" for p in REQUIRED_PACKAGES)
+        + "\n\nInstall them with:\n  sudo dnf install " + " ".join(REQUIRED_PACKAGES)
+        + f"\n\nDetails: {error}")
+
+
+def _install_excepthook(controller) -> None:
+    """PyQt aborts on an unhandled exception in a slot. QML calls slots
+    directly, so log it and tell the user instead."""
+    import traceback
+
+    def hook(kind, value, tb):
+        traceback.print_exception(kind, value, tb)
+        try:
+            controller.report_exception(
+                f"Something went wrong: {value}. Details were written to the log.")
+        except Exception:
+            pass
+    sys.excepthook = hook
+
+
 def main():
     """Launch the Fedora DNF GUI application."""
     args = _parse_args()
@@ -117,19 +144,19 @@ def main():
     if check_code >= 0:
         sys.exit(check_code)
 
+    # The KDE look for Qt Quick Controls; must be set before Qt loads.
+    os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "org.kde.desktop")
+
     from PyQt6.QtWidgets import QApplication
     from PyQt6.QtCore import Qt
-    from PyQt6.QtGui import QFont
 
     from dnf_gui import __version__
-    from dnf_gui.ui.main_window import MainWindow
-    from dnf_gui.ui.styles.theme import get_stylesheet, resolve_mode
 
-    # Enable high-DPI scaling
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
 
+    # QApplication (not QGuiApplication): the desktop style needs widgets.
     app = QApplication(sys.argv)
     app.setApplicationName("DNF Package Manager")
     app.setOrganizationName("Greg.Tech")
@@ -138,6 +165,8 @@ def main():
     # The desktop entry's id, without ".desktop" (Qt warns and strips it).
     # Wayland uses it as the app id to match the window to its icon.
     app.setDesktopFileName(DESKTOP_FILE_NAME)
+    from PyQt6.QtGui import QIcon
+    app.setWindowIcon(QIcon.fromTheme("dnf-gui", QIcon.fromTheme("system-software-update")))
 
     # One window per user: a second launch (the menu, or a clicked
     # notification) brings the running window to the requested page.
@@ -147,25 +176,31 @@ def main():
     if single_instance.forward_to_running(request):
         sys.exit(0)
 
-    # Set default font
-    font = QFont("Inter", 10)
-    font.setStyleHint(QFont.StyleHint.SansSerif)
-    app.setFont(font)
+    from dnf_gui.ui import window as ui_window
+    from dnf_gui.ui.controllers.app_controller import AppController
 
-    # Apply theme (follows KDE light/dark unless the user toggled it)
-    app.setStyleSheet(get_stylesheet(resolve_mode()))
+    controller = AppController(initial_page=args.page or "")
+    _install_excepthook(controller)
+    try:
+        engine, window = ui_window.load(controller)
+    except ui_window.UiLoadError as e:
+        print(f"DNF GUI: the interface failed to load:\n{e}", file=sys.stderr)
+        _show_load_error(e)
+        controller.shutdown_threads()
+        sys.exit(1)
 
-    # Create and show main window
-    window = MainWindow(initial_page=args.page or "")
     server = single_instance.InstanceServer(app)
     server.request_received.connect(
-        lambda req: window.activate_request(req.get("page", ""),
-                                            req.get("token", "")))
+        lambda req: controller.activate(req.get("page", ""), req.get("token", "")))
     server.listen()
+    controller.set_instance_server(server)
     window.show()
 
     code = app.exec()
-    if getattr(window, "_detached_threads", None):
+    controller.shutdown_threads()
+    detached = controller.detached_threads
+    ui_window.unload(engine, controller)
+    if detached:
         # A background thread (e.g. a long dnf call) outlived the window.
         # Normal interpreter shutdown would destroy it mid-run and abort,
         # so exit hard; its child processes run in their own sessions.

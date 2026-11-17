@@ -33,6 +33,17 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="2.0.0" date="2026-11-17">
+      <description>
+        <p>A new native KDE Plasma interface built with Kirigami. It follows your Plasma colors, fonts and light or dark setting.</p>
+        <ul>
+          <li>The Updates page shows one clear status and one main button, with updates grouped into security fixes, major updates, everything else and Flatpak apps.</li>
+          <li>Package and transaction details open beside the list.</li>
+          <li>Command output follows you between pages, with live progress, Cancel and Copy Output.</li>
+          <li>Every page is redesigned, with keyboard and screen reader support throughout.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.1" date="2026-11-16">
       <description>
         <p>Fixes a warning Qt printed at every start about the app's desktop file name.</p>

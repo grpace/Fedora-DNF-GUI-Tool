@@ -5,6 +5,43 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-17
+
+A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami). Every page is redesigned; the commands it runs, the passwordless rule, the self-updater's checks and the background reminders are unchanged.
+
+### Added
+
+- **Package details beside the list.** Clicking an update or installed package opens its details (the pending update, security status and `dnf info`) next to the list; transaction details open next to History.
+- **Output that follows you.** Running commands show in a bar at the bottom of every page, with the current step and progress parsed from dnf, Cancel, Copy Output and the full log. It stays after the command ends so you can read the result, and opens by itself when something fails. `--page terminal` and notification clicks open it.
+- **Clear states on the Updates page:** checking, updates ready, up to date (with when it last checked) and couldn't check (never shown as up to date).
+- Filter the update list by All, Security, Major or Flatpak.
+- The sidebar collapses to icons on narrower windows, so a list and its details fit side by side on a laptop.
+- After installing its own update, the app offers to restart itself into the new version.
+- Settings → About → Check for App Updates.
+
+### Changed
+
+- **Native look.** The app follows your Plasma color scheme, accent, fonts and light or dark setting. The in-app light/dark toggle is gone; change it in System Settings.
+- **The Updates page has one main button** (your chosen update mode, with its count) and **Other Ways to Update** for the rest. Updates are grouped into Security Fixes, Major Updates, Other Updates and Flatpak Apps. Each row has one Update button and a menu for Show Details, Treat as Major and Copy Name.
+- **Confirmations appear one at a time** and never stack. Destructive ones (remove, force, undo, restart) focus Cancel so Enter can't confirm them by accident, and long package lists scroll.
+- Installed and Flatpak have an instant filter for what's installed and a separate search for new packages (Enter to search, never on every keystroke).
+- Repository switches only change once dnf has actually changed the repository.
+- Settings uses KDE's settings layout; reminder changes apply as you make them.
+- Cancel works even when clicked right after an operation starts.
+- `install.sh` installs the KDE packages the interface needs and no longer falls back to pip (pip's PyQt6 can't load Kirigami).
+
+### Removed
+
+- The Terminal page (replaced by the output bar) and the custom light/dark theme.
+
+### Fixed
+
+- On dnf5, upgrade previews counted every pending update as one package, so confirmations and the Updates summary showed "1 packages" and the wrong download size.
+- Updates dnf leaves out because their own repository published them before something they need (for example an RPM Fusion ffmpeg build) are now reported as skipped, instead of the run looking fully successful.
+- Confirmations say "No password needed" when your passwordless rule covers the command, instead of always promising a password prompt.
+- **Later** on the restart banner now lasts until the next check instead of coming back every time you open Updates.
+- When the passwordless rule no longer matched (for example after it was removed outside the app), the retry ran `sudo -n` again instead of asking for your password with pkexec. It now falls back to the password prompt as intended.
+
 ## [1.5.1] - 2026-11-16
 
 ### Fixed
@@ -202,6 +239,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Packaging** — RPM spec file, build script, and install script
 - **Auto-Update** — Update checker with direct RPM install via DNF
 
+[2.0.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v2.0.0
 [1.5.1]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.5.1
 [1.5.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.5.0
 [1.4.0]: https://github.com/grpace/Fedora-DNF-GUI-Tool/releases/tag/v1.4.0

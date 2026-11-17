@@ -323,6 +323,20 @@ def _table_sections(output: str) -> dict[str, list[str]]:
     return sections
 
 
+def parse_unavailable_updates(output: str) -> list[str]:
+    """Updates dnf left out only because their own dependencies are broken.
+
+    These are the packages under "Skipping packages with broken
+    dependencies" that :func:`parse_blocked_updates` doesn't already report
+    (there they are the *cause*, for packages skipped as conflicts): for
+    example an RPM Fusion build published before the library it needs.
+    """
+    sections = _table_sections(output)
+    if sections.get("conflict"):
+        return []
+    return list(sections.get("broken", []))
+
+
 def parse_blocked_updates(output: str) -> BlockedUpdates | None:
     """Read which updates dnf skipped, and why, from upgrade output."""
     sections = _table_sections(output)

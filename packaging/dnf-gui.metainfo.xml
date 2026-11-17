@@ -24,12 +24,12 @@
   <launchable type="desktop-id">dnf-gui.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <caption>System updates (dark theme)</caption>
+      <caption>Updates grouped by security fixes and major updates (dark)</caption>
       <image>https://raw.githubusercontent.com/grpace/Fedora-DNF-GUI-Tool/master/docs/screenshots/updates-dark.png</image>
     </screenshot>
     <screenshot>
-      <caption>Searching the repositories (light theme)</caption>
-      <image>https://raw.githubusercontent.com/grpace/Fedora-DNF-GUI-Tool/master/docs/screenshots/packages-search-light.png</image>
+      <caption>Package details beside the update list (light)</caption>
+      <image>https://raw.githubusercontent.com/grpace/Fedora-DNF-GUI-Tool/master/docs/screenshots/updates-details-light.png</image>
     </screenshot>
   </screenshots>
   <releases>

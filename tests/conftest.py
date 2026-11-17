@@ -1,18 +1,25 @@
-"""Shared test setup: keep MainWindow tests hermetic and crash-free.
+"""Shared test setup: keep AppController tests hermetic and crash-free.
 
-Building a MainWindow schedules a real ``dnf check-upgrade --refresh``, a
+Building an AppController schedules a real ``dnf check-upgrade --refresh``, a
 GitHub release check and a reminder check, and it can send desktop
 notifications. Tests must not touch the network,
 and a window garbage-collected while one of those QThreads is still running
 aborts the whole pytest process ("QThread: Destroyed while thread is still
 running"). So: stub those workers, and keep every window alive until its
 threads have finished.
+
+``answer(controller, *choices)`` scripts the answers to the controller's
+prompts (confirmations are async in the QML UI; tests answer at once).
 """
 
 import os
 import tempfile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# The QML smoke tests load the real UI: same style the app sets, and the
+# software renderer so no GPU is needed.
+os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "org.kde.desktop")
+os.environ.setdefault("QT_QUICK_BACKEND", "software")
 
 # Never read or write the real user's settings or autostart entries.
 _CONFIG_HOME = tempfile.mkdtemp(prefix="dnf-gui-tests-")
@@ -31,11 +38,11 @@ _APP = QApplication.instance() or QApplication([])
 
 
 @pytest.fixture(autouse=True)
-def _hermetic_main_window(monkeypatch):
+def _hermetic_controller(monkeypatch):
     from PyQt6.QtCore import QThread
     from dnf_gui.core import worker
     from dnf_gui.core.package import UpdateInfo
-    from dnf_gui.ui import main_window
+    from dnf_gui.ui.controllers import app_controller
 
     monkeypatch.setattr(
         worker.CombinedUpdateCheckWorker, "run",
@@ -56,16 +63,32 @@ def _hermetic_main_window(monkeypatch):
     from dnf_gui.core import app_settings
     monkeypatch.setattr(app_settings, "_systemctl_user", lambda *a: True)
 
-    windows = []
-    original_init = main_window.MainWindow.__init__
+    controllers = []
+    original_init = app_controller.AppController.__init__
 
     def tracking_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
-        windows.append(self)
+        controllers.append(self)
 
-    monkeypatch.setattr(main_window.MainWindow, "__init__", tracking_init)
+    monkeypatch.setattr(app_controller.AppController, "__init__", tracking_init)
     yield
-    for window in windows:
-        for thread in window.findChildren(QThread):
+    for controller in controllers:
+        controller._reminder_timer.stop()
+        for thread in controller.findChildren(QThread):
             thread.wait(10000)
-    windows.clear()
+    controllers.clear()
+    # Collect now: a controller left for later GC could be destroyed while a
+    # later test's event loop has started one of its threads.
+    import gc
+    gc.collect()
+
+
+def answer(controller, *choices):
+    """Answer the next prompts with ``choices`` ("yes", "no", "ok", or a
+    button id); later prompts get their default. Returns the shown list."""
+    queue = list(choices)
+
+    def auto(prompt):
+        return queue.pop(0) if queue else prompt.default
+    controller.prompts.auto_answer = auto
+    return controller.prompts.shown

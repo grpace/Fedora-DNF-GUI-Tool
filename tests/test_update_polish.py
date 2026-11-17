@@ -1,11 +1,15 @@
 """Tests for upgrade previews and reboot detection."""
 
+import gc
 import subprocess
 import unittest
 from unittest.mock import patch, MagicMock
 
+from PyQt6.QtWidgets import QApplication
+
 from dnf_gui.core.package import UpgradePreview
 from dnf_gui.core.dnf_backend import DNFBackend
+from tests.conftest import answer
 
 
 def _backend():
@@ -149,8 +153,13 @@ class TestRebootRequired(unittest.TestCase):
             self.assertFalse(backend.reboot_required())
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _controller():
+    # Free controllers left by earlier tests now, while none of their
+    # threads run: a later processEvents() would otherwise fire their
+    # pending start-up timers and GC could destroy a running QThread.
+    gc.collect()
+    from dnf_gui.ui.controllers.app_controller import AppController
+    return AppController()
 
 
 class TestFailedUpdateCheck(unittest.TestCase):
@@ -158,57 +167,75 @@ class TestFailedUpdateCheck(unittest.TestCase):
 
     def test_failed_check_is_not_up_to_date(self):
         from dnf_gui.core.package import UpdateInfo
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        win._sidebar.set_update_badge(5)
-        win._on_combined_checked({"dnf": UpdateInfo(check_failed=True),
-                                  "flatpak": [], "security": None})
-        page = win._updates_page
-        self.assertIn("Couldn't check", page._empty_label.text())
-        self.assertNotIn("up to date", page._empty_label.text())
-        self.assertEqual(page._last_check_card._val_label.text(), "Failed")
-        self.assertIsNone(win._updates_cache)  # next visit rescans
+        app = _controller()
+        app.set_update_badge(5)
+        app.updates._on_checked({"dnf": UpdateInfo(check_failed=True),
+                                 "flatpak": [], "security": None})
+        updates = app.updates
+        self.assertEqual(updates.phase, "failed")
+        self.assertIn("Couldn't Check", updates.headline)
+        self.assertNotIn("up to date", (updates.headline + updates.summary).lower())
+        self.assertEqual(app.updateBadge, 5)  # unknown, not zero
+        self.assertIsNone(updates._cache)  # next visit rescans
 
 
 class TestCloseDuringOperation(unittest.TestCase):
     """Closing mid-operation must not exit: dnf writes to our pipe."""
 
-    def _close(self, win):
-        from PyQt6.QtGui import QCloseEvent
-        from PyQt6.QtWidgets import QMessageBox
-        event = QCloseEvent()
-        with patch.object(win, "_operation_running", return_value=True), \
-                patch.object(QMessageBox, "question",
-                             return_value=QMessageBox.StandardButton.Yes):
-            win.closeEvent(event)
-        return event
+    def setUp(self):
+        from PyQt6.QtGui import QWindow
+        self.app = _controller()
+        self.window = QWindow()
+        self.app.set_window(self.window)
+        self.window.show()
+        self.addCleanup(self.window.hide)
+        self.addCleanup(QApplication.instance().setQuitOnLastWindowClosed, True)
+
+    def _close(self, *choices):
+        shown = answer(self.app, *choices)
+        with patch.object(self.app.runner, "running", return_value=True):
+            accepted = self.app.requestClose()
+        return accepted, shown
 
     def test_close_hides_and_keeps_running(self):
-        from PyQt6.QtWidgets import QApplication
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        win.show()
-        event = self._close(win)
-        self.assertFalse(event.isAccepted())
-        self.assertFalse(win.isVisible())
+        accepted, shown = self._close("yes")
+        self.assertFalse(accepted)
+        self.assertEqual(shown[0].title, "Operation Still Running")
+        self.assertFalse(self.window.isVisible())
         self.assertFalse(QApplication.instance().quitOnLastWindowClosed())
         # A failure brings the window back with the output.
-        win._operation_finished(failed=True)
-        self.assertTrue(win.isVisible())
+        self.app._operation_finished(failed=True)
+        self.assertTrue(self.window.isVisible())
         self.assertTrue(QApplication.instance().quitOnLastWindowClosed())
-        from dnf_gui.ui.main_window import PAGE_TERMINAL
-        self.assertEqual(win._stack.currentIndex(), PAGE_TERMINAL)
-        win.hide()
+        self.assertTrue(self.app.activityExpanded)
+
+    def test_keep_open_keeps_window(self):
+        accepted, _ = self._close("no")
+        self.assertFalse(accepted)
+        self.assertTrue(self.window.isVisible())
+        self.assertFalse(self.app._quit_when_done)
+
+    def test_close_when_idle_is_allowed(self):
+        shown = answer(self.app)
+        with patch.object(self.app, "shutdown_threads") as shutdown:
+            self.assertTrue(self.app.requestClose())
+        shutdown.assert_called_once()
+        self.assertEqual(shown, [])
 
     def test_success_quits_once_done(self):
-        from PyQt6.QtWidgets import QApplication
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        win.show()
-        self._close(win)
+        self._close("yes")
         with patch.object(QApplication, "quit") as quit_app, \
-                patch("dnf_gui.ui.main_window.QTimer.singleShot",
+                patch("dnf_gui.ui.controllers.app_controller.QTimer.singleShot",
                       side_effect=lambda ms, fn: fn()):
-            win._operation_finished()
+            self.app._operation_finished(failed=False)
         quit_app.assert_called_once()
-        QApplication.instance().setQuitOnLastWindowClosed(True)
+
+    def test_background_success_notification_is_not_clickable(self):
+        self._close("yes")
+        with patch.object(self.app.notifier, "send") as notify:
+            self.app._notify_if_unfocused(0, "System Upgrade")
+        self.assertFalse(notify.call_args.args[0].clickable)
+
+
+if __name__ == "__main__":
+    unittest.main()

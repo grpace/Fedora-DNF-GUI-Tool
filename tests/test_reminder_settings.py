@@ -1,5 +1,6 @@
 """Tests for update reminder settings, the background checker, and notification triggers."""
 
+import gc
 import os
 import tempfile
 import unittest
@@ -462,19 +463,31 @@ class TestPageArgument(unittest.TestCase):
 
     def test_every_page_choice_exists_in_the_window(self):
         from dnf_gui.app import PAGE_CHOICES
-        from dnf_gui.ui.main_window import PAGE_NAMES
-        self.assertEqual(set(PAGE_CHOICES), set(PAGE_NAMES))
+        from dnf_gui.ui.controllers.app_controller import PAGES
+        self.assertEqual(set(PAGE_CHOICES), set(PAGES))
 
     def test_activate_request_switches_page_and_rescans_updates(self):
-        from dnf_gui.ui.main_window import MainWindow, PAGE_TERMINAL, PAGE_UPDATES
-        win = MainWindow(initial_page="terminal")
-        self.assertEqual(win._stack.currentIndex(), PAGE_TERMINAL)
-        win._updates_cache = {"dnf": None}
-        with patch.object(win, "_check_updates") as check:
-            win.activate_request("updates", "tok")
-        self.assertEqual(win._stack.currentIndex(), PAGE_UPDATES)
+        from dnf_gui.ui.controllers.app_controller import AppController
+        gc.collect()  # see test_audit_fixes._controller
+        app = AppController(initial_page="terminal")
+        self.assertTrue(app.activityExpanded)  # "terminal" opens the output
+        app.updates._cache = {"dnf": None}
+        with patch.object(app.updates, "check") as check:
+            app.activate("updates", "tok")
+        self.assertEqual(app.currentPage, "updates")
         check.assert_called_once()  # the cached scan predates the reminder
         self.assertEqual(os.environ.pop("XDG_ACTIVATION_TOKEN", ""), "tok")
+
+    def test_activate_other_page_switches_to_it(self):
+        from dnf_gui.ui.controllers.app_controller import AppController
+        gc.collect()  # see test_audit_fixes._controller
+        app = AppController()
+        with patch.object(app, "refreshCurrent"):
+            app.activate("settings")
+        self.assertEqual(app.currentPage, "settings")
+        app.activate("terminal")
+        self.assertTrue(app.activityExpanded)
+        self.assertEqual(app.currentPage, "settings")
 
 
 class TestSingleInstance(unittest.TestCase):
@@ -488,6 +501,7 @@ class TestSingleInstance(unittest.TestCase):
     def test_second_launch_reaches_the_first(self):
         from PyQt6.QtCore import QCoreApplication, QThread
         from dnf_gui.core import single_instance
+        gc.collect()  # see test_audit_fixes._controller (this pumps events)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         with patch.dict(os.environ, {"XDG_RUNTIME_DIR": tmp.name}):
@@ -554,32 +568,57 @@ class TestFailedCheckThrottle(unittest.TestCase):
         self.assertTrue(DNFBackend().check_updates().check_failed)
 
 
-class TestSettingsPageUI(unittest.TestCase):
-    """Verify UI components on SettingsPage."""
+class TestReminderSettingsController(unittest.TestCase):
+    """Settings → Reminders writes the settings and schedules the checker."""
 
-    @classmethod
-    def setUpClass(cls):
-        _ensure_app()
+    def setUp(self):
+        from dnf_gui.ui.controllers.app_controller import AppController
+        gc.collect()  # see test_audit_fixes._controller
+        self.app = AppController()
+        settings = self.app.settings
+        saved = (settings.reminders_enabled, settings.security_only,
+                 settings.notify_flatpak, settings.check_interval_hours)
 
-    def test_reminder_suboptions_toggle_with_master(self):
-        from dnf_gui.ui.pages.settings_page import SettingsPage
-        page = SettingsPage()
-        page.show()
-        self.addCleanup(page.close)
-        self.addCleanup(page.deleteLater)
+        def restore():
+            (settings.reminders_enabled, settings.security_only,
+             settings.notify_flatpak, settings.check_interval_hours) = saved
+        self.addCleanup(restore)
+        # show() re-reads status; keep it off the real system (sudo -n -l).
+        for p in (patch.object(self.app.settings_controller, "load_passwordless_status"),
+                  patch.object(self.app.settings_controller, "load_discover_status")):
+            p.start()
+            self.addCleanup(p.stop)
 
-        # By default when loaded as disabled
-        page.load_reminder_settings({"enabled": False})
-        self.assertFalse(page._rem_enabled.isChecked())
-        self.assertFalse(page._child_options.isEnabled())
-        self.assertFalse(page._interval_combo.isEnabled())
+    def test_save_writes_settings_and_installs_checker(self):
+        with patch.object(AppSettings, "set_checker_installed",
+                          return_value=True) as install:
+            self.app.settings_controller.saveReminders(True, True, False, 72)
+        settings = self.app.settings
+        self.assertTrue(settings.reminders_enabled)
+        self.assertTrue(settings.security_only)
+        self.assertFalse(settings.notify_flatpak)
+        self.assertEqual(settings.check_interval_hours, 72)
+        install.assert_called_once_with(True, 72)
+        self.assertEqual(self.app.prompts.notices[-1],
+                         "Reminders saved. Background checks are on.")
 
-        # When enabled
-        page._rem_enabled.setChecked(True)
-        self.assertTrue(page._child_options.isEnabled())
-        self.assertTrue(page._interval_combo.isEnabled())
+    def test_unknown_interval_is_ignored(self):
+        self.app.settings.check_interval_hours = 24
+        with patch.object(AppSettings, "set_checker_installed", return_value=True):
+            self.app.settings_controller.saveReminders(True, False, True, 5)
+        self.assertEqual(self.app.settings.check_interval_hours, 24)
 
-        # When unchecked again
-        page._rem_enabled.setChecked(False)
-        self.assertFalse(page._child_options.isEnabled())
-        self.assertFalse(page._interval_combo.isEnabled())
+    def test_turning_off_removes_checker(self):
+        with patch.object(AppSettings, "set_checker_installed",
+                          return_value=True) as install:
+            self.app.settings_controller.saveReminders(False, False, True, 24)
+        self.assertFalse(self.app.settings.reminders_enabled)
+        install.assert_called_once_with(False, 24)
+
+    def test_no_systemd_warns(self):
+        from tests.conftest import answer
+        shown = answer(self.app)
+        with patch.object(AppSettings, "set_checker_installed", return_value=False):
+            self.app.settings_controller.saveReminders(True, False, True, 24)
+        self.assertEqual(shown[-1].title, "Reminders Saved")
+        self.assertEqual(shown[-1].level, "warning")

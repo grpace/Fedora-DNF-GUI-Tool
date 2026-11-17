@@ -1,16 +1,15 @@
 """Tests for Fedora release upgrades and per-row Hold back / Release."""
 
+import gc
 import os
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton
-
 from dnf_gui.core import release_upgrade as ru
 from dnf_gui.core.package import Package, PackageStatus, UpdateInfo
 from dnf_gui.core import passwordless as pw
-from dnf_gui.ui.widgets.package_card import PackageCard
+from tests.conftest import answer
 
 RELEASES = [
     {"name": "F43", "version": "43", "state": "current", "eol": "2026-12-02"},
@@ -98,123 +97,163 @@ class TestPasswordlessCoverage(unittest.TestCase):
         self.assertTrue(pw.covers_held_back(self.OUT.replace("\\", ""), ["kernel*", "mesa-*"]))
 
 
-def _page():
-    from dnf_gui.ui.pages.updates_page import UpdatesPage
-    page = UpdatesPage()
-    page.display_combined(UpdateInfo(packages=[
+def _controller(test):
+    # Free controllers left by earlier tests now, while none of their
+    # threads run: a later processEvents() would otherwise fire their
+    # pending start-up timers and GC could destroy a running QThread.
+    gc.collect()
+    from dnf_gui.ui.controllers.app_controller import AppController
+    app = AppController()
+    settings = app.settings
+    saved = (settings.held_back_patterns, settings.dismissed_release,
+             settings.passwordless_scope)
+
+    def restore():
+        (settings.held_back_patterns, settings.dismissed_release,
+         settings.passwordless_scope) = saved
+    test.addCleanup(restore)
+    settings.dismissed_release = 0
+    settings.passwordless_scope = "off"
+    return app
+
+
+def _scanned(test):
+    app = _controller(test)
+    app.updates._on_checked({"dnf": UpdateInfo(packages=[
         Package(name=n, version="1", status=PackageStatus.UPDATE_AVAILABLE)
-        for n in ("firefox", "kernel-core")]), [], None)
-    return page
+        for n in ("firefox", "kernel-core")]), "flatpak": [], "security": None})
+    return app
 
 
-def _hold_button(page, name):
-    layout = page._list_layout
-    for i in range(layout.count()):
-        card = layout.itemAt(i).widget()
-        if isinstance(card, PackageCard) and card.package.name == name:
-            return [b for b in card.findChildren(QPushButton)
-                    if b.text() in ("Mark Major", "Unmark Major")][0]
-    raise AssertionError(name)
-
-
-class TestUpdatesPageReleaseAndHold(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
+class TestUpdatesReleaseAndHold(unittest.TestCase):
     def test_banner_states(self):
-        page = _page()
-        page.set_release_upgrade(ru.ReleaseUpgrade(44, 45, "2027-06-02"))
-        self.assertFalse(page._release_banner.isHidden())
-        self.assertIn("June 2, 2027", page._release_detail.text())
-        fired = []
-        page.release_upgrade_clicked.connect(fired.append)
-        page._release_primary.click()
-        self.assertEqual(fired, [45])
+        app = _scanned(self)
+        updates = app.updates
+        updates.set_release_upgrade(ru.ReleaseUpgrade(44, 45, "2027-06-02"))
+        self.assertTrue(updates.release["visible"])
+        self.assertIn("June 2, 2027", updates.release["text"])
+        with patch.object(updates, "start_release_upgrade") as start:
+            updates.releasePrimary()
+        start.assert_called_once_with(45)
 
-        dismissed = []
-        page.release_dismissed.connect(dismissed.append)
-        page._release_secondary.click()
-        self.assertEqual(dismissed, [45])
-        self.assertTrue(page._release_banner.isHidden())
-        page.set_release_upgrade(ru.ReleaseUpgrade(44, 45), dismissed_release=45)
-        self.assertTrue(page._release_banner.isHidden())
+        updates.releaseSecondary()  # Not Now
+        self.assertEqual(app.settings.dismissed_release, 45)
+        self.assertEqual(updates.release, {})
+        updates.set_release_upgrade(ru.ReleaseUpgrade(44, 45))
+        self.assertEqual(updates.release, {})
 
         # A finished download shows even if the offer was dismissed.
-        page.set_release_upgrade(ru.ReleaseUpgrade(44, 45, downloaded=True),
-                                 dismissed_release=45)
-        self.assertFalse(page._release_banner.isHidden())
-        installs = []
-        page.release_install_clicked.connect(installs.append)
-        page._release_primary.click()
-        self.assertEqual(installs, [45])
+        updates.set_release_upgrade(ru.ReleaseUpgrade(44, 45, downloaded=True))
+        self.assertTrue(updates.release["visible"])
+        with patch.object(updates, "install_release_upgrade") as install:
+            updates.releasePrimary()
+        install.assert_called_once_with(45)
 
     def test_hold_buttons(self):
-        page = _page()
-        self.assertEqual(_hold_button(page, "firefox").text(), "Mark Major")
-        pattern_btn = _hold_button(page, "kernel-core")
-        self.assertFalse(pattern_btn.isEnabled())  # held by kernel*
-        toggles = []
-        page.hold_toggled.connect(lambda name, hold: toggles.append((name, hold)))
-        _hold_button(page, "firefox").click()
-        self.assertEqual(toggles, [("firefox", True)])
-        page.set_held_back_patterns(page.held_back_patterns + ["firefox"])
-        released = _hold_button(page, "firefox")
-        self.assertEqual(released.text(), "Unmark Major")
-        badge = [label for label in released.parent().findChildren(QLabel)
-                 if label.objectName() == "badge_muted"][0]
-        self.assertIn("You marked this as major", badge.toolTip())
-        released.click()
-        self.assertEqual(toggles[-1], ("firefox", False))
+        app = _scanned(self)
+        model = app.updates.model
+        firefox = model.find("name", "firefox")
+        self.assertEqual(firefox["majorActionLabel"], "Treat as Major")
+        self.assertTrue(firefox["canToggleMajor"])
+        self.assertFalse(model.find("name", "kernel-core")["canToggleMajor"])  # kernel*
+
+        app.updates.toggleMajor("firefox")
+        self.assertIn("firefox", app.settings.held_back_patterns)
+        firefox = model.find("name", "firefox")
+        self.assertTrue(firefox["major"])
+        self.assertEqual(firefox["majorActionLabel"], "Don't Treat as Major")
+        self.assertIn("You marked this as major", firefox["majorReason"])
+
+        app.updates.toggleMajor("firefox")
+        self.assertNotIn("firefox", app.settings.held_back_patterns)
+        self.assertFalse(model.find("name", "firefox")["major"])
 
 
-class TestMainWindowReleaseAndHold(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
+class TestControllerReleaseAndHold(unittest.TestCase):
     def test_toggle_hold_persists(self):
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        win._app_settings.passwordless_scope = "off"
-        win._toggle_hold("firefox", True)
-        self.assertIn("firefox", win._app_settings.held_back_patterns)
-        self.assertIn("firefox", win._updates_page.held_back_patterns)
-        win._toggle_hold("firefox", False)
-        self.assertNotIn("firefox", win._app_settings.held_back_patterns)
+        app = _controller(self)
+        app.settings_controller.toggle_hold("firefox", True)
+        self.assertIn("firefox", app.settings.held_back_patterns)
+        self.assertIn("firefox", app.updates.held_back_patterns)
+        app.settings_controller.toggle_hold("firefox", False)
+        self.assertNotIn("firefox", app.settings.held_back_patterns)
+        self.assertNotIn("firefox", app.updates.held_back_patterns)
 
     def test_upgrade_runs_update_then_download(self):
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        with patch.object(QMessageBox, "question",
-                          return_value=QMessageBox.StandardButton.Yes), \
-             patch.object(ru, "current_release", return_value=44), \
-             patch.object(win, "_run_command_chain") as chain:
-            win._start_release_upgrade(45)
+        app = _controller(self)
+        shown = answer(app, "yes")
+        with patch.object(ru, "current_release", return_value=44), \
+             patch.object(app.runner, "run_chain") as chain:
+            app.updates.start_release_upgrade(45)
+        self.assertEqual(shown[0].default, "no")
         cmds, operation = chain.call_args.args
         self.assertEqual(cmds[0][2:4], ["upgrade", "-y"])
         self.assertEqual(cmds[1][2:5], ["system-upgrade", "download", "--releasever=45"])
         self.assertEqual(operation, "Upgrade to Fedora 45")
+        self.assertEqual(app.pending_release_target, 45)
+
+    def test_upgrade_declined_runs_nothing(self):
+        app = _controller(self)
+        answer(app, "no")
+        with patch.object(ru, "current_release", return_value=44), \
+             patch.object(app.runner, "run_chain") as chain:
+            app.updates.start_release_upgrade(45)
+        chain.assert_not_called()
+        self.assertIsNone(app.pending_release_target)
 
     def test_successful_download_offers_restart(self):
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        win._pending_release_target = 45
-        with patch.object(win, "_install_release_upgrade") as install, \
+        app = _controller(self)
+        app.pending_release_target = 45
+        with patch.object(app.updates, "install_release_upgrade") as install, \
              patch.object(ru, "current_release", return_value=44):
-            win._on_command_done(0, "Upgrade to Fedora 45")
+            app._on_operation_finished(0, "Upgrade to Fedora 45", False)
         install.assert_called_once_with(45)
-        self.assertIn("downloaded", win._updates_page._release_title.text())
+        self.assertIn("downloaded", app.updates.release["title"])
+        self.assertIsNone(app.pending_release_target)
+
+    def test_restart_and_install_is_destructive(self):
+        app = _controller(self)
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.updates.install_release_upgrade(45)
+        self.assertTrue(shown[0].destructive)
+        self.assertEqual(shown[0].default, "no")
+        run.assert_called_once_with(ru.build_reboot_command(app.backend.dnf_path),
+                                    "Restarting to install Fedora 45")
 
     def test_failed_download_offers_allowerasing(self):
-        from dnf_gui.ui.main_window import MainWindow
-        win = MainWindow()
-        win._pending_release_target = 45
-        win._cmd_queue = []
-        with patch.object(win, "_on_release_download_failed") as failed:
-            win._on_chain_step_done(1, "Upgrade to Fedora 45")
-            self.app.processEvents()
+        app = _controller(self)
+        app.pending_release_target = 45
+        app.runner._queue = []
+        with patch.object(app.updates, "on_release_download_failed") as failed, \
+                patch("dnf_gui.ui.controllers.app_controller.QTimer.singleShot",
+                      side_effect=lambda ms, fn: fn()):
+            app.runner._on_chain_step(1, "Upgrade to Fedora 45")
         failed.assert_called_once_with(45)
+
+    def test_failed_regular_update_step_does_not_offer_allowerasing(self):
+        app = _controller(self)
+        app.pending_release_target = 45
+        app.runner._queue = [["pkexec", "dnf", "system-upgrade", "download"]]
+        with patch.object(app.updates, "on_release_download_failed") as failed, \
+                patch("dnf_gui.ui.controllers.app_controller.QTimer.singleShot",
+                      side_effect=lambda ms, fn: fn()):
+            app.runner._on_chain_step(1, "Upgrade to Fedora 45")
+        failed.assert_not_called()
+
+    def test_retry_runs_download_with_allowerasing(self):
+        app = _controller(self)
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.updates.on_release_download_failed(45)
+        self.assertTrue(shown[0].destructive)
+        run.assert_called_once_with(
+            ru.build_download_command(app.backend.dnf_path, 45, allow_erasing=True),
+            "Upgrade to Fedora 45")
+        answer(app, "no")
+        with patch.object(app.runner, "run") as run:
+            app.updates.on_release_download_failed(45)
+        run.assert_not_called()
 
 
 if __name__ == "__main__":

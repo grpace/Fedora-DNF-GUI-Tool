@@ -4,10 +4,9 @@ Fixtures are trimmed dnf5 output from a Fedora 44 system where RPM Fusion's
 libheif-freeworld still required the old libheif.
 """
 
+import gc
 import unittest
 from unittest.mock import patch
-
-from PyQt6.QtWidgets import QApplication, QLabel
 
 from dnf_gui.core import security
 from dnf_gui.core.app_settings import AppSettings, perform_background_check
@@ -16,6 +15,7 @@ from dnf_gui.core.security import (
     BlockedUpdates, SecuritySummary, build_forced_security_update_command,
     find_blocked_security, parse_blocked_updates,
 )
+from tests.conftest import answer
 
 SECURITY_BLOCKED = """\
 Updating and loading repositories:
@@ -214,111 +214,141 @@ class TestReminderSkipsWaiting(unittest.TestCase):
         self.assertFalse(res.should_notify)
 
 
-class TestUpdatesPageBlocked(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
+def _controller():
+    # Free controllers left by earlier tests now, while none of their
+    # threads run: a later processEvents() would otherwise fire their
+    # pending start-up timers and GC could destroy a running QThread.
+    gc.collect()
+    from dnf_gui.ui.controllers.app_controller import AppController
+    return AppController()
 
-    def _page(self, summary):
-        from dnf_gui.ui.pages.updates_page import UpdatesPage
-        page = UpdatesPage()
+
+def _scan(app, info, summary):
+    app.updates._on_checked({"dnf": info, "flatpak": [], "security": summary})
+
+
+class TestUpdatesBlocked(unittest.TestCase):
+    def _app(self, summary):
+        app = _controller()
         info = UpdateInfo(packages=[
             Package(name=n, version="1", status=PackageStatus.UPDATE_AVAILABLE)
             for n in ("libheif", "libheif-ffmpeg", "firefox")])
-        page.display_combined(info, [], summary)
-        return page
+        _scan(app, info, summary)
+        return app
+
+    def _mode(self, app, key):
+        return next(m for m in app.updates.modes if m["key"] == key)
 
     def test_banner_count_and_mode_when_nothing_installable(self):
-        page = self._page(_blocked_summary())
-        self.assertFalse(page._blocked_banner.isHidden())
-        self.assertEqual(page._blocked_title.text(),
-                         "1 security advisory waiting on RPM Fusion")
-        self.assertIn("won't install it until then", page._blocked_detail.text())
-        self.assertIn("libheif-freeworld", page._blocked_force.toolTip())
-        self.assertEqual(page._security_card._text_label.text(),
-                         "Security Advisories · 1 Waiting")
-        self.assertEqual(page.security_installable, 0)
-        row = page._action_button._rows["security"]
-        self.assertTrue(row.isEnabled())  # clicking explains + offers force
-        self.assertIn("nothing to install yet", page._action_button._counts["security"])
+        updates = self._app(_blocked_summary()).updates
+        banner = updates.blocked
+        self.assertTrue(banner["visible"])
+        self.assertEqual(banner["title"], "1 security advisory waiting on RPM Fusion")
+        self.assertIn("won't install it until then", banner["text"])
+        self.assertIn("libheif-freeworld", banner["forceTooltip"])
+        self.assertEqual(updates.securityTotal, 1)
+        self.assertEqual(updates.securityWaiting, 1)
+        self.assertEqual(updates.security_installable, 0)
+        mode = self._mode(updates.app, "security")
+        self.assertTrue(mode["enabled"])  # clicking explains + offers force
+        self.assertIn("nothing to install yet", mode["detail"].lower())
 
     def test_partial_block_says_what_still_installs(self):
-        page = self._page(_blocked_summary(("FEDORA-2026-ff", "moderate", {"firefox"})))
-        self.assertEqual(page.security_installable, 1)
-        self.assertIn("still installs the other 1 advisory", page.blocked_summary())
+        updates = self._app(
+            _blocked_summary(("FEDORA-2026-ff", "moderate", {"firefox"}))).updates
+        self.assertEqual(updates.security_installable, 1)
+        self.assertIn("still installs the other 1 advisory", updates.blocked_summary())
 
     def test_waiting_rows_are_tagged(self):
-        page = self._page(_blocked_summary(("FEDORA-2026-ff", "moderate", {"firefox"})))
-        texts = {lbl.text() for lbl in page._list_container.findChildren(QLabel)}
-        self.assertIn("Waiting", texts)
-        tags = dict((t[0], t[2]) for t in page._row_tags("libheif", set()))
-        self.assertIn("can't install it yet", tags["Security · Important"])
-        self.assertNotIn("Waiting", [t[0] for t in page._row_tags("firefox", set())])
+        model = self._app(
+            _blocked_summary(("FEDORA-2026-ff", "moderate", {"firefox"}))).updates.model
+        libheif = model.find("name", "libheif")
+        self.assertTrue(libheif["waiting"])
+        self.assertEqual(libheif["severity"], "Important")
+        self.assertIn("can't install it yet", libheif["tooltip"])
+        firefox = model.find("name", "firefox")
+        self.assertTrue(firefox["security"])
+        self.assertFalse(firefox["waiting"])
 
     def test_banner_hidden_without_blocks(self):
-        page = self._page(_summary((ADVISORY, "important", {"libheif"})))
-        self.assertTrue(page._blocked_banner.isHidden())
-        self.assertEqual(page._security_card._text_label.text(), "Security Advisories")
+        updates = self._app(_summary((ADVISORY, "important", {"libheif"}))).updates
+        self.assertEqual(updates.blocked, {})
+        self.assertEqual(updates.securityWaiting, 0)
 
 
-class TestMainWindowBlocked(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
-    def _window(self, summary):
-        from dnf_gui.ui.main_window import MainWindow
-        window = MainWindow()
-        self.addCleanup(window.deleteLater)
-        window._updates_page.display_combined(UpdateInfo(), [], summary)
-        return window
+class TestControllerBlocked(unittest.TestCase):
+    def _app(self, summary):
+        app = _controller()
+        _scan(app, UpdateInfo(), summary)
+        return app
 
     def test_security_only_explains_instead_of_running(self):
-        window = self._window(_blocked_summary())
-        with patch.object(window, "_explain_blocked_security") as explain, \
-                patch.object(window, "_run_command") as run:
-            window._security_upgrade()
+        app = self._app(_blocked_summary())
+        with patch.object(app.updates, "explain_blocked_security") as explain, \
+                patch.object(app.runner, "run") as run:
+            app.updates.security_upgrade()
         explain.assert_called_once()
         run.assert_not_called()
 
+    def test_explanation_offers_force_but_defaults_to_ok(self):
+        app = self._app(_blocked_summary())
+        shown = answer(app)
+        with patch.object(app.runner, "run") as run:
+            app.updates.security_upgrade()
+        prompt = shown[0]
+        self.assertEqual(prompt.title, "Nothing to Install Yet")
+        self.assertEqual([b for b, _ in prompt.buttons], ["force", "ok"])
+        self.assertEqual(prompt.default, "ok")
+        self.assertIn("won't install it until then", prompt.text)
+        run.assert_not_called()
+
     def test_force_confirms_then_runs_forced_command(self):
-        from PyQt6.QtWidgets import QMessageBox
-        window = self._window(_blocked_summary())
-        with patch.object(QMessageBox, "warning",
-                          return_value=QMessageBox.StandardButton.Yes) as warn, \
-                patch.object(window, "_run_command") as run:
-            window._force_security_upgrade()
-        self.assertIn("libheif-freeworld", warn.call_args.args[2])
+        app = self._app(_blocked_summary())
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.updates.forceSecurity()
+        prompt = shown[-1]
+        self.assertIn("libheif-freeworld", prompt.text)
+        self.assertIn("sudo dnf install libheif-freeworld", prompt.text)
+        self.assertTrue(prompt.destructive)
+        self.assertEqual(prompt.default, "no")
+        run.assert_called_once_with(build_forced_security_update_command(),
+                                    "Forced Security Upgrade")
+        self.assertEqual(app.forced_removals, ["libheif-freeworld"])
+
+    def test_explanation_force_button_leads_to_forced_run(self):
+        app = self._app(_blocked_summary())
+        answer(app, "force", "yes")
+        with patch.object(app.runner, "run") as run:
+            app.updates.security_upgrade()
         run.assert_called_once_with(build_forced_security_update_command(),
                                     "Forced Security Upgrade")
 
     def test_force_declined_runs_nothing(self):
-        from PyQt6.QtWidgets import QMessageBox
-        window = self._window(_blocked_summary())
-        with patch.object(QMessageBox, "warning",
-                          return_value=QMessageBox.StandardButton.No), \
-                patch.object(window, "_run_command") as run:
-            window._force_security_upgrade()
+        app = self._app(_blocked_summary())
+        answer(app, "no")
+        with patch.object(app.runner, "run") as run:
+            app.updates.forceSecurity()
         run.assert_not_called()
+        self.assertEqual(app.forced_removals, [])
 
     def test_finished_run_reports_skipped_packages(self):
-        window = self._window(SecuritySummary())
-        window._op_output = SECURITY_BLOCKED.splitlines()
-        with patch.object(window, "_recheck_reboot_banner"):
-            window._on_command_done(0, "Security Upgrade")
-        output = window._terminal_page._terminal.toPlainText()
+        app = self._app(SecuritySummary())
+        app.runner._output = SECURITY_BLOCKED.splitlines()
+        with patch.object(app.updates, "recheck_reboot"):
+            app.runner._finish(0, "Security Upgrade", False)
+        output = app.runner.text()
         self.assertIn("1 update couldn't be installed: libheif", output)
         self.assertIn("Running Security Only again won't install it", output)
-        self.assertEqual(window._terminal_page._status_text.text(),
-                         "Completed · 1 Update Skipped")
+        self.assertEqual(app.runner.statusText, "Completed · 1 Update Skipped")
 
     def test_clean_run_keeps_plain_success(self):
-        window = self._window(SecuritySummary())
-        window._op_output = FORCED.splitlines()
-        with patch.object(window, "_recheck_reboot_banner"):
-            window._on_command_done(0, "Security Upgrade")
-        self.assertEqual(window._terminal_page._status_text.text(),
-                         "Operation Completed Successfully")
+        app = self._app(SecuritySummary())
+        app.runner._output = FORCED.splitlines()
+        with patch.object(app.updates, "recheck_reboot"):
+            app.runner._finish(0, "Security Upgrade", False)
+        self.assertEqual(app.runner.statusText, "Completed")
+        self.assertNotIn("couldn't be installed", app.runner.text())
 
 
 if __name__ == "__main__":

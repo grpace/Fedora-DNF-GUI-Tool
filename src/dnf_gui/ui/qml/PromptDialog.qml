@@ -1,0 +1,132 @@
+// Shows App.Prompts.current, one at a time. Destructive prompts focus the
+// safe button, so Enter never confirms them by accident.
+import QtQuick
+import QtQuick.Controls as QQC2
+import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
+import org.kde.kirigami.dialogs as KDialogs
+
+KDialogs.Dialog {
+    id: dialog
+
+    readonly property var prompt: App.Prompts.current
+    readonly property bool hasPrompt: prompt.token !== undefined
+
+    title: hasPrompt ? prompt.title : ""
+    padding: Kirigami.Units.largeSpacing * 2
+    preferredWidth: Kirigami.Units.gridUnit * 26
+    showCloseButton: false
+    closePolicy: QQC2.Popup.CloseOnEscape
+    standardButtons: QQC2.Dialog.NoButton
+
+    function answer(choice) {
+        const token = prompt.token;
+        close();
+        App.Prompts.reply(token, choice);
+    }
+
+    function safeChoice() {
+        if (!hasPrompt)
+            return "";
+        for (const b of prompt.buttons)
+            if (b.id === "no")
+                return "no";
+        return prompt.defaultChoice;
+    }
+
+    onRejected: if (hasPrompt) answer(safeChoice())
+
+    Connections {
+        target: App.Prompts
+        function onCurrentChanged() {
+            if (dialog.hasPrompt) {
+                dialog.open();
+                defaultFocus.start();
+            } else if (dialog.opened) {
+                dialog.close();
+            }
+        }
+    }
+    // Focus the default button once the buttons exist.
+    Timer {
+        id: defaultFocus
+        interval: 0
+        onTriggered: {
+            for (let i = 0; i < buttons.count; ++i) {
+                const b = buttons.itemAt(i);
+                if (b && b.choice === dialog.prompt.defaultChoice)
+                    b.forceActiveFocus();
+            }
+        }
+    }
+
+    ColumnLayout {
+        spacing: Kirigami.Units.largeSpacing
+
+        RowLayout {
+            spacing: Kirigami.Units.largeSpacing * 1.5
+            Layout.fillWidth: true
+            Kirigami.Icon {
+                source: dialog.prompt.level === "error" ? "dialog-error"
+                      : dialog.prompt.level === "warning" ? "dialog-warning"
+                      : "dialog-information"
+                implicitWidth: Kirigami.Units.iconSizes.large
+                implicitHeight: implicitWidth
+                Layout.alignment: Qt.AlignTop
+            }
+            QQC2.Label {
+                text: dialog.hasPrompt ? dialog.prompt.text : ""
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 20
+            }
+        }
+
+        // Long package lists (autoremove, forced removals) scroll.
+        QQC2.ScrollView {
+            visible: dialog.hasPrompt && dialog.prompt.details.length > 0
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(Kirigami.Units.gridUnit * 10,
+                                             detailsList.contentHeight + Kirigami.Units.largeSpacing)
+            Kirigami.Theme.colorSet: Kirigami.Theme.View
+            background: Rectangle { color: Kirigami.Theme.backgroundColor; radius: Kirigami.Units.cornerRadius }
+            ListView {
+                id: detailsList
+                model: dialog.hasPrompt ? dialog.prompt.details : []
+                clip: true
+                Accessible.name: "Packages"
+                delegate: QQC2.Label {
+                    required property string modelData
+                    text: modelData
+                    leftPadding: Kirigami.Units.largeSpacing
+                    font.family: "monospace"
+                    width: ListView.view.width
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
+    footer: QQC2.DialogButtonBox {
+        alignment: Qt.AlignRight
+        padding: Kirigami.Units.largeSpacing
+        Repeater {
+            id: buttons
+            model: dialog.hasPrompt ? dialog.prompt.buttons : []
+            delegate: QQC2.Button {
+                required property var modelData
+                required property int index
+                readonly property string choice: modelData.id
+                text: modelData.label
+                // The confirming button of a destructive prompt looks it.
+                icon.name: dialog.prompt.destructive && index === 0 ? "dialog-warning" : ""
+                highlighted: choice === dialog.prompt.defaultChoice
+                QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.ActionRole
+                onClicked: dialog.answer(choice)
+                Keys.onReturnPressed: clicked()
+                Keys.onEnterPressed: clicked()
+            }
+        }
+    }
+}

@@ -261,24 +261,30 @@ class DNFBackend:
     def reboot_required(self) -> bool:
         """True if the system should be rebooted to finish updates.
 
-        Checks, in order: ``needs-restarting -r`` (dnf-utils-core, exit 1
-        means reboot needed), the ``/run/reboot-required`` sentinel some
-        stacks create, then kernel drift (running kernel is no longer the
-        newest installed one). Never raises.
+        Checks, in order: ``dnf needs-restarting -r`` (built into dnf5;
+        Fedora 41+ ships no standalone binary), the legacy
+        ``needs-restarting -r`` binary (dnf-utils), the
+        ``/run/reboot-required`` sentinel some stacks create, then kernel
+        drift (running kernel is no longer the newest installed one). Both
+        needs-restarting forms exit 1 when a reboot is needed and 0 when
+        not; anything else is inconclusive. They also catch core library
+        updates (glibc, systemd, dbus...) the kernel check misses.
+        Never raises.
         """
-        try:
-            result = subprocess.run(
-                ["needs-restarting", "-r"],
-                capture_output=True, timeout=60,
-            )
-            if result.returncode == 1:
-                return True
-            if result.returncode == 0:
-                return False
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            pass
-        except Exception:
-            pass
+        commands = [["needs-restarting", "-r"]]
+        if self.is_dnf5:
+            # Only dnf5: dnf4 exits 1 for an unknown command (no
+            # dnf-plugins-core), which would read as "reboot needed".
+            commands.insert(0, [self._dnf_path, "-C", "-q", "needs-restarting", "-r"])
+        for cmd in commands:
+            try:
+                result = subprocess.run(cmd, capture_output=True, timeout=60)
+                if result.returncode == 1:
+                    return True
+                if result.returncode == 0:
+                    return False
+            except Exception:
+                pass  # missing binary, timeout, plugin error: try the next check
 
         try:
             if os.path.exists("/run/reboot-required"):
@@ -392,13 +398,29 @@ class DNFBackend:
                     "enabled": is_enabled,
                 })
         return repos
+
+    @property
+    def is_dnf5(self) -> bool:
+        """True when the dnf binary is dnf5 (``/usr/bin/dnf`` is a symlink to
+        dnf5 on Fedora 41+, so resolve it rather than trusting the name)."""
+        name = os.path.basename(os.path.realpath(self._dnf_path))
+        return name.startswith("dnf5")
+
+    def _repo_toggle_command(self, repo_id: str, enabled: bool) -> list[str]:
+        if self.is_dnf5:
+            return ["pkexec", self._dnf_path, "config-manager", "setopt",
+                    f"{repo_id}.enabled={1 if enabled else 0}"]
+        # dnf4 (dnf-plugins-core config-manager) has no setopt subcommand.
+        flag = "--set-enabled" if enabled else "--set-disabled"
+        return ["pkexec", self._dnf_path, "config-manager", flag, repo_id]
+
     def build_enable_repo_command(self, repo_id: str) -> list[str]:
         """Build command to enable a repository."""
-        return ["pkexec", self._dnf_path, "config-manager", "setopt", f"{repo_id}.enabled=1"]
+        return self._repo_toggle_command(repo_id, True)
 
     def build_disable_repo_command(self, repo_id: str) -> list[str]:
         """Build command to disable a repository."""
-        return ["pkexec", self._dnf_path, "config-manager", "setopt", f"{repo_id}.enabled=0"]
+        return self._repo_toggle_command(repo_id, False)
 
     def build_add_copr_command(self, copr_repo: str) -> list[str]:
         """Build command to enable a COPR repository."""
@@ -412,8 +434,8 @@ class DNFBackend:
 
 
     def history(self, limit: int = 30) -> list[dict]:
-        """Get DNF transaction history."""
-        result = self._run([self._dnf_path, "history", "list", "--reverse"])
+        """Get DNF transaction history, newest transaction first."""
+        result = self._run([self._dnf_path, "history", "list"])
         if result is None:
             return []
 
@@ -477,7 +499,14 @@ class DNFBackend:
                         "altered": altered,
                     })
 
-        return transactions[-limit:]
+        # dnf lists newest first already; sort anyway so the order never
+        # depends on the dnf version or a --reverse default.
+        transactions.sort(
+            key=lambda t: int(t["id"]) if t["id"].isdigit() else -1,
+            reverse=True,
+        )
+        return transactions[:limit]
+
     def history_info(self, transaction_id: str) -> str:
         """Get detailed info about a specific transaction."""
         tid = (transaction_id or "").strip()
@@ -557,45 +586,97 @@ class DNFBackend:
             return None
 
     def _parse_package_list(self, output: str, status: PackageStatus) -> list[Package]:
-        """Parse DNF list output into Package objects."""
+        """Parse DNF list output into Package objects.
+
+        Rows are ``name.arch  [epoch:]version-release  repo``. Section
+        headers ("Installed packages", "Available Packages", "Upgrades")
+        are skipped: they have fewer than three columns and no ``.arch``.
+        dnf4 wraps a long ``name.arch`` onto its own line with the rest on
+        the next one, so a lone ``name.arch`` is joined to the line after.
+        """
         packages = []
+        pending = ""
         for line in output.strip().split("\n"):
             line = line.strip()
             if not line or line.startswith("Last metadata") or line.startswith("="):
+                pending = ""
                 continue
-            pkg = Package.from_dnf_line(line, status)
+            parts = line.split()
+            if pending and len(parts) == 2:
+                parts = [pending, *parts]
+            pending = ""
+            if len(parts) == 1 and "." in parts[0]:
+                pending = parts[0]  # dnf4 wrapped row; rest is on the next line
+                continue
+            if len(parts) < 3 or "." not in parts[0]:
+                continue  # section header, not a package row
+            pkg = Package.from_dnf_line(" ".join(parts), status)
             if pkg:
                 packages.append(pkg)
         return packages
 
 
     def _parse_package_info(self, output: str) -> Optional[Package]:
-        """Parse dnf info output into a Package object."""
-        info = {}
-        current_key = None
-        
-        for line in output.strip().split("\n"):
-            if " : " in line:
-                key, value = line.split(" : ", 1)
-                key = key.strip().lower()
-                value = value.strip()
-                info[key] = value
-                current_key = key
-            elif current_key and line.startswith("             :"):
-                # Continuation line
-                info[current_key] += " " + line.split(":", 1)[1].strip()
+        """Parse dnf info output into a Package object.
 
+        Handles both formats: dnf4 (``Repo : @System``, ``From repo``) and
+        dnf5 (``Repository`` for available, ``From repository`` for
+        installed). Wrapped values continue on lines with a blank key
+        (``                : more text``). Output is split into sections
+        ("Installed packages" / "Available packages", any case) holding one
+        block per package; the newest block of the first section wins, so
+        an installed package with an update shows as installed and
+        multi-version packages (kernels) show the newest installed one.
+        """
+        blocks: list[tuple[str, dict]] = []  # (section header, fields)
+        section = ""
+        info: dict = {}
+        current_key = None
+
+        for line in output.strip().split("\n"):
+            if ":" not in line:
+                header = line.strip().lower()
+                if header:
+                    section = header
+                current_key = None
+                continue
+            key, value = line.split(":", 1)
+            key = key.strip().lower()
+            value = value.strip()
+            if not key:
+                # Continuation of the previous key's value.
+                if current_key and value:
+                    info[current_key] = f"{info[current_key]} {value}".strip()
+                continue
+            if key == "name":
+                info = {}
+                blocks.append((section, info))
+            info[key] = value
+            current_key = key
+
+        if not blocks:
+            return None
+        first_section = blocks[0][0]
+        section, info = [b for b in blocks if b[0] == first_section][-1]
         if not info.get("name"):
             return None
 
-        status = PackageStatus.INSTALLED if info.get("repo", "").startswith("@") else PackageStatus.AVAILABLE
+        repo = (info.get("repo") or info.get("repository")
+                or info.get("from repository") or info.get("from repo") or "")
+        if section.startswith("installed"):
+            status = PackageStatus.INSTALLED
+        elif section.startswith("available"):
+            status = PackageStatus.AVAILABLE
+        else:
+            status = (PackageStatus.INSTALLED if repo.startswith("@")
+                      else PackageStatus.AVAILABLE)
 
         return Package(
             name=info.get("name", ""),
             version=info.get("version", ""),
             release=info.get("release", ""),
             arch=info.get("architecture", info.get("arch", "")),
-            repo=info.get("repo", info.get("repository", "")),
+            repo=repo,
             summary=info.get("summary", ""),
             description=info.get("description", ""),
             size=info.get("size", info.get("download size", "")),

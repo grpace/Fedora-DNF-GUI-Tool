@@ -61,10 +61,12 @@ Kirigami.ApplicationWindow {
         }
     }
 
+    property string shownPage: ""
     function showPage(key) {
         const file = pageFiles[key];
         if (!file)
             return;
+        shownPage = key;
         let page = pagesByKey[key];
         if (!page) {
             page = createPage(file);
@@ -104,6 +106,13 @@ Kirigami.ApplicationWindow {
         return titles.join(" | ");
     }
 
+    function focusInActivity() {
+        for (let it = root.activeFocusItem; it; it = it.parent)
+            if (it === activity)
+                return true;
+        return false;
+    }
+
     function closeColumns() {
         popTo(1);
         if (pageStack.depth > 0)
@@ -115,7 +124,13 @@ Kirigami.ApplicationWindow {
 
     Connections {
         target: App
-        function onCurrentPageChanged() { root.showPage(App.currentPage); }
+        // App's properties share one notify signal: this runs on any App
+        // change (the log opening, an operation starting), so act only
+        // when the page really changed, or open details would close.
+        function onCurrentPageChanged() {
+            if (App.currentPage !== root.shownPage)
+                root.showPage(App.currentPage);
+        }
         function onFocusSearchRequested() {
             const page = root.pageStack.depth > 0 ? root.pageStack.get(0) : null;
             if (page && page.focusSearch)
@@ -159,8 +174,18 @@ Kirigami.ApplicationWindow {
     Shortcut { sequences: [StandardKey.Find]; onActivated: App.focusSearch() }
     Shortcut { sequence: "Ctrl+U"; onActivated: App.runFavoriteUpdate() }
     Shortcut { sequence: "Ctrl+T"; onActivated: App.toggleActivity(!App.activityExpanded) }
-    // Esc closes a details column, unless the output log has the focus.
-    Shortcut { sequence: "Esc"; enabled: root.pageStack.depth > 1 && !App.activityExpanded; onActivated: root.closeColumns() }
+    // Esc closes the output log when focus is in it (or there's no details
+    // column to close), otherwise the details column.
+    Shortcut {
+        sequence: "Esc"
+        enabled: root.pageStack.depth > 1 || App.activityExpanded
+        onActivated: {
+            if (App.activityExpanded && (root.focusInActivity() || root.pageStack.depth <= 1))
+                activity.closeLog();
+            else
+                root.closeColumns();
+        }
+    }
     Repeater {
         model: 9
         delegate: Item {

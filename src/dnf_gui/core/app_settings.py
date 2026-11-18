@@ -233,6 +233,17 @@ class AppSettings:
         self.set("updates/favorite", key)
 
     @property
+    def list_column_width(self) -> int:
+        """Width (px) of a list beside its details column, as the user
+        dragged it; 0 until they do."""
+        value = self.get_int("ui/list_column_width", 0)
+        return value if 0 < value < 10000 else 0
+
+    @list_column_width.setter
+    def list_column_width(self, value: int) -> None:
+        self.set("ui/list_column_width", int(value))
+
+    @property
     def held_back_patterns(self) -> list[str]:
         from dnf_gui.core.dnf_backend import (
             DEFAULT_HELD_BACK_PATTERNS, parse_held_back_patterns,

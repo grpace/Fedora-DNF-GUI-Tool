@@ -178,6 +178,18 @@ class AppController(StateObject):
     def version(self) -> str:
         return __version__
 
+    # ── layout ─────────────────────────────────────────────────
+
+    @pyqtProperty(int, constant=True)
+    def listColumnWidth(self) -> int:
+        """The list column's width beside a details column (0 = default)."""
+        return self.settings.list_column_width
+
+    @pyqtSlot(int)
+    def saveListColumnWidth(self, width: int) -> None:
+        if width > 0:
+            self.settings.list_column_width = width
+
     # ── icons ──────────────────────────────────────────────────
 
     @pyqtProperty("QVariantList", constant=True)

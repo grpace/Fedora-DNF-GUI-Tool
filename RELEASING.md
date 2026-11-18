@@ -8,11 +8,11 @@ Use this checklist when preparing a new release of DNF Package Manager.
 - [ ] Lint: `ruff check src tests scripts`
 - [ ] Contrast check: `python3 scripts/check_contrast.py`
 - [ ] Render every page with no QML warnings: `PYTHONPATH=src python3 scripts/screenshots.py /tmp/shots --demo --strict`
-- [ ] Launch the app (`PYTHONPATH=src python3 -m dnf_gui`) and click through every page in light and dark mode
+- [ ] Launch the app (`PYTHONPATH=src python3 -m dnf_gui`) and click through every page in light and dark mode. Check the app's own title bar on the real desktop: drag to move, double-click to maximize, the three window buttons, and resizing from an edge
 - [ ] Update the version in every location below
 - [ ] Move the `CHANGELOG.md` entries under a dated `## [X.Y.Z]` heading
-- [ ] Validate metadata: `appstreamcli validate --no-net packaging/dnf-gui.metainfo.xml` and `desktop-file-validate assets/dnf-gui.desktop`
-- [ ] Refresh `docs/screenshots/` if the UI changed (`updates-dark.png`, `updates-details-light.png`, `settings-discover-dark.png`; render them with `scripts/screenshots.py --demo`) and re-read `docs/switching-from-discover.md` against the Settings page
+- [ ] Validate metadata: `appstreamcli validate --no-net packaging/dnf-gui.metainfo.xml` and `desktop-file-validate assets/dnf-gui.desktop`. One warning is expected: `cid-desktopapp-is-not-rdns` (the app id predates reverse-DNS ids, and changing it would rename the menu entry on installed copies)
+- [ ] Refresh `docs/screenshots/` if the UI changed (`updates-dark.png`, `updates-details-light.png`, `settings-discover-dark.png`; render them with `scripts/screenshots.py --demo --pages updates,updates-details,settings-discover`) and re-read `docs/switching-from-discover.md` against the Settings page
 - [ ] Commit: `Release vX.Y.Z`
 
 ## Version Locations

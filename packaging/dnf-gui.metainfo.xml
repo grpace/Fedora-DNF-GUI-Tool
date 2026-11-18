@@ -13,12 +13,12 @@
     <ul>
       <li>Combined DNF, Flatpak and security-advisory updates with download previews</li>
       <li>Update Without Core: upgrade everything except the kernel, graphics drivers, firmware and bootloader</li>
-      <li>Security-only upgrades and a reboot-required banner</li>
+      <li>Security-only upgrades and a notice when a restart is actually needed</li>
       <li>Guided Fedora release upgrades when a new version is out</li>
       <li>Discover takeover, background update reminders and optional passwordless updates</li>
       <li>Search the Fedora repositories and install RPMs, with versions and source repository shown</li>
       <li>Flatpak manager with Flathub search, repository and COPR manager, and transaction history with undo</li>
-      <li>System information dashboard, quick tools, and light and dark themes</li>
+      <li>System information dashboard and quick tools, in a native KDE Plasma interface that follows your Plasma colors</li>
     </ul>
   </description>
   <launchable type="desktop-id">dnf-gui.desktop</launchable>
@@ -39,8 +39,9 @@
         <ul>
           <li>The Updates page shows one clear status and one main button, with updates grouped into security fixes, core updates, everything else and Flatpak apps.</li>
           <li>Package and transaction details open beside the list.</li>
-          <li>Command output follows you between pages, with live progress, Cancel and Copy Output.</li>
-          <li>Every page is redesigned, with keyboard and screen reader support throughout.</li>
+          <li>A status capsule floats over every page while commands run, with live progress, Cancel and the full output one click away.</li>
+          <li>Every page is redesigned, with its own title bar, bold icons, app icons on package rows, compact notices, and keyboard and screen reader support throughout.</li>
+          <li>"Major" updates are now called "Core" updates, and single Flatpaks can be updated from the Updates page.</li>
           <li>Security hardening: privileged commands run programs from system directories only, the app's own updates are checked again as root before installing, and the passwordless rule is validated before it takes effect.</li>
         </ul>
       </description>

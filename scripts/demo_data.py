@@ -175,8 +175,33 @@ def fill(controller) -> None:
     controller.updates.set_reboot_required(True)
 
 
+def _scroll_to_heading(window, heading: str) -> None:
+    """Scroll the visible page so the section titled ``heading`` is on top."""
+    from PyQt6.QtCore import QPointF, QTimer
+
+    def items(item):
+        yield item
+        for child in item.childItems():
+            yield from items(child)
+
+    def scroll():
+        found = next((i for i in items(window.contentItem())
+                      if i.property("title") == heading and i.isVisible()), None)
+        if found is None:
+            return
+        flick = found.parentItem()
+        while flick is not None and flick.property("contentY") is None:
+            flick = flick.parentItem()
+        if flick is not None:
+            y = found.mapToItem(flick.property("contentItem"), QPointF(0, 0)).y()
+            flick.setProperty("contentY", max(0.0, y - 12))
+    QTimer.singleShot(400, scroll)
+
+
 def after_navigate(controller, page: str, window) -> None:
     """Page-specific state for a screenshot."""
+    if page == "settings-discover":
+        _scroll_to_heading(window, "KDE Discover")
     if page not in ("activity", "running") and controller.runner.busy:
         # The sample run is over: other pages show their idle, enabled look.
         controller.runner._set(busy=False, status="idle", statusText="", step="",

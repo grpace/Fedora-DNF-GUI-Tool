@@ -53,13 +53,13 @@ These changes survive Discover package updates. PackageKit itself keeps running,
 Under **Settings → Reminders**, turn on **Remind me about pending updates** and choose how often to check. A systemd user timer then runs `dnf-gui --check` on that schedule (at 9 AM), even while the app is closed, and sends a desktop notification when updates are waiting. Click the notification, or its **View Updates** button, to open the Updates page with a fresh scan; if the app is already open, its window comes forward. It also takes a quick look at login and checks only if one is due, so a check missed while the PC was off or asleep isn't lost. Nothing polls, and nothing runs before you log in. After sending a reminder, the check stays around (at most until shortly before the next check) only so it can answer a click, then exits. If you're offline, it retries at most three times, 15 minutes apart.
 
 - **Only for security updates** keeps quiet about routine updates and only notifies you about security fixes.
-- **Include Flatpak Updates** notifies you about Flatpak updates either way.
+- **Include Flatpak updates** notifies you about Flatpak updates either way.
 
 Click **Send a Test Reminder** to see what it looks like, and click the notification to check that it opens the Updates page.
 
 ## 4. Pick your update style
 
-On the **Updates** page, the main button runs your favorite update mode. Open the arrow next to it to see all four, each with what it would install right now:
+On the **Updates** page, the main button runs your chosen update mode (Update Everything at first). **Other Ways to Update** lists all four, each with what it would install right now:
 
 | Mode | Runs | Good for |
 |---|---|---|
@@ -68,7 +68,7 @@ On the **Updates** page, the main button runs your favorite update mode. Open th
 | Update Without Core | `dnf upgrade --exclude=kernel*,*nvidia*,mesa-*,…` | Day-to-day updates that won't touch the kernel or graphics stack |
 | Security Only | `dnf upgrade --security` | Getting fixes fast with minimal change |
 
-Click the star next to a mode to make it the main button. `Ctrl+U` runs it from any page.
+To change what the main button runs, choose **Other Ways to Update → Main Button Runs**. `Ctrl+U` runs it from any page. Every row also has its own **Update** button, Flatpak apps included, for updating one thing at a time.
 
 Rows tagged **Core** are the updates Update Without Core skips: by default the kernel, firmware, graphics drivers and bootloader. Open a row to see why a package counts as core. To have Update Without Core skip something else as well, choose **Treat as Core** from its row menu (**Don't Treat as Core** undoes it). The default patterns are editable under **Settings → Updates → Core packages**.
 

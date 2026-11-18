@@ -2,7 +2,7 @@
 
 ### Is it safe to install updates while I'm using the computer?
 
-Yes. It's what `sudo dnf upgrade` does, and it's how most Fedora users on the command line update. Running programs keep using the old version until you restart them. A few updates (the kernel, glibc, systemd and similar core pieces) only fully take effect after a reboot. DNF Package Manager checks for that after every upgrade and shows a **Restart to finish updating** banner when it applies.
+Yes. It's what `sudo dnf upgrade` does, and it's how most Fedora users on the command line update. Running programs keep using the old version until you restart them. A few updates (the kernel, glibc, systemd and similar core pieces) only fully take effect after a reboot. DNF Package Manager checks for that after every upgrade and shows a **Restart to finish updating** notice when it applies.
 
 Discover's offline approach, which installs everything during a restart, is more conservative. If you'd rather never update a running system, Discover is the better fit for you.
 
@@ -44,6 +44,10 @@ On Fedora 40, which uses dnf4, release upgrades need dnf's system-upgrade plugin
 
 No. Atomic desktops manage the system with rpm-ostree, not dnf.
 
+### Why does the window have its own title bar?
+
+So the sidebar can run to the top of the window, the way many modern desktop apps look. The page header works like a normal title bar: drag it to move the window, double-click it to maximize, and use the minimize, maximize and close buttons in the top-right corner. Resize from any edge or corner. Plasma's window shortcuts still work as usual, for example `Alt+F3` for the window menu or `Meta`-drag to move.
+
 ### Does it work on GNOME or other desktops?
 
 Yes. It's a Qt app and works on any Fedora desktop that uses dnf. The Discover takeover only matters on KDE Plasma; GNOME Software has its own update settings.
@@ -52,7 +56,7 @@ Yes. It's a Qt app and works on any Fedora desktop that uses dnf. The Discover t
 
 dnf skips an update when installing it would break another package. This usually happens with a third-party package, for example RPM Fusion's `libheif-freeworld`, which requires one exact version of Fedora's `libheif`. When Fedora ships a security fix for `libheif`, the update has to wait until RPM Fusion publishes a matching `libheif-freeworld`. That usually takes a few days.
 
-The Updates page shows a banner naming the package holding the update back, and the affected rows are tagged **Waiting**. Rerunning Security Only won't help until the matching update is out. If you can't wait, **Force Install…** installs the update now by removing the blocking package. The confirmation lists what will be removed and how to reinstall it later.
+The Updates page shows a notice naming the package holding the update back, and the affected rows are tagged **Waiting**. Rerunning Security Only won't help until the matching update is out. If you can't wait, click **Details…** on that notice and choose **Force Install…**, which installs the update now by removing the blocking package. The confirmation lists what will be removed and how to reinstall it later.
 
 ### Why does it ask for my password?
 
@@ -74,4 +78,4 @@ There's no telemetry or analytics.
 
 ### Something failed. How do I report it?
 
-Open the output (the bar at the bottom, or `Ctrl+T`), click **Copy Output**, and paste the log into a [GitHub issue](https://github.com/grpace/Fedora-DNF-GUI-Tool/issues) along with your Fedora version (`cat /etc/fedora-release`).
+Open the output (**Show Output** on the status capsule at the bottom, the **Output** entry in the sidebar, or `Ctrl+T`), click **Copy Output**, and paste the log into a [GitHub issue](https://github.com/grpace/Fedora-DNF-GUI-Tool/issues) along with your Fedora version (`cat /etc/fedora-release`).

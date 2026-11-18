@@ -16,7 +16,7 @@ import time
 from PyQt6.QtCore import (
     QObject, QThread, QTimer, QUrl, pyqtProperty, pyqtSignal, pyqtSlot,
 )
-from PyQt6.QtGui import QColor, QDesktopServices
+from PyQt6.QtGui import QColor, QDesktopServices, QIcon
 
 from dnf_gui import __version__
 from dnf_gui.core.app_settings import AppSettings
@@ -99,6 +99,7 @@ class AppController(StateObject):
         self.settings_controller = SettingsController(self, self)
         self.icons = IconSet()
         self._app_icons: dict[str, dict] = {}
+        self._theme_icons: dict[str, bool] = {}
 
         self.forced_removals: list[str] = []
         self.pending_release_target: int | None = None
@@ -209,6 +210,14 @@ class AppController(StateObject):
         """``{"theme": name, "file": path}`` for a package that is an app,
         else an empty map (QML then shows a letter tile)."""
         return dict(self._app_icons.get(package, {}))
+
+    @pyqtSlot(str, result=bool)
+    def themeIconExists(self, name: str) -> bool:
+        """Whether the icon theme has ``name`` (an app or Flatpak id), so
+        QML can show the letter tile instead of an empty space."""
+        if name not in self._theme_icons:
+            self._theme_icons[name] = bool(name) and QIcon.hasThemeIcon(name)
+        return self._theme_icons[name]
 
     # ── window ─────────────────────────────────────────────────
 

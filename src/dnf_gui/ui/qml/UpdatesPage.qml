@@ -108,7 +108,7 @@ Kirigami.ScrollablePage {
         onCurrentIndexChanged: settling = false
 
         section.property: "section"
-        section.delegate: Kirigami.ListSectionHeader {
+        section.delegate: SectionHeader {
             required property string section
             width: ListView.view.width
             text: section
@@ -132,88 +132,120 @@ Kirigami.ScrollablePage {
         header: ColumnLayout {
             id: header
             width: ListView.view.width
-            spacing: Kirigami.Units.largeSpacing
+            spacing: Kirigami.Units.largeSpacing * 1.5
 
             SummaryCard {
                 Layout.fillWidth: true
-                Layout.margins: Kirigami.Units.largeSpacing
-                Layout.bottomMargin: 0
+                Layout.leftMargin: root.gutter
+                Layout.rightMargin: root.gutter
+                Layout.topMargin: root.gutter
             }
 
-            Banner {
-                visible: page.u.rebootRequired
-                type: Kirigami.MessageType.Warning
-                title: page.u.rebootCertain ? "Restart to finish updating" : "A restart may be needed"
-                body: page.u.rebootCertain
-                      ? "Core system updates were installed. You can keep working; they take effect after you restart."
-                      : "The app couldn't check whether the last update needs a restart. Restarting is the safe choice."
-                actions: [
-                    Kirigami.Action { text: "Restart Now…"; icon.source: root.ico("system-reboot", enabled); onTriggered: page.u.reboot() },
-                    Kirigami.Action { text: "Later"; onTriggered: page.u.dismissReboot() }
-                ]
-            }
-            Banner {
-                visible: !!App.appUpdate.available && !App.appUpdate.dismissed
-                type: Kirigami.MessageType.Information
-                iconName: "update-high"
-                title: "DNF Package Manager " + (App.appUpdate.version || "") + " is available"
-                body: "You have version " + App.version + ". The update is checked against GitHub's digest before it installs."
-                actions: [
-                    Kirigami.Action {
-                        text: "Install Update"; icon.source: root.ico("download", enabled)
-                        visible: !!App.appUpdate.canInstall
-                        enabled: !page.busy
-                        onTriggered: App.installAppUpdate()
-                    },
-                    Kirigami.Action { text: "Release Notes"; icon.source: root.ico("internet-services", enabled); onTriggered: App.openReleases() },
-                    Kirigami.Action { text: "Later"; onTriggered: App.dismissAppUpdate() }
-                ]
-            }
-            Banner {
-                visible: !!page.u.release.visible
-                type: page.u.release.downloaded ? Kirigami.MessageType.Positive : Kirigami.MessageType.Information
-                iconName: "system-upgrade"
-                title: page.u.release.title || ""
-                body: page.u.release.text || ""
-                actions: [
-                    Kirigami.Action {
-                        text: page.u.release.primary || ""
-                        icon.source: root.ico(page.u.release.downloaded ? "system-reboot" : "system-upgrade", enabled)
-                        enabled: !page.busy
-                        onTriggered: page.u.releasePrimary()
-                    },
-                    Kirigami.Action {
-                        text: "What's New"; icon.source: root.ico("help-about", enabled)
-                        visible: !page.u.release.downloaded
-                        onTriggered: page.u.openReleaseNotes()
-                    },
-                    Kirigami.Action { text: page.u.release.secondary || ""; onTriggered: page.u.releaseSecondary() }
-                ]
-            }
-            Banner {
-                visible: !!page.u.blocked.visible
-                type: Kirigami.MessageType.Warning
-                iconName: "security-medium"
-                title: page.u.blocked.title || ""
-                body: page.u.blocked.text || ""
-                actions: [
-                    Kirigami.Action {
-                        text: "Details…"
-                        icon.source: root.ico("documentinfo", enabled)
-                        onTriggered: page.u.explainBlocked()
+            // ── Notices: one compact row each, most urgent first ──
+            ColumnLayout {
+                id: notices
+                spacing: Kirigami.Units.smallSpacing
+                // (Not the notices' own `visible`: that reads false while
+                // this group is hidden, so it could never show again.)
+                visible: page.u.rebootRequired || (!!App.appUpdate.available && !App.appUpdate.dismissed)
+                         || !!page.u.release.visible || !!page.u.blocked.visible
+                Layout.fillWidth: true
+                Layout.leftMargin: root.gutter
+                Layout.rightMargin: root.gutter
+
+                Notice {
+                    id: restartNotice
+                    visible: page.u.rebootRequired
+                    tone: "warning"
+                    iconName: "system-reboot"
+                    title: page.u.rebootCertain ? "Restart to finish updating" : "A restart may be needed"
+                    body: page.u.rebootCertain
+                          ? "Core system updates were installed. You can keep working; they take effect after you restart."
+                          : "The app couldn't check whether the last update needs a restart. Restarting is the safe choice."
+                    actions: [
+                        Kirigami.Action { text: "Restart Now…"; icon.source: root.ico("system-reboot", enabled); onTriggered: page.u.reboot() }
+                    ]
+                    dismissAction: Kirigami.Action { text: "Later"; onTriggered: page.u.dismissReboot() }
+                }
+                Notice {
+                    id: appNotice
+                    visible: !!App.appUpdate.available && !App.appUpdate.dismissed
+                    tone: "information"
+                    iconName: "update-high"
+                    title: "DNF Package Manager " + (App.appUpdate.version || "") + " is available"
+                    body: "You have version " + App.version + ". The update is checked against GitHub's digest before it installs."
+                    actions: [
+                        Kirigami.Action {
+                            text: "Install Update"; icon.source: root.ico("download", enabled)
+                            visible: !!App.appUpdate.canInstall
+                            enabled: !page.busy
+                            onTriggered: App.installAppUpdate()
+                        },
+                        Kirigami.Action { text: "Release Notes"; icon.source: root.ico("internet-services", enabled); onTriggered: App.openReleases() }
+                    ]
+                    dismissAction: Kirigami.Action { text: "Later"; onTriggered: App.dismissAppUpdate() }
+                }
+                Notice {
+                    id: releaseNotice
+                    // "Not Now" dismisses; a downloaded upgrade's "Cancel
+                    // Upgrade" is a real action, so it stays a button.
+                    readonly property bool dismissable: !page.u.release.downloaded
+                    visible: !!page.u.release.visible
+                    tone: page.u.release.downloaded ? "positive" : "information"
+                    iconName: "system-upgrade"
+                    title: page.u.release.title || ""
+                    body: page.u.release.text || ""
+                    actions: [
+                        Kirigami.Action {
+                            text: page.u.release.primary || ""
+                            icon.source: root.ico(page.u.release.downloaded ? "system-reboot" : "system-upgrade", enabled)
+                            enabled: !page.busy
+                            onTriggered: page.u.releasePrimary()
+                        },
+                        Kirigami.Action {
+                            text: "What's New"; icon.source: root.ico("help-about", enabled)
+                            visible: !page.u.release.downloaded
+                            onTriggered: page.u.openReleaseNotes()
+                        },
+                        Kirigami.Action {
+                            text: page.u.release.secondary || ""
+                            visible: !releaseNotice.dismissable
+                            onTriggered: page.u.releaseSecondary()
+                        }
+                    ]
+                    dismissAction: Kirigami.Action {
+                        text: page.u.release.secondary || "Not Now"
+                        visible: releaseNotice.dismissable
+                        onTriggered: page.u.releaseSecondary()
                     }
-                ]
+                }
+                Notice {
+                    id: blockedNotice
+                    visible: !!page.u.blocked.visible
+                    tone: "information"
+                    iconName: "security-medium"
+                    title: page.u.blocked.title || ""
+                    body: page.u.blocked.text || ""
+                    actions: [
+                        Kirigami.Action {
+                            text: "Details…"
+                            icon.source: root.ico("documentinfo", enabled)
+                            onTriggered: page.u.explainBlocked()
+                        }
+                    ]
+                }
             }
 
             // ── Filter bar (stacks on narrow windows) ──
             GridLayout {
                 visible: page.u.total > 0
                 columns: root.compact ? 1 : 2
-                columnSpacing: Kirigami.Units.smallSpacing
+                columnSpacing: Kirigami.Units.largeSpacing
                 rowSpacing: Kirigami.Units.smallSpacing
                 Layout.fillWidth: true
-                Layout.leftMargin: Kirigami.Units.largeSpacing
-                Layout.rightMargin: Kirigami.Units.largeSpacing
+                Layout.leftMargin: root.gutter
+                Layout.rightMargin: root.gutter
+                Layout.bottomMargin: Kirigami.Units.smallSpacing
 
                 Kirigami.SearchField {
                     id: search
@@ -222,6 +254,7 @@ Kirigami.ScrollablePage {
                     Component.onCompleted: page.searchField = search
                     Layout.fillWidth: true
                     Layout.maximumWidth: Kirigami.Units.gridUnit * 18
+                    Layout.preferredWidth: Kirigami.Units.gridUnit * 18
                     onTextChanged: page.u.filtered.query = text
                     KeyNavigation.down: list
                 }
@@ -235,15 +268,13 @@ Kirigami.ScrollablePage {
                         { key: "major", label: "Core", count: page.u.majorCount },
                         { key: "flatpak", label: "Flatpak", count: page.u.flatpakCount }
                     ]
-                    delegate: QQC2.ToolButton {
+                    delegate: FilterChip {
                         required property var modelData
                         visible: modelData.key === "all" || modelData.count > 0
-                        checkable: true
-                        checked: page.u.filtered.category === modelData.key
+                        active: page.u.filtered.category === modelData.key
                         text: root.compact ? modelData.label
                                            : modelData.label + " (" + modelData.count + ")"
                         onClicked: page.u.filtered.category = modelData.key
-                        Accessible.role: Accessible.RadioButton
                         Accessible.name: modelData.label + ", " + modelData.count
                     }
                 }

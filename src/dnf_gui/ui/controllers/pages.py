@@ -302,6 +302,18 @@ class FlatpakController(_Loader):
                 "Updating all Flatpak apps"),
             confirm_label="Update All")
 
+    @pyqtSlot(str, str)
+    def updateApp(self, app_id: str, branch: str = "") -> None:
+        """Update one Flatpak app (an Updates page row's Update button)."""
+        try:
+            command = self.app.flatpak_backend.build_update_command(app_id, branch)
+        except ValueError:
+            return
+        self.app.prompts.confirm(
+            "Update Flatpak App?", f"Update only {app_id}?",
+            lambda: self.app.runner.run(command, f"Updating Flatpak: {app_id}"),
+            confirm_label="Update")
+
     @pyqtSlot()
     def removeUnused(self) -> None:
         self.app.prompts.confirm(

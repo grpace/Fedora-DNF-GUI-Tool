@@ -3,8 +3,11 @@
 import subprocess
 import os
 import platform
+import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
+
+from dnf_gui.core.paths import system_binary
 
 
 @dataclass
@@ -43,6 +46,11 @@ class SystemInfo:
     audio_server: Optional[str] = None
     cpu_temp: Optional[str] = None
     primary_ip: Optional[str] = None
+    device: Optional[str] = None        # "ASUS ROG Zephyrus G14" (DMI vendor + model)
+    firmware: Optional[str] = None      # "03.05 (2024-08-12)" (BIOS/UEFI version + date)
+    desktop: Optional[str] = None       # "KDE Plasma 6.8.2 (Wayland)"
+    root_fs: Optional[str] = None       # "btrfs" (the root filesystem's type)
+    last_update: Optional[str] = None   # when the newest dnf transaction ran
 
 
 def get_system_info() -> SystemInfo:
@@ -241,7 +249,113 @@ def get_system_info() -> SystemInfo:
     # Primary IP address
     info.primary_ip = _get_primary_ip()
 
+    # This computer, its firmware, the desktop, the root filesystem and
+    # the last dnf transaction (all read-only and quick).
+    info.device = _get_device()
+    info.firmware = _get_firmware()
+    info.desktop = _get_desktop(info.desktop_env, info.display_server)
+    info.root_fs = _get_root_fs()
+    info.last_update = _get_last_update()
+
     return info
+
+
+DMI_DIR = "/sys/class/dmi/id"
+# What firmware vendors leave in DMI fields they never filled in.
+_DMI_PLACEHOLDERS = {
+    "", "to be filled by o.e.m.", "default string", "system product name",
+    "system manufacturer", "system version", "o.e.m.", "oem", "not applicable",
+    "not specified", "none", "unknown", "invalid", "undefined", "type1productconfigid",
+    "123456789", "0123456789",
+}
+
+
+def _read_text(path: str) -> str:
+    """A small text file's stripped contents, or "" (missing, unreadable)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read(256).strip()
+    except Exception:
+        return ""
+
+
+def _dmi(field: str, base: str = DMI_DIR) -> str:
+    """A DMI field, or "" when it's a placeholder."""
+    value = " ".join(_read_text(os.path.join(base, field)).split())
+    return "" if value.lower() in _DMI_PLACEHOLDERS else value
+
+
+def _get_device(base: str = DMI_DIR) -> Optional[str]:
+    """Vendor and model ("LENOVO ThinkPad X1 Carbon Gen 11"); a desktop
+    without a product name falls back to its family, then its board."""
+    vendor = _dmi("sys_vendor", base) or _dmi("board_vendor", base)
+    model = _dmi("product_name", base) or _dmi("product_family", base) or _dmi("board_name", base)
+    if model and vendor and model.lower().startswith(vendor.lower()):
+        vendor = ""  # "Framework" + "Framework Laptop 13"
+    return " ".join(x for x in (vendor, model) if x) or None
+
+
+def _get_firmware(base: str = DMI_DIR) -> Optional[str]:
+    """BIOS/UEFI version and date: "03.05 (2024-08-12)"."""
+    version = _dmi("bios_version", base)
+    date = _dmi("bios_date", base)
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", date)
+    if m:
+        date = f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+    if version and date:
+        return f"{version} ({date})"
+    return version or date or None
+
+
+def _run_quick(cmd: list[str], timeout: float = 3) -> Optional[str]:
+    """stdout of a quick read-only command, or None (missing, failed, slow)."""
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except Exception:
+        return None
+    return result.stdout if result.returncode == 0 else None
+
+
+def _get_desktop(desktop_env: str, display_server: str,
+                 run: Callable[[list[str]], Optional[str]] = _run_quick) -> Optional[str]:
+    """The desktop and session, e.g. "KDE Plasma 6.8.2 (Wayland)": the
+    installed Plasma version on a KDE session, else the session's own name."""
+    name = desktop_env if desktop_env and desktop_env != "Unknown" else ""
+    if "KDE" in os.environ.get("XDG_CURRENT_DESKTOP", "") or name.startswith("KDE"):
+        version = (run([system_binary("rpm"), "-q", "--qf", "%{VERSION}", "plasma-workspace"]) or "").strip()
+        if re.fullmatch(r"\d+(\.\d+)*", version):
+            name = f"KDE Plasma {version}"
+    if not name:
+        return None
+    session = display_server if display_server and display_server.lower() != "unknown" else ""
+    return f"{name} ({session})" if session else name
+
+
+def _get_root_fs(mounts: str = "/proc/mounts") -> Optional[str]:
+    """The root filesystem's type ("btrfs"); the last mount on / wins."""
+    fstype = None
+    try:
+        with open(mounts, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 3 and parts[1] == "/" and parts[2] != "rootfs":
+                    fstype = parts[2]
+    except Exception:
+        return None
+    return fstype
+
+
+def _get_last_update(run: Callable[[list[str]], Optional[str]] = _run_quick) -> Optional[str]:
+    """When the newest dnf transaction ran, read from ``dnf history list``
+    (parsed by DNFBackend.history, with a short timeout)."""
+    try:
+        from dnf_gui.core.dnf_backend import DNFBackend
+        backend = DNFBackend()
+        backend._run = lambda cmd, allow_nonzero=False: run(cmd)
+        newest = backend.history(limit=1)
+        return (newest[0].get("date") or None) if newest else None
+    except Exception:
+        return None
 
 
 def _detect_virt_from_cpuinfo() -> Optional[str]:

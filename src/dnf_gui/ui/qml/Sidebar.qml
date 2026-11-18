@@ -95,10 +95,20 @@ Kirigami.GlobalDrawer {
                 spacing: 0
                 Layout.fillWidth: true
 
-                Kirigami.ListSectionHeader {
+                // A quiet group label (no rule): small, dimmed, in line
+                // with the entries' icons.
+                QQC2.Label {
                     text: section.modelData.title
                     visible: !drawer.collapsed
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    font.weight: Font.DemiBold
+                    color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
+                    elide: Text.ElideRight
+                    Accessible.role: Accessible.Heading
                     Layout.fillWidth: true
+                    Layout.leftMargin: Kirigami.Units.smallSpacing + Kirigami.Units.largeSpacing
+                    Layout.topMargin: Kirigami.Units.largeSpacing * 1.5
+                    Layout.bottomMargin: Kirigami.Units.smallSpacing
                 }
                 Kirigami.Separator {
                     visible: drawer.collapsed && section.modelData.title !== "Packages"
@@ -130,7 +140,6 @@ Kirigami.GlobalDrawer {
             iconName: App.Runner.busy ? "view-refresh" : "utilities-terminal"
             collapsed: drawer.collapsed
             selectable: false
-            running: App.Runner.busy
             onTriggered: App.toggleActivity(!App.activityExpanded)
             Layout.fillWidth: true
         }
@@ -150,6 +159,7 @@ Kirigami.GlobalDrawer {
             color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
             font: Kirigami.Theme.smallFont
             Layout.margins: Kirigami.Units.largeSpacing
+            Layout.leftMargin: Kirigami.Units.smallSpacing + Kirigami.Units.largeSpacing
         }
     }
 }

@@ -10,6 +10,12 @@ Kirigami.ApplicationWindow {
     id: root
 
     readonly property bool compact: width < Kirigami.Units.gridUnit * 50
+    // One spacing scale for every page: the page edge (cards, list rows,
+    // section headers, page toolbars) sits this far in.
+    readonly property real gutter: compact ? Kirigami.Units.largeSpacing : Kirigami.Units.largeSpacing * 2
+    // Secondary text: the text color blended toward the background
+    // (scripts/check_contrast.py SECONDARY_MIX).
+    readonly property real secondaryMix: 0.3
     readonly property var pageFiles: ({
         "updates": "UpdatesPage.qml", "installed": "InstalledPage.qml",
         "flatpak": "FlatpakPage.qml", "sysinfo": "SystemPage.qml",

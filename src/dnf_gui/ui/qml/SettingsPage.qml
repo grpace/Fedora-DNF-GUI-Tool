@@ -14,6 +14,23 @@ FormCard.FormCardPage {
 
     title: "Settings"
 
+    // A state color as text: pulled toward the text color so it stays
+    // readable (the Pill.qml blend, scripts/check_contrast.py PILL_MIX).
+    function toneText(tone) {
+        const t = Kirigami.Theme.textColor;
+        return Qt.rgba(tone.r + (t.r - tone.r) * 0.4, tone.g + (t.g - tone.g) * 0.4,
+                       tone.b + (t.b - tone.b) * 0.4, 1);
+    }
+    // The Core packages field shows its start, not wherever the cursor
+    // was left at the end of the text.
+    function showHeldBack() {
+        if (!heldBackField.activeFocus && !heldBackField.fieldActiveFocus) {
+            heldBackField.text = page.s.heldBack;
+            heldBackField.cursorPosition = 0;
+        }
+    }
+    Component.onCompleted: heldBackField.cursorPosition = 0
+
     // The text field and FormCard's switches drop their bindings (the
     // switch delegate writes its own `checked`), so put the saved values
     // back whenever the settings change. Each switch saves only its own
@@ -21,8 +38,7 @@ FormCard.FormCardPage {
     Connections {
         target: page.s
         function onChanged() {
-            if (!heldBackField.activeFocus)
-                heldBackField.text = page.s.heldBack;
+            page.showHeldBack();
             if (remindSwitch.checked !== page.s.remindersEnabled)
                 remindSwitch.checked = page.s.remindersEnabled;
             if (securitySwitch.checked !== page.s.securityOnly)
@@ -180,8 +196,8 @@ FormCard.FormCardPage {
                     QQC2.Label {
                         text: page.s.passwordlessTitle
                         font.weight: Font.DemiBold
-                        color: page.s.passwordlessLevel === "warning" ? Kirigami.Theme.neutralTextColor
-                             : page.s.passwordlessLevel === "positive" ? Kirigami.Theme.positiveTextColor
+                        color: page.s.passwordlessLevel === "warning" ? page.toneText(Kirigami.Theme.neutralTextColor)
+                             : page.s.passwordlessLevel === "positive" ? page.toneText(Kirigami.Theme.positiveTextColor)
                              : Kirigami.Theme.textColor
                         Layout.fillWidth: true
                     }
@@ -196,7 +212,7 @@ FormCard.FormCardPage {
                             required property string modelData
                             text: "• " + modelData
                             wrapMode: Text.Wrap
-                            color: Kirigami.Theme.neutralTextColor
+                            color: page.toneText(Kirigami.Theme.neutralTextColor)
                             Layout.fillWidth: true
                         }
                     }

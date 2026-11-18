@@ -1,5 +1,6 @@
 """Flatpak backend — manage Flatpak applications."""
 
+import re
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
@@ -19,10 +20,13 @@ class FlatpakApp:
     is_runtime: bool = False
 
 
+# An app id or branch as flatpak prints them; never an option ("-x").
+_FLATPAK_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
+
+
 def pick_remote(remotes: str) -> str:
     """The remote to install from: Flathub when the app is there, else
     the first remote search listed it in."""
-    import re
     names = [r.strip() for r in (remotes or "").split(",")]
     names = [r for r in names if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", r)]
     if not names or "flathub" in names:
@@ -95,6 +99,13 @@ class FlatpakBackend:
     def build_update_all_command(self) -> list[str]:
         """Build command to update all Flatpak apps."""
         return [self._flatpak, "update", "-y"]
+
+    def build_update_command(self, app_id: str, branch: str = "") -> list[str]:
+        """Build command to update one Flatpak app (``app_id//branch`` when
+        the branch is known, so only that installed branch updates)."""
+        if not _FLATPAK_NAME.fullmatch(app_id) or (branch and not _FLATPAK_NAME.fullmatch(branch)):
+            raise ValueError(f"not a Flatpak app id: {app_id!r} {branch!r}")
+        return [self._flatpak, "update", "-y", f"{app_id}//{branch}" if branch else app_id]
 
     def build_repair_command(self) -> list[str]:
         """Build command to repair Flatpak installation."""

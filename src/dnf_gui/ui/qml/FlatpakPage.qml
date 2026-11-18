@@ -57,25 +57,40 @@ Kirigami.ScrollablePage {
     header: QQC2.ToolBar {
         visible: page.f.available
         position: QQC2.ToolBar.Header
+        leftPadding: root.gutter
+        rightPadding: root.gutter
+        topPadding: Kirigami.Units.largeSpacing
+        bottomPadding: Kirigami.Units.largeSpacing
         contentItem: RowLayout {
-            spacing: Kirigami.Units.smallSpacing
-            QQC2.TabBar {
-                Layout.preferredWidth: implicitWidth
-                currentIndex: page.mode === "installed" ? 0 : 1
-                QQC2.TabButton {
-                    text: "Installed"
-                    width: implicitWidth
-                    onClicked: { page.mode = "installed"; search.text = page.f.installed.query; }
-                }
-                QQC2.TabButton {
-                    text: "Find on Flathub"
-                    width: implicitWidth
-                    onClicked: { page.mode = "find"; search.text = page.f.searchQuery; search.forceActiveFocus(); }
+            spacing: Kirigami.Units.largeSpacing
+            RowLayout {
+                spacing: 0
+                Repeater {
+                    model: [
+                        { key: "installed", label: "Installed" },
+                        { key: "find", label: "Find on Flathub" }
+                    ]
+                    delegate: FilterChip {
+                        required property var modelData
+                        active: page.mode === modelData.key
+                        text: modelData.label
+                        onClicked: {
+                            page.mode = modelData.key;
+                            if (modelData.key === "installed") {
+                                search.text = page.f.installed.query;
+                            } else {
+                                search.text = page.f.searchQuery;
+                                search.forceActiveFocus();
+                            }
+                        }
+                    }
                 }
             }
             Kirigami.SearchField {
                 id: search
                 Layout.fillWidth: true
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 18
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 18
                 placeholderText: page.mode === "installed" ? "Filter installed apps…"
                                                            : "Search Flathub, then press Enter…"
                 Accessible.name: page.mode === "installed" ? "Filter installed apps" : "Search Flathub"
@@ -92,6 +107,7 @@ Kirigami.ScrollablePage {
                 enabled: search.text.trim().length >= 2 && !page.f.searching
                 onClicked: page.f.search(search.text)
             }
+            Item { Layout.fillWidth: true }
         }
     }
 
@@ -103,7 +119,7 @@ Kirigami.ScrollablePage {
         activeFocusOnTab: true
         Accessible.name: page.mode === "installed" ? "Installed Flatpak Apps" : "Flathub Results"
         section.property: page.mode === "installed" && page.f.showRuntimes ? "runtime" : ""
-        section.delegate: Kirigami.ListSectionHeader {
+        section.delegate: SectionHeader {
             required property string section
             width: ListView.view.width
             text: section === "true" ? "Runtimes" : "Apps"
@@ -127,6 +143,10 @@ Kirigami.ScrollablePage {
             width: ListView.view.width
             text: name
             highlighted: ListView.isCurrentItem
+            leftPadding: root.gutter
+            rightPadding: root.gutter
+            topPadding: Kirigami.Units.largeSpacing
+            bottomPadding: Kirigami.Units.largeSpacing
             Accessible.description: appId + (version ? ", version " + version : "")
             onClicked: ListView.view.currentIndex = index
             Keys.onMenuPressed: if (more.visible) menu.popup(more, 0, more.height)
@@ -145,7 +165,7 @@ Kirigami.ScrollablePage {
                     Layout.preferredHeight: Layout.preferredWidth
                 }
                 ColumnLayout {
-                    spacing: 0
+                    spacing: Kirigami.Units.smallSpacing / 2
                     Layout.fillWidth: true
                     QQC2.Label {
                         text: row.name
@@ -163,16 +183,11 @@ Kirigami.ScrollablePage {
                         Layout.fillWidth: true
                     }
                 }
-                QQC2.Label {
-                    visible: row.size !== "" && !row.narrow
-                    text: row.size
-                    color: row.dim
-                    font: Kirigami.Theme.smallFont
-                }
+                // A status, not a button: these update with Update All.
                 Pill {
                     visible: page.mode === "installed" && row.hasUpdate
-                    text: "Update"
-                    tone: "info"
+                    text: "Update Available"
+                    tone: "plain"
                     selected: row.highlighted
                 }
                 Pill {
@@ -180,6 +195,17 @@ Kirigami.ScrollablePage {
                     text: "Installed"
                     tone: "positive"
                     selected: row.highlighted
+                }
+                // Fixed width and tabular digits: sizes line up down the list.
+                QQC2.Label {
+                    visible: !row.narrow && (row.size !== "" || page.mode === "installed")
+                    text: row.size
+                    color: row.dim
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    font.features: { "tnum": 1 }
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideLeft
+                    Layout.preferredWidth: Kirigami.Units.gridUnit * 4.5
                 }
                 QQC2.ToolButton {
                     visible: page.mode === "find" && !row.installed
@@ -202,6 +228,14 @@ Kirigami.ScrollablePage {
                     onClicked: menu.popup(more, 0, more.height)
                     QQC2.Menu {
                         id: menu
+                        QQC2.MenuItem {
+                            visible: row.hasUpdate
+                            height: visible ? implicitHeight : 0
+                            text: "Update"
+                            icon.source: root.ico("download", enabled)
+                            enabled: !App.Runner.busy
+                            onTriggered: page.f.updateApp(row.appId, row.branch)
+                        }
                         QQC2.MenuItem { text: "Copy App ID"; icon.source: root.ico("edit-copy", enabled); onTriggered: App.copyText(row.appId) }
                         QQC2.MenuSeparator {}
                         QQC2.MenuItem {

@@ -38,27 +38,43 @@ Kirigami.ScrollablePage {
 
     header: QQC2.ToolBar {
         position: QQC2.ToolBar.Header
+        leftPadding: root.gutter
+        rightPadding: root.gutter
+        topPadding: Kirigami.Units.largeSpacing
+        bottomPadding: Kirigami.Units.largeSpacing
         contentItem: RowLayout {
-            spacing: Kirigami.Units.smallSpacing
-            QQC2.TabBar {
-                id: tabs
-                Layout.preferredWidth: implicitWidth
-                currentIndex: page.mode === "installed" ? 0 : 1
-                QQC2.TabButton {
-                    text: page.p.installed.count > 0 && page.mode === "installed" && page.p.installed.query === ""
-                          ? "Installed (" + page.p.installed.count + ")" : "Installed"
-                    width: implicitWidth
-                    onClicked: { page.mode = "installed"; search.text = page.p.installed.query; }
-                }
-                QQC2.TabButton {
-                    text: "Find Packages"
-                    width: implicitWidth
-                    onClicked: { page.mode = "find"; search.text = page.p.searchQuery; search.forceActiveFocus(); }
+            spacing: Kirigami.Units.largeSpacing
+            RowLayout {
+                spacing: 0
+                Repeater {
+                    model: [
+                        { key: "installed", label: "Installed" },
+                        { key: "find", label: "Find Packages" }
+                    ]
+                    delegate: FilterChip {
+                        required property var modelData
+                        active: page.mode === modelData.key
+                        text: modelData.key === "installed" && page.p.installed.count > 0
+                              && page.mode === "installed" && page.p.installed.query === ""
+                              ? "Installed (" + page.p.installed.count + ")" : modelData.label
+                        Accessible.name: modelData.label
+                        onClicked: {
+                            page.mode = modelData.key;
+                            if (modelData.key === "installed") {
+                                search.text = page.p.installed.query;
+                            } else {
+                                search.text = page.p.searchQuery;
+                                search.forceActiveFocus();
+                            }
+                        }
+                    }
                 }
             }
             Kirigami.SearchField {
                 id: search
                 Layout.fillWidth: true
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 18
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 18
                 placeholderText: page.mode === "installed" ? "Filter installed packages…"
                                                            : "Search Fedora's repositories, then press Enter…"
                 Accessible.name: page.mode === "installed" ? "Filter installed packages" : "Search repositories"
@@ -76,6 +92,7 @@ Kirigami.ScrollablePage {
                 enabled: search.text.trim().length >= 2 && !page.p.searching
                 onClicked: page.p.search(search.text)
             }
+            Item { Layout.fillWidth: true }
         }
     }
 

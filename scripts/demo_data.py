@@ -144,7 +144,9 @@ SYSINFO = SystemInfo(
     architecture="x86_64", swap_total="8.0 GB", swap_used="0.4 GB", swap_percent=5.0,
     selinux_status="Enforcing", boot_mode="UEFI (Secure Boot on)", virtualization="None",
     battery_percent=82, battery_status="Discharging", battery_time="5 h 10 min",
-    audio_server="PipeWire 1.4.9", cpu_temp="48 °C", primary_ip="192.168.1.42")
+    audio_server="PipeWire 1.4.9", cpu_temp="48 °C", primary_ip="192.168.1.42",
+    device="Framework Laptop 13 (AMD Ryzen 7040 Series)", firmware="03.05 (2024-08-12)",
+    desktop="KDE Plasma 6.8.2 (Wayland)", root_fs="btrfs", last_update="2026-11-16 09:12 PM")
 
 
 EXTRA_FLATPAKS = [
@@ -175,6 +177,11 @@ def fill(controller) -> None:
 
 def after_navigate(controller, page: str, window) -> None:
     """Page-specific state for a screenshot."""
+    if page not in ("activity", "running") and controller.runner.busy:
+        # The sample run is over: other pages show their idle, enabled look.
+        controller.runner._set(busy=False, status="idle", statusText="", step="",
+                               progress=-1.0, operation="")
+        controller.closeActivity()
     if page == "updates-details":
         from PyQt6.QtCore import Q_ARG, QMetaObject, Qt
         QMetaObject.invokeMethod(window, "openPackageDetails",

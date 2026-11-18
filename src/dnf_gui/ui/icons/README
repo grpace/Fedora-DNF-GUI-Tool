@@ -77,3 +77,4 @@ Files are renamed to the freedesktop icon names the QML uses:
   window-minimize.svg  <-  minus-bold.svg
   window-maximize.svg  <-  square-bold.svg
   window-restore.svg  <-  copy-simple-bold.svg
+  checkmark.svg  <-  check-bold.svg

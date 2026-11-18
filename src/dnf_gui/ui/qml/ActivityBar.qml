@@ -72,14 +72,21 @@ Item {
         id: card
 
         readonly property real pad: Kirigami.Units.largeSpacing
-        anchors.horizontalCenter: parent.horizontalCenter
+        // With a details column open beside the list, the capsule sits
+        // under the list column instead of straddling the divider; the
+        // open log spans every column.
+        readonly property bool underFirstColumn: !bar.expanded && !root.compact
+                                                 && root.pageStack.wideMode && root.pageStack.depth > 1
+        readonly property real span: underFirstColumn && root.pageStack.get(0)
+                                     ? Math.min(bar.width, root.pageStack.get(0).width) : bar.width
+        x: (span - width) / 2
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Kirigami.Units.largeSpacing
-        width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2,
+        width: Math.min(span - Kirigami.Units.largeSpacing * 2,
                         bar.expanded ? Kirigami.Units.gridUnit * 56 : Kirigami.Units.gridUnit * 34)
         height: bar.expanded ? Math.min(Kirigami.Units.gridUnit * 22, root.height * 0.55)
                              : bar.capsuleHeight
-        radius: bar.expanded ? Kirigami.Units.gridUnit : height / 2
+        radius: bar.expanded ? Kirigami.Units.cornerRadius * 3 : height / 2
         color: Kirigami.Theme.backgroundColor
         border.width: 1
         border.color: Kirigami.ColorUtils.linearInterpolation(
@@ -97,6 +104,7 @@ Item {
             onWheel: (wheel) => wheel.accepted = true
         }
 
+        Behavior on x { NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic } }
         Behavior on width { NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic } }
         Behavior on height { NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic } }
         Behavior on radius { NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic } }

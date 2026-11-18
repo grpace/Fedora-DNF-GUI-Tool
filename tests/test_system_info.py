@@ -72,11 +72,18 @@ def test_desktop_falls_back_to_the_session_name():
         assert system_info._get_desktop("Unknown", "Unknown", lambda cmd: None) is None
 
 
-def test_last_update_is_the_newest_transaction():
+def test_last_update_is_the_newest_upgrade_not_any_transaction():
     listing = ("ID Command line             Date and time       Action(s) Altered\n"
+               "215 install -y htop          2026-11-17 10:03:41                 1\n"
                "214 upgrade -y --refresh     2026-11-16 21:12:05                38\n"
-               "213 install -y htop          2026-11-14 10:03:41                 1\n")
+               "213 remove -y gnome-tour     2026-11-14 10:03:41                 1\n")
     assert system_info._get_last_update(lambda cmd: listing) == "2026-11-16 09:12 PM"
+    only_installs = ("ID Command line             Date and time       Action(s) Altered\n"
+                     "215 install -y htop          2026-11-17 10:03:41                 1\n")
+    assert system_info._get_last_update(lambda cmd: only_installs) is None
+    assert system_info._is_upgrade({"command": "", "action": "E, I, U"})
+    assert system_info._is_upgrade({"command": "", "action": "Upgrade"})
+    assert not system_info._is_upgrade({"command": "install foo", "action": "Install"})
     assert system_info._get_last_update(lambda cmd: None) is None
     assert system_info._get_last_update(lambda cmd: "") is None
 

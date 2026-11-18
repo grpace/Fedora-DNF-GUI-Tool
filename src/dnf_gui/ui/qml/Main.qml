@@ -127,6 +127,13 @@ Kirigami.ApplicationWindow {
     // also becomes a drag handle.
     property var movableHeaders: []
     function fitHeaders() {
+        // Forget headers of closed (destroyed) detail pages.
+        movableHeaders = movableHeaders.filter(h => {
+            for (let i = 0; i < pageStack.depth; ++i)
+                if (pageStack.get(i).globalToolBarItem === h)
+                    return true;
+            return false;
+        });
         for (let i = 0; i < pageStack.depth; ++i) {
             const header = pageStack.get(i).globalToolBarItem;
             if (!header)

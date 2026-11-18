@@ -28,7 +28,12 @@ except ImportError:  # PyQt6 built without QtDBus: notify-send only
     QDBusMessage = object
 
 APP_NAME = "DNF Package Manager"
-APP_ICON = "dnf-gui"
+# The app's own icon file (the one the window uses), so notifications show the
+# current icon even before the theme copy is updated or when run from source;
+# the theme name is the fallback.
+_APP_ICON_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "ui", "app_icon.svg")
+APP_ICON = _APP_ICON_FILE if os.path.isfile(_APP_ICON_FILE) else "dnf-gui"
 DESKTOP_ENTRY = "dnf-gui"
 DEFAULT_ACTION = "default"  # the spec's key for clicking the notification body
 # Returned by Notifier.send when notify-send delivered it: shown, but

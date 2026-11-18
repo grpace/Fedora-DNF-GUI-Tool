@@ -188,19 +188,61 @@ Kirigami.GlobalDrawer {
             onTriggered: App.navigate("settings")
             Layout.fillWidth: true
         }
-        // Version and maker, as in 1.x ("Version 2.0.0 · Greg.Tech").
-        QQC2.Label {
-            text: "Version " + App.version + "  ·  <a href=\"https://greg.tech\">Greg.Tech</a>"
-            textFormat: Text.StyledText
-            linkColor: color
-            onLinkActivated: App.openWebsite()
-            Accessible.name: "Version " + App.version + ", made by Greg.Tech"
-            HoverHandler { cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor }
+        // The version, and the project on GitHub.
+        RowLayout {
             visible: !drawer.collapsed
-            color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
-            font: Kirigami.Theme.smallFont
+            spacing: Kirigami.Units.smallSpacing
+            Layout.fillWidth: true
             Layout.margins: Kirigami.Units.largeSpacing
             Layout.leftMargin: Kirigami.Units.smallSpacing + Kirigami.Units.largeSpacing
+            Layout.rightMargin: Kirigami.Units.smallSpacing + Kirigami.Units.largeSpacing
+            QQC2.Label {
+                text: "Version " + App.version
+                color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
+                font: Kirigami.Theme.smallFont
+                Layout.fillWidth: true
+            }
+            QQC2.AbstractButton {
+                id: githubLink
+                objectName: "githubLink"
+                text: "GitHub"
+                hoverEnabled: true
+                focusPolicy: Qt.TabFocus
+                Accessible.role: Accessible.Link
+                Accessible.name: "DNF Package Manager on GitHub"
+                Accessible.onPressAction: clicked()
+                QQC2.ToolTip.text: "github.com/grpace/Fedora-DNF-GUI-Tool"
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                leftPadding: Kirigami.Units.smallSpacing * 1.5
+                rightPadding: Kirigami.Units.smallSpacing * 2
+                topPadding: Kirigami.Units.smallSpacing / 2
+                bottomPadding: Kirigami.Units.smallSpacing / 2
+                background: Rectangle {
+                    radius: height / 2
+                    color: githubLink.hovered || githubLink.visualFocus
+                           ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12)
+                           : "transparent"
+                    border.width: 1
+                    border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b,
+                                          githubLink.visualFocus ? 0.6 : 0.2)
+                }
+                contentItem: RowLayout {
+                    spacing: Kirigami.Units.smallSpacing
+                    Kirigami.Icon {
+                        source: root.ico("github", true, color)
+                        color: Kirigami.Theme.textColor
+                        implicitWidth: Kirigami.Units.iconSizes.small
+                        implicitHeight: implicitWidth
+                    }
+                    QQC2.Label {
+                        text: githubLink.text
+                        font: Kirigami.Theme.smallFont
+                    }
+                }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                onClicked: App.openProject()
+            }
         }
     }
 }

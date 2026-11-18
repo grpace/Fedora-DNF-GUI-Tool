@@ -375,10 +375,10 @@ FormCard.FormCardPage {
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
-            text: "Made by Greg.Tech"
-            description: "greg.tech"
-            icon.source: root.ico("internet-services", enabled)
-            onClicked: App.openWebsite()
+            text: "View on GitHub"
+            description: "github.com/grpace/Fedora-DNF-GUI-Tool"
+            icon.source: root.ico("github", enabled)
+            onClicked: App.openProject()
         }
         FormCard.FormButtonDelegate {
             text: "Check for App Updates"

@@ -44,6 +44,56 @@ Kirigami.ApplicationWindow {
     minimumWidth: Kirigami.Units.gridUnit * 22
     minimumHeight: Kirigami.Units.gridUnit * 20
 
+    // ── The app's own title bar ──
+    // No system frame: the sidebar runs to the top, the page header is the
+    // title bar (drag to move, double-click to maximize), and the window
+    // buttons sit at its right end.
+    flags: Qt.Window | Qt.FramelessWindowHint
+    function toggleMaximized() {
+        if (visibility === Window.Maximized)
+            showNormal();
+        else
+            showMaximized();
+    }
+    // Drag/double-click handling, attached behind a header's own controls.
+    Component {
+        id: moveHandle
+        Item {
+            anchors.fill: parent
+            z: -1
+            DragHandler {
+                target: null
+                onActiveChanged: if (active) root.startSystemMove()
+            }
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                onDoubleTapped: root.toggleMaximized()
+            }
+        }
+    }
+    // The rightmost header leaves room for the window buttons; each header
+    // also becomes a drag handle.
+    property var movableHeaders: []
+    function fitHeaders() {
+        for (let i = 0; i < pageStack.depth; ++i) {
+            const header = pageStack.get(i).globalToolBarItem;
+            if (!header)
+                continue;
+            if (!movableHeaders.includes(header)) {
+                moveHandle.createObject(header);
+                movableHeaders.push(header);
+            }
+            header.rightPadding = i === pageStack.depth - 1
+                ? windowControls.width + Kirigami.Units.smallSpacing
+                : Kirigami.Units.mediumSpacing;
+        }
+    }
+    Connections {
+        target: root.pageStack
+        function onDepthChanged() { Qt.callLater(root.fitHeaders); }
+        function onCurrentItemChanged() { Qt.callLater(root.fitHeaders); }
+    }
+
     pageStack.defaultColumnWidth: Kirigami.Units.gridUnit * 28
     pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.ToolBar
     pageStack.globalToolBar.showNavigationButtons: Kirigami.ApplicationHeaderStyle.ShowBackButton
@@ -197,6 +247,65 @@ Kirigami.ApplicationWindow {
     }
 
     PromptDialog {}
+
+    // Window chrome above everything: buttons, resize grips, the edge.
+    Item {
+        id: chrome
+        parent: root.contentItem.parent
+        anchors.fill: parent
+        z: 1000
+
+        WindowControls {
+            id: windowControls
+            z: 1000
+            anchors.top: parent.top
+            anchors.right: parent.right
+            height: root.pageStack.globalToolBar.preferredHeight
+        }
+
+        // Resize from the edges and corners (no system frame to grab).
+        Repeater {
+            model: [
+                { e: Qt.TopEdge, c: Qt.SizeVerCursor }, { e: Qt.BottomEdge, c: Qt.SizeVerCursor },
+                { e: Qt.LeftEdge, c: Qt.SizeHorCursor }, { e: Qt.RightEdge, c: Qt.SizeHorCursor },
+                { e: Qt.TopEdge | Qt.LeftEdge, c: Qt.SizeFDiagCursor },
+                { e: Qt.BottomEdge | Qt.RightEdge, c: Qt.SizeFDiagCursor },
+                { e: Qt.TopEdge | Qt.RightEdge, c: Qt.SizeBDiagCursor },
+                { e: Qt.BottomEdge | Qt.LeftEdge, c: Qt.SizeBDiagCursor }
+            ]
+            delegate: Item {
+                required property var modelData
+                readonly property int edges: modelData.e
+                readonly property real grip: Kirigami.Units.smallSpacing * 1.5
+                readonly property bool corner: (edges & (Qt.TopEdge | Qt.BottomEdge))
+                                               && (edges & (Qt.LeftEdge | Qt.RightEdge))
+                z: 1001
+                visible: !windowControls.maximized
+                x: (edges & Qt.RightEdge) ? parent.width - (corner ? grip * 3 : grip)
+                 : (edges & Qt.LeftEdge) ? 0 : grip * 3
+                y: (edges & Qt.BottomEdge) ? parent.height - (corner ? grip * 3 : grip)
+                 : (edges & Qt.TopEdge) ? 0 : grip * 3
+                width: corner ? grip * 3 : (edges & (Qt.LeftEdge | Qt.RightEdge)) ? grip : parent.width - grip * 6
+                height: corner ? grip * 3 : (edges & (Qt.TopEdge | Qt.BottomEdge)) ? grip : parent.height - grip * 6
+                HoverHandler { cursorShape: modelData.c }
+                DragHandler {
+                    target: null
+                    onActiveChanged: if (active) root.startSystemResize(edges)
+                }
+            }
+        }
+
+        // A hairline edge, since there's no system frame or border.
+        Rectangle {
+            z: 999
+            anchors.fill: parent
+            visible: !windowControls.maximized
+            color: "transparent"
+            border.width: 1
+            border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
+                                  Kirigami.Theme.textColor.b, 0.18)
+        }
+    }
 
     // ── Keyboard: window-level, routed to the current page ──
     Shortcut { sequence: "Ctrl+R"; onActivated: App.refreshCurrent() }

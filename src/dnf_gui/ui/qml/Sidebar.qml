@@ -42,6 +42,15 @@ Kirigami.GlobalDrawer {
         bottomPadding: Kirigami.Units.smallSpacing
         leftPadding: Kirigami.Units.largeSpacing
         rightPadding: Kirigami.Units.smallSpacing
+        // Part of the app's title bar: drag to move, double-click to maximize.
+        DragHandler {
+            target: null
+            onActiveChanged: if (active) root.startSystemMove()
+        }
+        TapHandler {
+            acceptedButtons: Qt.LeftButton
+            onDoubleTapped: root.toggleMaximized()
+        }
         contentItem: RowLayout {
             spacing: Kirigami.Units.smallSpacing
             Kirigami.Icon {

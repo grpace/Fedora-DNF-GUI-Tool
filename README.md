@@ -39,8 +39,8 @@ Discover is a good app store. As the tool that keeps a Fedora system updated, it
 
 DNF Package Manager does the job the way you would in a terminal, with a proper desktop interface around it:
 
-- **Real commands, live output.** Upgrades run `dnf upgrade` and stream every line into an output bar that follows you between pages, with the current step and progress. Copy the log with one click.
-- **Updates apply now.** No reboot for every update. A banner tells you when a kernel or core library update actually needs a restart.
+- **Real commands, live output.** Upgrades run `dnf upgrade`. A small status capsule floats over every page with the current step and a progress ring, and opens into the full live output. Copy the log with one click.
+- **Updates apply now.** No reboot for every update. A notice tells you when a kernel or core library update actually needs a restart.
 - **You choose what gets updated.** One button, four modes: everything; everything plus Flatpaks; everything *except* the kernel, drivers, firmware and bootloader; or security fixes only. Star the mode you use most.
 - **Discover steps aside cleanly.** One click turns off Discover's update checks so you don't get duplicate notifications, and cancels any update it already scheduled for your next restart. One click brings it all back.
 
@@ -76,11 +76,12 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
   - **Update Without Core:** everything except core packages (`kernel*`, `linux-firmware*`, `*-gpu-firmware`, `*nvidia*`, `akmod-*`, `mesa-*`, `grub2-*`, `shim-*`), via `dnf upgrade --exclude=…`.
   - **Security Only:** `dnf upgrade --security`.
 - **A list that tells you something.** Updates are grouped into Security Fixes, Core Updates, Other Updates and Flatpak Apps. Each row shows the installed and new version (`145.0 → 146.0.1`), the download size, the severity of security fixes, and a **Core** tag for updates Update Without Core skips. Filter by name, or by All, Security, Core or Flatpak.
+- **Update one thing at a time:** every row, Flatpak apps included, has its own **Update** button.
 - **Details beside the list:** click an update for its security status, versions and `dnf info`, in a column next to the list.
 - **Decide what counts as core:** **Treat as Core** on any row's menu, or edit the patterns in Settings.
 - **Previews before you confirm:** package count and download size for every upgrade.
-- **Reboot banner** only when a kernel or core library update needs it.
-- **Fedora release upgrades.** When a new Fedora release is out (betas are never offered), a banner shows how long your current release keeps getting updates. It then walks you through Fedora's documented `dnf system-upgrade` flow: update, download the new release while you keep working, and restart only when you say so.
+- **Compact notices** for what needs attention: a restart that's actually needed, a new Fedora release, an app update, or a security fix waiting on another repository. One line each; expand one for the full text.
+- **Fedora release upgrades.** When a new Fedora release is out (betas are never offered), a notice shows how long your current release keeps getting updates. It then walks you through Fedora's documented `dnf system-upgrade` flow: update, download the new release while you keep working, and restart only when you say so.
 
 ### Packages and Flatpaks
 - **Search the repositories** (Fedora, RPM Fusion, your COPRs) by name or description. Results show the version, the source repository and whether a package is already installed.
@@ -89,7 +90,7 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
 - **Flatpak manager:** search Flathub, install, update, remove, prune unused runtimes, repair.
 
 ### System
-- **System information:** OS, kernel, desktop, CPU, GPU, memory and storage at a glance.
+- **System information:** your device and firmware, Fedora and Plasma versions, kernel, CPU, GPU, memory, storage (with the filesystem), battery, SELinux and Secure Boot, and when the system was last updated.
 - **Tools:** enable RPM Fusion and Flathub, firmware updates via `fwupdmgr`, clean or rebuild the DNF cache, distribution sync.
 - **Repositories:** enable or disable repos and add COPRs.
 - **History:** every DNF transaction, with what it changed beside the list and undo.
@@ -100,7 +101,9 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
 - **Passwordless updates (optional):** a validated sudoers rule that lets the app's exact upgrade commands run without a password prompt, while installs and removals still ask. See [Security model](#security-model).
 
 ### Desktop
-- **Native KDE Plasma interface** (Kirigami). It follows your color scheme, accent, fonts and light or dark setting; the colors it adds meet WCAG AA contrast in Breeze Light and Dark. Works with the keyboard and screen readers, and the sidebar folds to icons on narrow windows.
+- **Native KDE Plasma interface** (Kirigami). It follows your color scheme, accent, fonts and light or dark setting; the colors it adds meet WCAG AA contrast in Breeze Light and Dark. Works with the keyboard and screen readers, and the sidebar folds to icons on narrow windows (or with the toggle at its top).
+- **Its own title bar.** The sidebar runs to the top of the window and the page header is the title bar: drag it to move the window, double-click to maximize, with minimize, maximize and close in the top-right corner.
+- **Clear icons.** A consistent bold icon set, and package rows show the app's own icon (from Fedora's AppStream data) or a colored letter tile.
 - **Completion notifications** when a long operation finishes while you're in another window. Click one to return to the app; if the operation failed, **Show Output** opens its output.
 - **One window.** Opening the app while it's already running brings the existing window forward.
 - **Close during an update.** If you close the window while dnf is running, the operation finishes in the background and you get a notification. A failure brings the window back with the output.
@@ -196,13 +199,14 @@ sudo dnf install python3-pytest ruff         # plus the Requirements above
 QT_QPA_PLATFORM=offscreen pytest             # tests need no network, root or real config
 ruff check src tests scripts                 # lint
 python3 scripts/check_contrast.py            # WCAG contrast of the app's colors, Breeze Light/Dark
-PYTHONPATH=src python3 scripts/screenshots.py /tmp/shots --demo   # every page, both themes
+PYTHONPATH=src python3 scripts/screenshots.py /tmp/shots --demo --strict   # every page, both themes
 ```
 
 ```
 src/dnf_gui/
   core/       dnf, Flatpak, security, release upgrades, settings, workers (no UI)
-  ui/         controllers/ (Python state and actions for QML), qml/ (Kirigami pages)
+  ui/         controllers/ (Python state and actions for QML), qml/ (Kirigami pages),
+              icons/ (bundled Phosphor icons), iconset.py (draws them in the theme's colors)
 packaging/    RPM spec and AppStream metadata
 assets/       icon and desktop entry
 docs/         guides and screenshots
@@ -214,3 +218,5 @@ Maintainers: see [RELEASING.md](RELEASING.md).
 ## License
 
 Copyright © 2026 Greg.Tech. Licensed under the GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
+
+The interface icons are from [Phosphor Icons](https://phosphoricons.com) (MIT License, see [src/dnf_gui/ui/icons/LICENSE](src/dnf_gui/ui/icons/LICENSE)).

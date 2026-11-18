@@ -34,11 +34,12 @@ and Flatpak commands with live output, updates install right away
 instead of waiting for a restart, and one click turns off Discover's
 update checks.
 
-Includes combined DNF, Flatpak and security updates; "Update without
-Major" to skip kernel, graphics driver, firmware and
-bootloader updates; guided Fedora release upgrades; repository search and
-install; update reminders; repository and COPR management; transaction
-history with undo; and light and dark themes.
+Includes combined DNF, Flatpak and security updates; "Update Without
+Core" to skip kernel, graphics driver, firmware and bootloader updates;
+guided Fedora release upgrades; repository search and install; update
+reminders; repository and COPR management; transaction history with undo;
+and a native KDE Plasma (Kirigami) interface that follows your Plasma
+colors.
 
 Built by Greg.Tech — https://greg.tech
 
@@ -103,6 +104,9 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 - Keyboard and screen reader support throughout; text meets WCAG AA in Breeze Light and Dark
 - The app restarts itself after installing its own update
 - Security: privileged tools run from system paths only, never $PATH; self-updates are re-verified as root on a root-only copy; the passwordless rule is checked with visudo before it goes live
+- Own title bar, a floating status capsule for running commands, bold icons and app icons on package rows
+- Compact notices; "Major" updates are now "Core" updates; update single Flatpaks from the Updates page
+- More on the System page: device, firmware, Plasma version, root filesystem, last update
 
 * Mon Nov 16 2026 Greg.Tech <hello@greg.tech> - 1.5.1-1
 - Pass the desktop entry id to setDesktopFileName (no startup warning from Qt)

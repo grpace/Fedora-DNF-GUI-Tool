@@ -22,7 +22,7 @@ QQC2.ItemDelegate {
     highlighted: current
     checkable: false
     padding: Kirigami.Units.largeSpacing
-    implicitHeight: Kirigami.Units.gridUnit * 2.2
+    implicitHeight: Kirigami.Units.gridUnit * (collapsed ? 2.8 : 2.2)
     Layout.leftMargin: Kirigami.Units.smallSpacing
     Layout.rightMargin: Kirigami.Units.smallSpacing
 
@@ -33,14 +33,21 @@ QQC2.ItemDelegate {
                                                 Kirigami.Theme.highlightColor.g * 0.7,
                                                 Kirigami.Theme.highlightColor.b * 0.7, 1)
 
-    background: Rectangle {
-        radius: Kirigami.Units.cornerRadius
-        color: item.highlighted || item.down ? Kirigami.Theme.highlightColor
-             : item.hovered ? Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g,
-                                      Kirigami.Theme.highlightColor.b, 0.18)
-             : "transparent"
-        border.width: item.visualFocus ? 1 : 0
-        border.color: item.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.focusColor
+    // Expanded: a full-width rounded row. Collapsed to the icon rail: a
+    // rounded square centered on the icon, for both selection and hover.
+    background: Item {
+        Rectangle {
+            anchors.centerIn: parent
+            width: item.collapsed ? Math.min(parent.width, Kirigami.Units.gridUnit * 2.6) : parent.width
+            height: item.collapsed ? width : parent.height
+            radius: Kirigami.Units.cornerRadius * (item.collapsed ? 1.6 : 1)
+            color: item.highlighted || item.down ? Kirigami.Theme.highlightColor
+                 : item.hovered ? Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g,
+                                          Kirigami.Theme.highlightColor.b, 0.18)
+                 : "transparent"
+            border.width: item.visualFocus ? 1 : 0
+            border.color: item.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.focusColor
+        }
     }
 
     Accessible.role: Accessible.PageTab
@@ -65,19 +72,29 @@ QQC2.ItemDelegate {
                 source: root.ico(item.iconName, enabled, color)
                 color: item.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
             }
-            // Badge dot on the icon when collapsed, ringed in the sidebar's
-            // color so it stands off the icon and the highlight.
+            // The count on the icon's corner when collapsed, ringed in the
+            // color behind it so it stands off the icon and the highlight.
             Rectangle {
                 visible: item.collapsed && item.badge > 0
-                width: Kirigami.Units.smallSpacing * 2.5 + border.width * 2
-                height: width
-                radius: width / 2
+                height: Math.round(Kirigami.Units.gridUnit * 0.95) + border.width * 2
+                width: Math.max(height, railCount.implicitWidth + Kirigami.Units.smallSpacing * 1.5 + border.width * 2)
+                radius: height / 2
                 color: item.highlighted ? Kirigami.Theme.highlightedTextColor : item.badgeColor
                 border.width: 2
                 border.color: item.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.backgroundColor
-                anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.margins: -Kirigami.Units.smallSpacing / 2 - border.width
+                x: parent.width - width / 2
+                y: -height / 2 + Kirigami.Units.smallSpacing / 2
+                QQC2.Label {
+                    id: railCount
+                    anchors.fill: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: item.badge > 99 ? "99+" : item.badge
+                    font.weight: Font.Bold
+                    font.pixelSize: Math.round(Kirigami.Units.gridUnit * 0.6)
+                    font.features: { "tnum": 1 }
+                    color: item.highlighted ? item.badgeColor : "#ffffff"
+                }
             }
         }
         QQC2.Label {
@@ -91,11 +108,15 @@ QQC2.ItemDelegate {
             visible: item.badge > 0 && !item.collapsed
             radius: height / 2
             color: item.highlighted ? Kirigami.Theme.highlightedTextColor : item.badgeColor
-            implicitHeight: badgeLabel.implicitHeight + Kirigami.Units.smallSpacing
+            implicitHeight: Math.round(Kirigami.Units.gridUnit * 1.15)
             implicitWidth: Math.max(implicitHeight, badgeLabel.implicitWidth + Kirigami.Units.largeSpacing)
             QQC2.Label {
                 id: badgeLabel
-                anchors.centerIn: parent
+                anchors.fill: parent
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                topPadding: 0
+                bottomPadding: 0
                 text: item.badge
                 font.weight: Font.DemiBold
                 font.pointSize: Kirigami.Theme.smallFont.pointSize

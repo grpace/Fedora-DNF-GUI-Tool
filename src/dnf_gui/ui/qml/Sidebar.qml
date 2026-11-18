@@ -18,6 +18,7 @@ Kirigami.GlobalDrawer {
     modal: false
     collapsible: true
     collapseButtonVisible: false  // replaced by the header button
+    collapsedSize: Kirigami.Units.gridUnit * 3.6  // a roomy icon rail
     // On the window color, no edge line: the content panel's border is the divider.
     background: Item {}
     showHeaderWhenCollapsed: true
@@ -76,16 +77,41 @@ Kirigami.GlobalDrawer {
                 Layout.fillWidth: true
             }
             QQC2.ToolButton {
+                id: sidebarToggle
                 objectName: "sidebarToggle"
                 display: QQC2.AbstractButton.IconOnly
                 icon.source: root.ico("sidebar-collapse", enabled)
+                icon.width: Kirigami.Units.iconSizes.smallMedium
+                icon.height: Kirigami.Units.iconSizes.smallMedium
                 text: drawer.collapsed ? "Expand Sidebar" : "Collapse Sidebar"
                 Accessible.name: text
                 QQC2.ToolTip.text: text
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                // On the icon rail it is as wide as the rail items, with the same hover.
+                Layout.preferredWidth: Kirigami.Units.gridUnit * (drawer.collapsed ? 2.6 : 2.1)
+                Layout.preferredHeight: Kirigami.Units.gridUnit * 2.1
                 Layout.alignment: drawer.collapsed ? Qt.AlignHCenter : Qt.AlignRight
-                Layout.fillWidth: drawer.collapsed
+                background: Rectangle {
+                    radius: Kirigami.Units.cornerRadius * (drawer.collapsed ? 1.6 : 1)
+                    color: sidebarToggle.down ? Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g,
+                                                        Kirigami.Theme.highlightColor.b, 0.3)
+                         : sidebarToggle.hovered ? Qt.rgba(Kirigami.Theme.highlightColor.r, Kirigami.Theme.highlightColor.g,
+                                                           Kirigami.Theme.highlightColor.b, 0.18)
+                         : "transparent"
+                    border.width: sidebarToggle.visualFocus ? 1 : 0
+                    border.color: Kirigami.Theme.focusColor
+                }
+                // The desktop style draws a button's icon in its background,
+                // which this one replaces, so the icon is drawn here.
+                contentItem: Item {
+                    Kirigami.Icon {
+                        anchors.centerIn: parent
+                        width: Kirigami.Units.iconSizes.smallMedium
+                        height: width
+                        source: sidebarToggle.icon.source
+                    }
+                }
                 onClicked: drawer.userCollapsed = !drawer.collapsed
             }
         }
@@ -162,8 +188,14 @@ Kirigami.GlobalDrawer {
             onTriggered: App.navigate("settings")
             Layout.fillWidth: true
         }
+        // Version and maker, as in 1.x ("Version 2.0.0 · Greg.Tech").
         QQC2.Label {
-            text: "Version " + App.version
+            text: "Version " + App.version + "  ·  <a href=\"https://greg.tech\">Greg.Tech</a>"
+            textFormat: Text.StyledText
+            linkColor: color
+            onLinkActivated: App.openWebsite()
+            Accessible.name: "Version " + App.version + ", made by Greg.Tech"
+            HoverHandler { cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor }
             visible: !drawer.collapsed
             color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
             font: Kirigami.Theme.smallFont

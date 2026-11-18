@@ -177,6 +177,11 @@ Kirigami.ApplicationWindow {
         // Pages are transparent: the rounded content panel is their background.
         if (page && page.background)
             page.background = null;
+        // A slim scrollbar instead of Breeze's grooved one with its border line.
+        if (page && page.verticalScrollBarPolicy !== undefined) {
+            page.verticalScrollBarPolicy = QQC2.ScrollBar.AlwaysOff;
+            slimScrollBar.createObject(page, { flickable: Qt.binding(() => page.flickable) });
+        }
         // The activity capsule floats over the pages' bottom edge: give
         // every page room to scroll its last row clear of it.
         if (page && page.bottomPadding !== undefined) {
@@ -199,6 +204,15 @@ Kirigami.ApplicationWindow {
         id: saveListWidth
         interval: 500
         onTriggered: App.saveListColumnWidth(Math.round(root.listColumnWidth))
+    }
+    Component {
+        id: slimScrollBar
+        SlimScrollBar {
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.right: parent.right
+            z: 100
+        }
     }
     readonly property real bottomInset: activity.visible ? activity.reservedHeight : 0
 

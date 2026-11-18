@@ -127,8 +127,8 @@ Kirigami.ScrollablePage {
         padding: Kirigami.Units.largeSpacing * 2
         Layout.fillWidth: true
         Layout.preferredWidth: Kirigami.Units.gridUnit * 20
-        // Each card is as tall as its content (no stretched empty blocks).
-        Layout.alignment: Qt.AlignTop
+        // Cards in a row share its height, content at the top.
+        Layout.fillHeight: true
         header: RowLayout {
             spacing: Kirigami.Units.largeSpacing
             Kirigami.Icon {
@@ -186,7 +186,9 @@ Kirigami.ScrollablePage {
                         Layout.fillWidth: true
                     }
                     QQC2.Label {
-                        text: [page.i.hostname, page.i.desktop_env, page.i.display_server]
+                        // "host · KDE Plasma 6.8.3 (Wayland)", matching the Software card.
+                        text: [page.i.hostname,
+                               page.i.desktop || [page.i.desktop_env, page.i.display_server].filter(x => !!x).join(" · ")]
                               .filter(x => !!x).join("  ·  ")
                         color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
                         wrapMode: Text.Wrap

@@ -198,10 +198,29 @@ def _scroll_to_heading(window, heading: str) -> None:
     QTimer.singleShot(400, scroll)
 
 
+def _open_menu(window, button_text: str) -> None:
+    """Click the button that opens a menu (for a screenshot of the menu)."""
+    from PyQt6.QtCore import QMetaObject, Qt, QTimer
+
+    def items(item):
+        yield item
+        for child in item.childItems():
+            yield from items(child)
+
+    def click():
+        button = next((i for i in items(window.contentItem())
+                       if i.property("text") == button_text and i.isVisible()), None)
+        if button is not None:
+            QMetaObject.invokeMethod(button, "clicked", Qt.ConnectionType.DirectConnection)
+    QTimer.singleShot(400, click)
+
+
 def after_navigate(controller, page: str, window) -> None:
     """Page-specific state for a screenshot."""
     if page == "settings-discover":
         _scroll_to_heading(window, "KDE Discover")
+    if page == "menu":
+        _open_menu(window, "Other Ways to Update")
     if page not in ("activity", "running") and controller.runner.busy:
         # The sample run is over: other pages show their idle, enabled look.
         controller.runner._set(busy=False, status="idle", statusText="", step="",

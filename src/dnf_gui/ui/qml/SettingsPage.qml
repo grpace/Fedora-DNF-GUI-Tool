@@ -375,6 +375,12 @@ FormCard.FormCardPage {
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
+            text: "Made by Greg.Tech"
+            description: "greg.tech"
+            icon.source: root.ico("internet-services", enabled)
+            onClicked: App.openWebsite()
+        }
+        FormCard.FormButtonDelegate {
             text: "Check for App Updates"
             icon.source: root.ico("view-refresh", enabled)
             onClicked: App.checkAppUpdate()

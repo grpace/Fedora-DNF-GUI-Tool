@@ -67,7 +67,3 @@ class TestRealBuildersAreCovered(unittest.TestCase):
                     backend.build_autoremove_command()):
             self.assertFalse(pw.is_covered(cmd, pw.SCOPE_UPDATES), cmd)
             self.assertEqual(pw.maybe_passwordless(cmd, pw.SCOPE_UPDATES), cmd)
-
-
-if __name__ == "__main__":
-    unittest.main()

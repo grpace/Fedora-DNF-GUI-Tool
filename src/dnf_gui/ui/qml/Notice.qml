@@ -121,6 +121,7 @@ QQC2.Control {
             }
             QQC2.ToolButton {
                 id: chevron
+                objectName: "noticeExpand"
                 visible: notice.expanded || notice.bodyHidden
                 display: QQC2.AbstractButton.IconOnly
                 icon.source: root.ico(notice.expanded ? "arrow-up" : "arrow-down", enabled)

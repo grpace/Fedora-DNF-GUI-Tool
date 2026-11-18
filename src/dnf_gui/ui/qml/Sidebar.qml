@@ -68,6 +68,7 @@ Kirigami.GlobalDrawer {
                 Layout.fillWidth: true
             }
             QQC2.ToolButton {
+                objectName: "sidebarToggle"
                 display: QQC2.AbstractButton.IconOnly
                 icon.source: root.ico("sidebar-collapse", enabled)
                 text: drawer.collapsed ? "Expand Sidebar" : "Collapse Sidebar"

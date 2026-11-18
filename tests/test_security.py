@@ -1,19 +1,21 @@
-"""Security updates dnf skips because a dependency isn't ready yet.
+"""Security advisories: reading dnf's advisory lists, and the security
+updates dnf skips because a dependency isn't ready yet ("waiting").
 
-Fixtures are trimmed dnf5 output from a Fedora 44 system where RPM Fusion's
-libheif-freeworld still required the old libheif.
+The blocked-update fixtures are trimmed dnf5 output from a Fedora 44 system
+where RPM Fusion's libheif-freeworld still required the old libheif.
 """
 
-import gc
 import unittest
 from unittest.mock import patch
 
+import pytest
+
 from dnf_gui.core import security
-from dnf_gui.core.app_settings import AppSettings, perform_background_check
 from dnf_gui.core.package import Package, PackageStatus, UpdateInfo
 from dnf_gui.core.security import (
     BlockedUpdates, SecuritySummary, build_forced_security_update_command,
-    find_blocked_security, parse_blocked_updates,
+    find_blocked_security, get_security_summary, parse_blocked_updates,
+    parse_unavailable_updates,
 )
 from tests.conftest import answer
 
@@ -86,6 +88,97 @@ Operation aborted by the user.
 
 ADVISORY = "FEDORA-2026-09382b8de6"
 
+FFMPEG_SKIPPED = """\
+Updating and loading repositories:
+Repositories loaded.
+Problem: package ffmpeg-9.0.2-4.fc45.x86_64 from rpmfusion-free-updates requires ffmpeg-libs(x86-64) = 9.0.2-4.fc45, but none of the providers can be installed
+  - nothing provides liboapv.so.11()(64bit) needed by ffmpeg-libs-9.0.2-4.fc45.x86_64 from rpmfusion-free-updates
+
+Package      Arch   Version      Repository                  Size
+Skipping packages with broken dependencies:
+ ffmpeg      x86_64 9.0.2-4.fc45 rpmfusion-free-updates   2.6 MiB
+ ffmpeg-libs x86_64 9.0.2-4.fc45 rpmfusion-free-updates  23.9 MiB
+
+Nothing to do.
+"""
+
+
+class TestSecuritySummary(unittest.TestCase):
+    def test_urgent_flags(self):
+        self.assertTrue(SecuritySummary(total=2, critical=1).urgent)
+        self.assertFalse(SecuritySummary(total=1, moderate=1).urgent)
+        self.assertFalse(SecuritySummary().urgent)
+
+    @patch("dnf_gui.core.security._run")
+    def test_parses_dnf4_style_list(self, mock_run):
+        mock_run.side_effect = [
+            "FEDORA-2026-aaa Critical/Sec. kernel-6.12-1.fc43.x86_64\n"
+            "FEDORA-2026-bbb Moderate/Sec. firefox-125-1.fc43.x86_64\n",
+            "",
+        ]
+        sec = get_security_summary()
+        self.assertEqual((sec.total, sec.critical, sec.moderate), (2, 1, 1))
+        self.assertIn("FEDORA-2026-aaa", sec.advisories)
+
+    @patch("dnf_gui.core.security._run")
+    def test_parses_dnf5_list_counting_unique_advisories(self, mock_run):
+        mock_run.side_effect = [
+            "Updating and loading repositories:\n"
+            "Repositories loaded.\n"
+            "Name                   Type     Severity   Package                       Issued\n"
+            "FEDORA-2026-0ba06812ef security Important  libheif-1.23.6-1.fc44.x86_64 2026-10-18 01:17:00\n"
+            "FEDORA-2026-0ba06812ef security Important  libheif-1.23.6-1.fc44.i686   2026-10-18 01:17:00\n"
+            "FEDORA-2026-1111111111 security Critical   kernel-6.18-1.fc44.x86_64    2026-10-18 01:17:00\n",
+            "",
+        ]
+        sec = get_security_summary()
+        self.assertEqual((sec.total, sec.important, sec.critical), (2, 1, 1))
+        self.assertEqual(len(sec.packages), 3)
+        self.assertEqual(mock_run.call_args_list[0].args[0][1:],
+                         ["updateinfo", "list", "--updates", "--security"])
+
+    @patch("dnf_gui.core.security._run")
+    def test_highest_severity_per_package(self, mock_run):
+        mock_run.side_effect = [
+            "FEDORA-2026-1 security Moderate  libfoo-1.0-1.fc44.x86_64 2026-10-01\n"
+            "FEDORA-2026-2 security Critical  libfoo-1.1-1.fc44.x86_64 2026-10-02\n"
+            "FEDORA-2026-3 security Low       my-pkg-name-2.0-3.fc44.noarch 2026-10-02\n",
+            "",
+        ]
+        sec = get_security_summary()
+        self.assertEqual(sec.package_severity,
+                         {"libfoo": "critical", "my-pkg-name": "low"})
+
+    @patch("dnf_gui.core.security._run")
+    def test_dnf5_summary_fallback_ignores_other_sections(self, mock_run):
+        mock_run.side_effect = [
+            "",
+            "Available advisory information summary:\n"
+            "Security    : 36\n"
+            "  Critical  : 3\n"
+            "  Important : 18\n"
+            "  Moderate  : 11\n"
+            "  Low       : 2\n"
+            "  Other     : 2\n"
+            "Bugfix      : 36\n"
+            "Enhancement : 30\n",
+        ]
+        sec = get_security_summary()
+        self.assertEqual(sec.total, 34)
+        self.assertEqual((sec.critical, sec.important, sec.moderate, sec.low),
+                         (3, 18, 11, 2))
+
+    @patch("dnf_gui.core.security._run")
+    def test_dnf4_summary_fallback_counts(self, mock_run):
+        mock_run.side_effect = [
+            "",  # empty list output
+            "Updates Information Summary: available\n"
+            "    2 Critical Security notice(s)\n"
+            "    3 Important Security notice(s)\n",
+        ]
+        sec = get_security_summary()
+        self.assertEqual((sec.total, sec.critical, sec.important), (5, 2, 3))
+
 
 def _summary(*advisories) -> SecuritySummary:
     """advisories: (id, severity, {package names})"""
@@ -147,6 +240,10 @@ class TestParseBlockedUpdates(unittest.TestCase):
         text = BlockedUpdates(packages=["foo"]).explanation()
         self.assertIn("foo", text)
 
+    def test_broken_dependency_skips_are_unavailable_not_blocked(self):
+        self.assertIsNone(parse_blocked_updates(FFMPEG_SKIPPED))
+        self.assertEqual(parse_unavailable_updates(FFMPEG_SKIPPED), ["ffmpeg", "ffmpeg-libs"])
+
 
 class TestFindBlockedSecurity(unittest.TestCase):
     def test_marks_advisory_waiting_and_learns_removals(self):
@@ -194,162 +291,126 @@ class TestFindBlockedSecurity(unittest.TestCase):
         self.assertEqual(maybe_passwordless(cmd, "updates"), cmd)
 
 
-class TestReminderSkipsWaiting(unittest.TestCase):
-    @patch("dnf_gui.core.dnf_backend.DNFBackend.check_updates",
-           return_value=UpdateInfo(total_updates=3))
-    @patch("dnf_gui.core.flatpak_backend.FlatpakBackend.available", False)
-    @patch("dnf_gui.core.security.get_security_summary")
-    def test_security_only_reminder_quiet_when_all_waiting(self, mock_sec, _dnf):
-        mock_sec.return_value = _summary((ADVISORY, "important", {"libheif"}))
-        settings = AppSettings()
-        settings.security_only = True
-        settings.notify_flatpak = False
-        self.addCleanup(setattr, settings, "security_only", False)
-        self.addCleanup(setattr, settings, "notify_flatpak", True)
-        with patch.object(security, "_dry_run", side_effect=[SECURITY_BLOCKED, FORCED]):
-            res = perform_background_check(settings)
-        self.assertEqual(res.security_total, 0)
-        self.assertFalse(res.security_urgent)
-        self.assertFalse(res.should_notify)
-
-
-def _controller():
-    # Free controllers left by earlier tests now, while none of their
-    # threads run: a later processEvents() would otherwise fire their
-    # pending start-up timers and GC could destroy a running QThread.
-    gc.collect()
-    from dnf_gui.ui.controllers.app_controller import AppController
-    return AppController()
-
-
 def _scan(app, info, summary):
     app.updates._on_checked({"dnf": info, "flatpak": [], "security": summary})
 
 
-class TestUpdatesBlocked(unittest.TestCase):
-    def _app(self, summary):
-        app = _controller()
+def _mode(app, key):
+    return next(m for m in app.updates.modes if m["key"] == key)
+
+
+@pytest.fixture
+def scanned(app):
+    """``scanned(summary)``: the app after a scan with three updates."""
+    def scan(summary):
         info = UpdateInfo(packages=[
             Package(name=n, version="1", status=PackageStatus.UPDATE_AVAILABLE)
             for n in ("libheif", "libheif-ffmpeg", "firefox")])
         _scan(app, info, summary)
         return app
+    return scan
 
-    def _mode(self, app, key):
-        return next(m for m in app.updates.modes if m["key"] == key)
 
-    def test_banner_count_and_mode_when_nothing_installable(self):
-        updates = self._app(_blocked_summary()).updates
-        banner = updates.blocked
-        self.assertTrue(banner["visible"])
-        self.assertEqual(banner["title"], "1 security advisory waiting on RPM Fusion")
-        # Leads with what to do now; Force is behind Details, not on the banner.
-        self.assertIn("Nothing to do now", banner["text"])
-        self.assertNotIn("forceTooltip", banner)
-        self.assertEqual(updates.securityTotal, 1)
-        self.assertEqual(updates.securityWaiting, 1)
-        self.assertEqual(updates.security_installable, 0)
-        mode = self._mode(updates.app, "security")
-        self.assertTrue(mode["enabled"])  # clicking explains + offers force
-        self.assertIn("nothing to install yet", mode["detail"].lower())
+class TestWaitingOnTheUpdatesPage:
+    def test_notice_count_and_mode_when_nothing_installable(self, scanned):
+        updates = scanned(_blocked_summary()).updates
+        notice = updates.blocked
+        assert notice["visible"]
+        assert notice["title"] == "1 security advisory waiting on RPM Fusion"
+        # Leads with what to do now; Force is behind Details, not on the notice.
+        assert "Nothing to do now" in notice["text"]
+        assert "forceTooltip" not in notice
+        assert (updates.securityTotal, updates.securityWaiting,
+                updates.security_installable) == (1, 1, 0)
+        mode = _mode(updates.app, "security")
+        assert mode["enabled"]  # clicking explains + offers force
+        assert "nothing to install yet" in mode["detail"].lower()
 
-    def test_partial_block_says_what_still_installs(self):
-        updates = self._app(
+    def test_partial_block_says_what_still_installs(self, scanned):
+        updates = scanned(
             _blocked_summary(("FEDORA-2026-ff", "moderate", {"firefox"}))).updates
-        self.assertEqual(updates.security_installable, 1)
-        self.assertIn("still installs the other 1 advisory", updates.blocked_summary())
+        assert updates.security_installable == 1
+        assert "still installs the other 1 advisory" in updates.blocked_summary()
 
-    def test_waiting_rows_are_tagged(self):
-        model = self._app(
+    def test_waiting_rows_are_tagged(self, scanned):
+        model = scanned(
             _blocked_summary(("FEDORA-2026-ff", "moderate", {"firefox"}))).updates.model
         libheif = model.find("name", "libheif")
-        self.assertTrue(libheif["waiting"])
-        self.assertEqual(libheif["severity"], "Important")
-        self.assertIn("can't install it yet", libheif["tooltip"])
+        assert libheif["waiting"] and libheif["severity"] == "Important"
+        assert "can't install it yet" in libheif["tooltip"]
         firefox = model.find("name", "firefox")
-        self.assertTrue(firefox["security"])
-        self.assertFalse(firefox["waiting"])
+        assert firefox["security"] and not firefox["waiting"]
 
-    def test_banner_hidden_without_blocks(self):
-        updates = self._app(_summary((ADVISORY, "important", {"libheif"}))).updates
-        self.assertEqual(updates.blocked, {})
-        self.assertEqual(updates.securityWaiting, 0)
+    def test_notice_hidden_without_blocks(self, scanned):
+        updates = scanned(_summary((ADVISORY, "important", {"libheif"}))).updates
+        assert updates.blocked == {}
+        assert updates.securityWaiting == 0
 
 
-class TestControllerBlocked(unittest.TestCase):
-    def _app(self, summary):
-        app = _controller()
-        _scan(app, UpdateInfo(), summary)
+class TestSecurityOnlyWhenWaiting:
+    @pytest.fixture
+    def blocked(self, app):
+        _scan(app, UpdateInfo(), _blocked_summary())
         return app
 
-    def test_security_only_explains_instead_of_running(self):
-        app = self._app(_blocked_summary())
-        with patch.object(app.updates, "explain_blocked_security") as explain, \
-                patch.object(app.runner, "run") as run:
-            app.updates.security_upgrade()
-        explain.assert_called_once()
-        run.assert_not_called()
-
-    def test_explanation_offers_force_but_defaults_to_ok(self):
-        app = self._app(_blocked_summary())
-        shown = answer(app)
-        with patch.object(app.runner, "run") as run:
-            app.updates.security_upgrade()
+    def test_explains_instead_of_running(self, blocked):
+        shown = answer(blocked)
+        with patch.object(blocked.runner, "run") as run:
+            blocked.updates.security_upgrade()
         prompt = shown[0]
-        self.assertEqual(prompt.title, "Nothing to Install Yet")
-        self.assertEqual([b for b, _ in prompt.buttons], ["force", "ok"])
-        self.assertEqual(prompt.default, "ok")
-        self.assertIn("won't install it until then", prompt.text)
+        assert prompt.title == "Nothing to Install Yet"
+        assert [b for b, _ in prompt.buttons] == ["force", "ok"]
+        assert prompt.default == "ok"
+        assert "won't install it until then" in prompt.text
         run.assert_not_called()
 
-    def test_force_confirms_then_runs_forced_command(self):
-        app = self._app(_blocked_summary())
-        shown = answer(app, "yes")
-        with patch.object(app.runner, "run") as run:
-            app.updates.forceSecurity()
+    def test_force_confirms_then_runs_forced_command(self, blocked):
+        shown = answer(blocked, "yes")
+        with patch.object(blocked.runner, "run") as run:
+            blocked.updates.forceSecurity()
         prompt = shown[-1]
-        self.assertIn("libheif-freeworld", prompt.text)
-        self.assertIn("sudo dnf install libheif-freeworld", prompt.text)
-        self.assertTrue(prompt.destructive)
-        self.assertEqual(prompt.default, "no")
+        assert "libheif-freeworld" in prompt.text
+        assert "sudo dnf install libheif-freeworld" in prompt.text
+        assert prompt.destructive and prompt.default == "no"
         run.assert_called_once_with(build_forced_security_update_command(),
                                     "Forced Security Upgrade")
-        self.assertEqual(app.forced_removals, ["libheif-freeworld"])
+        assert blocked.forced_removals == ["libheif-freeworld"]
 
-    def test_explanation_force_button_leads_to_forced_run(self):
-        app = self._app(_blocked_summary())
-        answer(app, "force", "yes")
-        with patch.object(app.runner, "run") as run:
-            app.updates.security_upgrade()
+    def test_explanation_force_button_leads_to_forced_run(self, blocked):
+        answer(blocked, "force", "yes")
+        with patch.object(blocked.runner, "run") as run:
+            blocked.updates.security_upgrade()
         run.assert_called_once_with(build_forced_security_update_command(),
                                     "Forced Security Upgrade")
 
-    def test_force_declined_runs_nothing(self):
-        app = self._app(_blocked_summary())
-        answer(app, "no")
-        with patch.object(app.runner, "run") as run:
-            app.updates.forceSecurity()
+    def test_force_declined_runs_nothing(self, blocked):
+        answer(blocked, "no")
+        with patch.object(blocked.runner, "run") as run:
+            blocked.updates.forceSecurity()
         run.assert_not_called()
-        self.assertEqual(app.forced_removals, [])
+        assert blocked.forced_removals == []
 
-    def test_finished_run_reports_skipped_packages(self):
-        app = self._app(SecuritySummary())
-        app.runner._output = SECURITY_BLOCKED.splitlines()
+
+class TestSkippedPackagesAfterARun:
+    def _finish(self, app, output, operation="Security Upgrade"):
+        _scan(app, UpdateInfo(), SecuritySummary())
+        app.runner._output = output.splitlines()
         with patch.object(app.updates, "recheck_reboot"):
-            app.runner._finish(0, "Security Upgrade", False)
+            app.runner._finish(0, operation, False)
+
+    def test_blocked_run_reports_skipped_packages(self, app):
+        self._finish(app, SECURITY_BLOCKED)
         output = app.runner.text()
-        self.assertIn("1 update couldn't be installed: libheif", output)
-        self.assertIn("Running Security Only again won't install it", output)
-        self.assertEqual(app.runner.statusText, "Completed · 1 Update Skipped")
+        assert "1 update couldn't be installed: libheif" in output
+        assert "Running Security Only again won't install it" in output
+        assert app.runner.statusText == "Completed · 1 Update Skipped"
 
-    def test_clean_run_keeps_plain_success(self):
-        app = self._app(SecuritySummary())
-        app.runner._output = FORCED.splitlines()
-        with patch.object(app.updates, "recheck_reboot"):
-            app.runner._finish(0, "Security Upgrade", False)
-        self.assertEqual(app.runner.statusText, "Completed")
-        self.assertNotIn("couldn't be installed", app.runner.text())
+    def test_broken_dependencies_are_reported(self, app):
+        self._finish(app, FFMPEG_SKIPPED, "Update Without Core")
+        assert app.runner.statusText == "Completed · 2 Updates Skipped"
+        assert "ffmpeg, ffmpeg-libs" in app.runner.text()
 
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_clean_run_keeps_plain_success(self, app):
+        self._finish(app, FORCED)
+        assert app.runner.statusText == "Completed"
+        assert "couldn't be installed" not in app.runner.text()

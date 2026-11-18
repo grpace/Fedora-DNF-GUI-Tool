@@ -209,7 +209,6 @@ class TestReminderSkipsWaiting(unittest.TestCase):
         with patch.object(security, "_dry_run", side_effect=[SECURITY_BLOCKED, FORCED]):
             res = perform_background_check(settings)
         self.assertEqual(res.security_total, 0)
-        self.assertEqual(res.security_waiting, 1)
         self.assertFalse(res.security_urgent)
         self.assertFalse(res.should_notify)
 

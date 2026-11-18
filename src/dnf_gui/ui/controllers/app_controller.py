@@ -33,7 +33,7 @@ from dnf_gui.ui.controllers.pages import (
     FlatpakController, HistoryController, PackagesController, ReposController,
     SystemController,
 )
-from dnf_gui.ui.controllers.prompts import Prompts
+from dnf_gui.ui.controllers.prompts import ERROR, Prompts
 from dnf_gui.ui.controllers.runner import CANCELLED_EXIT_CODES, OperationRunner
 from dnf_gui.ui.controllers.settings import SettingsController
 from dnf_gui.ui.controllers.updates import UpdatesController
@@ -70,7 +70,6 @@ class AppController(StateObject):
         "activityExpanded": False,
         "activityVisible": False,
         "appUpdate": {},
-        "lastError": "",
         "appIconsReady": False,
     }
     currentPage = state_property(str, "currentPage", changed)
@@ -78,7 +77,6 @@ class AppController(StateObject):
     activityExpanded = state_property(bool, "activityExpanded", changed)
     activityVisible = state_property(bool, "activityVisible", changed)
     appUpdate = state_property("QVariantMap", "appUpdate", changed)
-    lastError = state_property(str, "lastError", changed)
     appIconsReady = state_property(bool, "appIconsReady", changed)
 
     def __init__(self, initial_page: str = "", parent=None):
@@ -179,10 +177,6 @@ class AppController(StateObject):
     @pyqtProperty(str, constant=True)
     def version(self) -> str:
         return __version__
-
-    @pyqtProperty("QVariantList", constant=True)
-    def pageKeys(self) -> list:
-        return list(PAGES)
 
     # ── icons ──────────────────────────────────────────────────
 
@@ -480,11 +474,10 @@ class AppController(StateObject):
         return "You'll be asked for your password."
 
     def show_error(self, title: str, text: str) -> None:
-        self.prompts.inform(title, text, level="error")
+        self.prompts.inform(title, text, level=ERROR)
 
     def report_exception(self, text: str) -> None:
         """Unexpected exception in a slot: tell the user instead of aborting."""
-        self._set(lastError=text)
         self.errorRaised.emit(text)
 
     @pyqtSlot(str)
@@ -494,10 +487,6 @@ class AppController(StateObject):
         if clipboard is not None:
             clipboard.setText(text)
             self.prompts.toast(f"Copied {text}")
-
-    @pyqtSlot()
-    def clearError(self) -> None:
-        self._set(lastError="")
 
     def set_update_badge(self, count: int) -> None:
         self._set(updateBadge=max(0, int(count)))

@@ -153,8 +153,6 @@ class OperationRunner(StateObject):
         self._queue: list[list[str]] = []
         self._output: list[str] = []  # dnf output of the current operation
         self.failed_steps_left = 0  # steps a failed chain didn't reach
-        self._operation = ""
-        self._on_done: Callable[[int], None] | None = None
         self._external = None  # a non-command worker (app download) counts as busy
 
     busy = state_property(bool, "busy", changed)
@@ -288,7 +286,6 @@ class OperationRunner(StateObject):
     # ── internals ──────────────────────────────────────────────
 
     def _begin(self, operation: str, banner: str) -> None:
-        self._operation = operation
         self.failed_steps_left = 0
         self._output = []
         rule = "─" * 60

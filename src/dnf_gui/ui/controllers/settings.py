@@ -11,6 +11,7 @@ from dnf_gui.core.app_settings import AppSettings
 from dnf_gui.core.notifications import Notification
 from dnf_gui.core.worker import DiscoverStatusWorker
 from dnf_gui.ui.controllers.base import StateObject, state_property
+from dnf_gui.ui.controllers.prompts import ERROR
 
 SCOPE_LABELS = {"updates": "Updates Only", "full": "All DNF Operations"}
 INTERVALS = [{"hours": 12, "label": "Every 12 Hours"}, {"hours": 24, "label": "Daily"},
@@ -241,7 +242,7 @@ class SettingsController(StateObject):
             self.app.prompts.inform(
                 "Can't Turn On Passwordless Updates",
                 "Could not determine your login name, so a per-user rule can't "
-                "be written safely.", level="error")
+                "be written safely.", level=ERROR)
             return
         if scope == "full":
             title = "Passwordless for All DNF Operations?"
@@ -274,7 +275,7 @@ class SettingsController(StateObject):
                 self.app.prompts.inform(
                     "Validation Failed",
                     "The generated rule did not pass visudo -c, so nothing was "
-                    f"changed:\n\n{validation_msg}", level="error")
+                    f"changed:\n\n{validation_msg}", level=ERROR)
                 return
             previous = self.pending_passwordless_scope
             self.pending_passwordless_scope = scope
@@ -347,7 +348,7 @@ class SettingsController(StateObject):
             try:
                 manager.set_per_user_enabled(False)
             except Exception as e:
-                self.app.prompts.inform("Takeover Failed", str(e), level="error")
+                self.app.prompts.inform("Takeover Failed", str(e), level=ERROR)
                 return
             try:  # best effort: stop the running notifier
                 subprocess.run(manager.build_kill_notifier_command(), timeout=5)
@@ -404,7 +405,7 @@ class SettingsController(StateObject):
         try:
             self.app.discover_manager.set_per_user_enabled(True)
         except Exception as e:
-            self.app.prompts.inform("Restore Failed", str(e), level="error")
+            self.app.prompts.inform("Restore Failed", str(e), level=ERROR)
             return
         self.app.prompts.toast("Discover's update checks are back on for you")
         self.load_discover_status()
@@ -461,7 +462,7 @@ class SettingsController(StateObject):
                 "Discover's background checker was stopped. It returns at the "
                 "next login unless this app handles updates.")
         except Exception as e:
-            self.app.prompts.inform("Stop Failed", str(e), level="error")
+            self.app.prompts.inform("Stop Failed", str(e), level=ERROR)
         self.load_discover_status()
 
     @pyqtSlot()

@@ -103,7 +103,6 @@ class UpdatesController(StateObject):
     headline = state_property(str, "headline", changed)
     summary = state_property(str, "summary", changed)
     lastChecked = state_property(str, "lastChecked", changed)
-    dnfCount = state_property(int, "dnfCount", changed)
     flatpakCount = state_property(int, "flatpakCount", changed)
     total = state_property(int, "total", changed)
     securityTotal = state_property(int, "securityTotal", changed)

@@ -531,7 +531,6 @@ class SystemController(_Loader):
         self._tools.set_rows([
             {"id": t[0], "section": t[1], "title": t[2], "description": t[3],
              "action": t[4], "destructive": t[5], "done": False} for t in TOOLS])
-        self._tools_loaded = False
 
     @pyqtProperty(QObject, constant=True)
     def tools(self) -> RowModel:

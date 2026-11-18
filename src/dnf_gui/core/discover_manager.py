@@ -66,13 +66,11 @@ class DiscoverStatus:
     """Point-in-time view of Discover's update behaviour."""
 
     system_autostart_present: bool = False
-    per_user_override_present: bool = False
     per_user_disabled: bool = False  # Hidden=true in ~/.config/autostart
     notifier_running: bool = False
     # PlasmaDiscoverUpdates values (None = key/file absent)
     notification_interval: Optional[str] = None
     unattended_updates: Optional[str] = None
-    notifications_silenced: bool = False
     discover_installed: bool = False
     system_disabled: bool = False  # "Turn Off for All Users" is in effect
     restart_update_scheduled: bool = False  # Discover/PackageKit, next boot
@@ -87,7 +85,6 @@ class DiscoverManager:
         status = DiscoverStatus()
         status.system_autostart_present = os.path.exists(SYSTEM_AUTOSTART)
         user_path = _user_autostart_path()
-        status.per_user_override_present = user_path.exists()
         if user_path.exists():
             try:
                 text = user_path.read_text(errors="replace")
@@ -98,7 +95,6 @@ class DiscoverManager:
         interval, unattended = self._read_discover_config()
         status.notification_interval = interval
         status.unattended_updates = unattended
-        status.notifications_silenced = (interval is not None and interval.strip() == "-1")
         status.discover_installed = bool(
             shutil.which("plasma-discover") or shutil.which("plasma-discover-notifier")
             or os.path.exists("/usr/bin/plasma-discover")

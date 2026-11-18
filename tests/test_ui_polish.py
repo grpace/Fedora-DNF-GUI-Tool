@@ -98,12 +98,10 @@ class TestSettingsPolish(unittest.TestCase):
         def show(**kwargs):
             base = dict(discover_installed=True,
                         system_autostart_present=True,
-                        per_user_override_present=False,
                         per_user_disabled=False,
                         notifier_running=False,
                         notification_interval="-1",
                         unattended_updates="false",
-                        notifications_silenced=True,
                         restart_update_scheduled=False,
                         system_disabled=False)
             base.update(kwargs)

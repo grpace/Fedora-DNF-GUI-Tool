@@ -47,7 +47,6 @@ class ReminderResult:
     security_total: int = 0
     security_urgent: bool = False
     # Advisories left out of security_total because they can't install yet.
-    security_waiting: int = 0
     should_notify: bool = False
     title: str = ""  # notification title; ``message`` is its body
     message: str = ""
@@ -494,7 +493,6 @@ def perform_background_check(settings: AppSettings | None = None,
         find_blocked_security(sec)
         result.security_total = sec.installable_total
         result.security_urgent = sec.installable_urgent
-        result.security_waiting = len(sec.blocked_advisories)
     except Exception:
         pass
 

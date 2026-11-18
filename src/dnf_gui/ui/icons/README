@@ -70,7 +70,6 @@ Files are renamed to the freedesktop icon names the QML uses:
   sidebar-collapse.svg  <-  sidebar-simple-bold.svg
   network-disconnect.svg  <-  wifi-slash-bold.svg
   go-down.svg  <-  arrow-circle-down-bold.svg
-  update-medium.svg  <-  arrow-circle-up-bold.svg
   emblem-warning.svg  <-  warning-bold.svg
   plasmadiscover.svg  <-  storefront-bold.svg
   distro-sync.svg  <-  arrows-left-right-bold.svg

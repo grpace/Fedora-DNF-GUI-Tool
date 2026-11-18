@@ -18,6 +18,8 @@ Kirigami.GlobalDrawer {
     modal: false
     collapsible: true
     collapseButtonVisible: false  // replaced by the header button
+    // On the window color, no edge line: the content panel's border is the divider.
+    background: Item {}
     showHeaderWhenCollapsed: true
     preferredSize: Kirigami.Units.gridUnit * 13  // expanded width; collapsing animates
     // Keep the nav entries (icons, badge dot, tooltips) as a rail.
@@ -38,6 +40,12 @@ Kirigami.GlobalDrawer {
     ]
 
     header: Kirigami.AbstractApplicationHeader {
+        // Part of the title bar: on the window color, with no lines.
+        separatorVisible: false
+        Component.onCompleted: {
+            background.color = "transparent";
+            root.hideTopSeparator(this);
+        }
         topPadding: Kirigami.Units.smallSpacing
         bottomPadding: Kirigami.Units.smallSpacing
         leftPadding: Kirigami.Units.largeSpacing

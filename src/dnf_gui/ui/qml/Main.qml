@@ -55,6 +55,48 @@ Kirigami.ApplicationWindow {
     // title bar (drag to move, double-click to maximize), and the window
     // buttons sit at its right end.
     flags: Qt.Window | Qt.FramelessWindowHint
+
+    // Rounded window: a transparent surface with our own rounded background.
+    // The sidebar sits on the window color; the pages run to the window's
+    // edges on their own background, with one divider from the sidebar.
+    // Square when maximized.
+    readonly property bool maximizedLook: windowControls.maximized
+    readonly property real windowRadius: maximizedLook ? 0 : Kirigami.Units.gridUnit * 0.6
+    readonly property color hairline: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
+                                              Kirigami.Theme.textColor.b, 0.12)
+    color: "transparent"
+    background: Rectangle {
+        color: Kirigami.Theme.backgroundColor
+        radius: root.windowRadius
+    }
+    Rectangle {
+        id: contentPanel
+        objectName: "contentPanel"
+        parent: root.pageStack.parent
+        z: root.pageStack.z - 1
+        x: root.pageStack.x
+        y: root.pageStack.y
+        width: root.pageStack.width
+        height: root.pageStack.height
+        // Its right-hand corners follow the window's.
+        topRightRadius: root.windowRadius
+        bottomRightRadius: root.windowRadius
+        Kirigami.Theme.colorSet: Kirigami.Theme.View
+        Kirigami.Theme.inherit: false
+        color: Kirigami.Theme.backgroundColor
+        Rectangle {  // the one divider between the sidebar and the pages
+            width: 1
+            height: parent.height
+            color: root.hairline
+        }
+    }
+    // Kirigami draws a line along the top of each header (meant to sit under
+    // a system title bar); in a frameless window it's a stray line.
+    function hideTopSeparator(header) {
+        for (const child of header.children)
+            if (String(child).indexOf("Separator") >= 0)
+                child.visible = false;
+    }
     function toggleMaximized() {
         if (visibility === Window.Maximized)
             showNormal();
@@ -89,9 +131,12 @@ Kirigami.ApplicationWindow {
             if (!movableHeaders.includes(header)) {
                 moveHandle.createObject(header);
                 movableHeaders.push(header);
+                hideTopSeparator(header);
+                if (header.background)
+                    header.background.color = "transparent";  // the panel shows through
             }
             header.rightPadding = i === pageStack.depth - 1
-                ? windowControls.width + Kirigami.Units.smallSpacing
+                ? windowControls.width + windowControls.anchors.rightMargin + Kirigami.Units.smallSpacing
                 : Kirigami.Units.mediumSpacing;
         }
     }
@@ -121,6 +166,9 @@ Kirigami.ApplicationWindow {
             return null;
         }
         const page = component.createObject(pageHolder, props || {});
+        // Pages are transparent: the rounded content panel is their background.
+        if (page && page.background)
+            page.background = null;
         // The activity capsule floats over the pages' bottom edge: give
         // every page room to scroll its last row clear of it.
         if (page && page.bottomPadding !== undefined) {
@@ -270,7 +318,9 @@ Kirigami.ApplicationWindow {
             z: 1000
             anchors.top: parent.top
             anchors.right: parent.right
-            height: root.pageStack.globalToolBar.preferredHeight
+            anchors.topMargin: 1
+            anchors.rightMargin: Kirigami.Units.smallSpacing
+            height: root.pageStack.globalToolBar.preferredHeight - 2
         }
 
         // Resize from the edges and corners (no system frame to grab).
@@ -313,9 +363,9 @@ Kirigami.ApplicationWindow {
             anchors.fill: parent
             visible: !windowControls.maximized
             color: "transparent"
+            radius: root.windowRadius
             border.width: 1
-            border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
-                                  Kirigami.Theme.textColor.b, 0.18)
+            border.color: root.hairline
         }
     }
 

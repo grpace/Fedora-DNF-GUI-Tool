@@ -32,6 +32,9 @@ Row {
         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
         background: Rectangle {
+            anchors.fill: parent
+            anchors.margins: Kirigami.Units.smallSpacing / 2
+            radius: Kirigami.Units.cornerRadius
             color: button.danger && button.hovered ? "#c42b1c"
                  : button.pressed ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
                                             Kirigami.Theme.textColor.b, 0.16)

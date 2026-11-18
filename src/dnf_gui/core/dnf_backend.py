@@ -253,10 +253,6 @@ class DNFBackend:
             preview.entries.append((parts[0], size))
         return preview
 
-    def reboot_required(self) -> bool:
-        """True if a reboot is needed (False when it can't tell). Never raises."""
-        return self.check_reboot() is True
-
     def check_reboot(self) -> bool | None:
         """True/False if the system should be rebooted to finish updates,
         None when every check was inconclusive.

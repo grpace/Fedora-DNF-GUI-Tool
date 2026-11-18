@@ -50,7 +50,6 @@ class SecuritySummary:
     package_severity: dict[str, str] = field(default_factory=dict)
     advisory_severity: dict[str, str] = field(default_factory=dict)
     advisory_packages: dict[str, set[str]] = field(default_factory=dict)
-    raw_summary: str = ""
     # Set by find_blocked_security(): updates dnf would skip right now.
     blocked: BlockedUpdates | None = None
 
@@ -234,12 +233,10 @@ def get_security_summary(refresh: bool = False) -> SecuritySummary:
     if output:
         _parse_list(output, summary)
 
-    # 2. Summary text — keep raw for display, and use as fallback counts.
+    # 2. Summary text, as fallback counts.
     raw = _run([dnf, "updateinfo", "summary"])
-    if raw:
-        summary.raw_summary = raw
-        if summary.total == 0:
-            _parse_summary(raw, summary)
+    if raw and summary.total == 0:
+        _parse_summary(raw, summary)
 
     return summary
 

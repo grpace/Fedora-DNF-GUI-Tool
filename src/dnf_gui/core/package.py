@@ -9,9 +9,6 @@ class PackageStatus(Enum):
     INSTALLED = auto()
     AVAILABLE = auto()
     UPDATE_AVAILABLE = auto()
-    INSTALLING = auto()
-    REMOVING = auto()
-    UPDATING = auto()
 
 
 @dataclass

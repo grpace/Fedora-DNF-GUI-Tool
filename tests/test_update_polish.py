@@ -74,13 +74,13 @@ class TestRebootRequired(unittest.TestCase):
         backend = _backend()
         with patch("dnf_gui.core.dnf_backend.subprocess.run",
                    return_value=MagicMock(returncode=1)):
-            self.assertTrue(backend.reboot_required())
+            self.assertIs(backend.check_reboot(), True)
 
     def test_needs_restarting_rc0_means_no_reboot(self):
         backend = _backend()
         with patch("dnf_gui.core.dnf_backend.subprocess.run",
                    return_value=MagicMock(returncode=0)):
-            self.assertFalse(backend.reboot_required())
+            self.assertIsNot(backend.check_reboot(), True)
 
     def test_sentinel_file_means_reboot(self):
         backend = _backend()
@@ -93,7 +93,7 @@ class TestRebootRequired(unittest.TestCase):
         with patch("dnf_gui.core.dnf_backend.subprocess.run", side_effect=fake_run):
             with patch("dnf_gui.core.dnf_backend.os.path.exists",
                        return_value=True):
-                self.assertTrue(backend.reboot_required())
+                self.assertIs(backend.check_reboot(), True)
 
     def test_kernel_drift_means_reboot(self):
         backend = _backend()
@@ -112,7 +112,7 @@ class TestRebootRequired(unittest.TestCase):
                        return_value=False):
                 with patch("dnf_gui.core.dnf_backend.platform.release",
                            return_value="6.17.1-100.fc44.x86_64"):
-                    self.assertTrue(backend.reboot_required())
+                    self.assertIs(backend.check_reboot(), True)
 
     def test_matching_kernel_means_no_reboot(self):
         backend = _backend()
@@ -131,7 +131,7 @@ class TestRebootRequired(unittest.TestCase):
                        return_value=False):
                 with patch("dnf_gui.core.dnf_backend.platform.release",
                            return_value="6.18.5-200.fc44.x86_64"):
-                    self.assertFalse(backend.reboot_required())
+                    self.assertIsNot(backend.check_reboot(), True)
 
     def test_dnf4_skips_the_dnf_subcommand(self):
         backend = _backend()
@@ -143,14 +143,14 @@ class TestRebootRequired(unittest.TestCase):
 
         with patch.object(DNFBackend, "is_dnf5", False), \
                 patch("dnf_gui.core.dnf_backend.subprocess.run", side_effect=fake_run):
-            self.assertFalse(backend.reboot_required())
+            self.assertIsNot(backend.check_reboot(), True)
         self.assertEqual(calls, [["needs-restarting", "-r"]])
 
     def test_never_raises(self):
         backend = _backend()
         with patch("dnf_gui.core.dnf_backend.subprocess.run",
                    side_effect=subprocess.TimeoutExpired("x", 1)):
-            self.assertFalse(backend.reboot_required())
+            self.assertIsNot(backend.check_reboot(), True)
 
 
 def _controller():

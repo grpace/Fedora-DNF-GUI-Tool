@@ -1,5 +1,0 @@
-# Fedora packages, not pip: the interface needs the system Qt's Kirigami,
-# which pip's PyQt6 (it bundles its own Qt) can't load.
-#   sudo dnf install python3-pyqt6 qt6-qtdeclarative kf6-kirigami \
-#       kf6-kirigami-addons kf6-qqc2-desktop-style breeze-icon-theme
-PyQt6>=6.6.0

@@ -369,7 +369,6 @@ def test_inconclusive_reboot_check_says_a_restart_may_be_needed():
     with patch("subprocess.run", side_effect=FileNotFoundError), \
             patch("os.path.exists", return_value=False):
         assert backend.check_reboot() is None
-        assert backend.reboot_required() is False   # old callers unchanged
     c = _controller()
     c.updates._on_reboot_checked(None)
     assert c.updates.rebootRequired and not c.updates.rebootCertain

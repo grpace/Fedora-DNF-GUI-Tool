@@ -316,7 +316,7 @@ class TestRebootRequiredDnf5(unittest.TestCase):
                 patch("dnf_gui.core.dnf_backend.os.path.exists", return_value=False), \
                 patch("dnf_gui.core.dnf_backend.platform.release",
                       return_value="6.18.5-200.fc45.x86_64"):
-            return self.backend.reboot_required(), calls
+            return self.backend.check_reboot() is True, calls
 
     def test_dnf5_builtin_tried_first(self):
         result, calls = self._run(dnf_rc=1)

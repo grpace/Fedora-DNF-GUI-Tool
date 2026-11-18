@@ -33,7 +33,7 @@ tar czf "$TOPDIR"/SOURCES/${APP_NAME}-${VERSION}.tar.gz \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
     -C "$SCRIPT_DIR" \
-    src/ assets/ packaging/ install.sh pyproject.toml requirements.txt LICENSE README.md CHANGELOG.md RELEASING.md
+    src/ assets/ packaging/ install.sh pyproject.toml LICENSE README.md CHANGELOG.md RELEASING.md
 
 cp "$SPEC_FILE" "$TOPDIR"/SPECS/
 rpmbuild -bb --define "_topdir $TOPDIR" "$TOPDIR"/SPECS/dnf-gui.spec

@@ -38,8 +38,6 @@ UNTRACKED = -1
 _SERVICE = "org.freedesktop.Notifications"
 _PATH = "/org/freedesktop/Notifications"
 _URGENCY = {"low": 0, "normal": 1, "critical": 2}
-# NotificationClosed reasons from the spec.
-CLOSED_EXPIRED, CLOSED_DISMISSED, CLOSED_BY_APP = 1, 2, 3
 
 
 @dataclass

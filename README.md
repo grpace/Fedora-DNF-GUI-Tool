@@ -77,7 +77,7 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
   - **Security Only:** `dnf upgrade --security`.
 - **A list that tells you something.** Updates are grouped into Security Fixes, Core Updates, Other Updates and Flatpak Apps. Each row shows the installed and new version (`145.0 → 146.0.1`), the download size, the severity of security fixes, and a **Core** tag for updates Update Without Core skips. Filter by name, or by All, Security, Core or Flatpak.
 - **Update one thing at a time:** every row, Flatpak apps included, has its own **Update** button.
-- **Details beside the list:** click an update for its security status, versions and `dnf info`, in a column next to the list.
+- **Details beside the list:** click an update for its security status, versions and `dnf info`, in a column next to the list. Drag the divider to give the list more room; the width is remembered.
 - **Decide what counts as core:** **Treat as Core** on any row's menu, or edit the patterns in Settings.
 - **Previews before you confirm:** package count and download size for every upgrade.
 - **Compact notices** for what needs attention: a restart that's actually needed, a new Fedora release, an app update, or a security fix waiting on another repository. One line each; expand one for the full text.
@@ -102,7 +102,7 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
 
 ### Desktop
 - **Native KDE Plasma interface** (Kirigami). It follows your color scheme, accent, fonts and light or dark setting; the colors it adds meet WCAG AA contrast in Breeze Light and Dark. Works with the keyboard and screen readers, and the sidebar folds to icons on narrow windows (or with the toggle at its top).
-- **Its own title bar.** The sidebar runs to the top of the window and the page header is the title bar: drag it to move the window, double-click to maximize, with minimize, maximize and close in the top-right corner.
+- **Its own title bar.** A rounded window whose sidebar runs to the top; the page header is the title bar: drag it to move the window, double-click to maximize, with minimize, maximize and close in the top-right corner.
 - **Clear icons.** A consistent bold icon set, and package rows show the app's own icon (from Fedora's AppStream data) or a colored letter tile.
 - **Completion notifications** when a long operation finishes while you're in another window. Click one to return to the app; if the operation failed, **Show Output** opens its output.
 - **One window.** Opening the app while it's already running brings the existing window forward.

@@ -11,14 +11,14 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 
 ### Added
 
-- **Package details beside the list.** Clicking an update or installed package opens its details (the pending update, security status and `dnf info`) next to the list; transaction details open next to History.
+- **Package details beside the list.** Clicking an update or installed package opens its details (the pending update, security status and `dnf info`) next to the list; transaction details open next to History. Drag the divider to resize the list (the width is remembered), and close the details with **Close Details** or `Esc`.
 - **A status capsule that follows you.** Running commands show in a small capsule floating over the bottom of every page: a progress ring with the percentage parsed from dnf, the current step, and Cancel. **Show Output** opens it into a panel with the full live log and Copy Output. It stays after the command ends so you can read the result, and opens by itself when something fails. `--page terminal` and notification clicks open it.
 - **Clear states on the Updates page:** checking, updates ready, up to date (with when it last checked) and couldn't check (never shown as up to date).
 - Filter the update list by All, Security, Core or Flatpak.
 - The sidebar collapses to icons on narrower windows, so a list and its details fit side by side on a laptop.
 - After installing its own update, the app offers to restart itself into the new version.
 - Settings → About → Check for App Updates.
-- **Its own title bar.** The sidebar runs to the top of the window and the page header is the title bar (drag to move, double-click to maximize), with minimize, maximize and close in the top-right corner. A toggle at the top of the sidebar folds it to icons.
+- **Its own title bar.** The window has rounded corners, the sidebar runs to the top, and the page header is the title bar (drag to move, double-click to maximize), with minimize, maximize and close in the top-right corner. A toggle at the top of the sidebar folds it to an icon rail.
 - **App icons.** Package rows show the app's own icon from Fedora's AppStream data (Firefox, GIMP, …) or a colored letter tile, instead of the same box for everything.
 - **Update a single Flatpak from the Updates page**, with its own Update button like every other row (`flatpak update <app>//<branch>`).
 - **More on the System page:** the device model, firmware version, Plasma version, the root filesystem and when the system was last updated.
@@ -26,7 +26,7 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 ### Changed
 
 - **Native look.** The app follows your Plasma color scheme, accent, fonts and light or dark setting. The in-app light/dark toggle is gone; change it in System Settings.
-- **A new app icon:** a package and an update arrow on a Fedora-blue tile, used everywhere: the application menu, the window and taskbar, the sidebar and About.
+- **A new app icon:** a package inside a nearly complete progress ring on a green-teal tile, used everywhere: the application menu, the window and taskbar, the sidebar and About.
 - **Clearer icons:** one bold, consistent icon set (Phosphor) in place of the thin line icons, dimmed when an action isn't available.
 - **"Major" updates are now called "Core" updates:** the Core tag and filter, Core Updates, Update Without Core and Treat as Core. Your list of core packages and the passwordless rule carry over unchanged.
 - **Compact notices.** A needed restart, a new Fedora release, an app update and security fixes waiting on another repository each take one line, with their actions inline and the full text a click away.

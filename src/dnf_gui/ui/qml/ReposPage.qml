@@ -34,12 +34,23 @@ Kirigami.ScrollablePage {
 
     header: QQC2.ToolBar {
         position: QQC2.ToolBar.Header
-        contentItem: Kirigami.SearchField {
-            id: search
-            placeholderText: "Filter repositories…"
-            Accessible.name: "Filter repositories"
-            onTextChanged: page.r.repos.query = text
-            KeyNavigation.down: list
+        leftPadding: root.gutter
+        rightPadding: root.gutter
+        topPadding: Kirigami.Units.largeSpacing
+        bottomPadding: Kirigami.Units.largeSpacing
+        contentItem: RowLayout {
+            spacing: Kirigami.Units.largeSpacing
+            Kirigami.SearchField {
+                id: search
+                placeholderText: "Filter repositories…"
+                Accessible.name: "Filter repositories"
+                onTextChanged: page.r.repos.query = text
+                KeyNavigation.down: list
+                Layout.fillWidth: true
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 18
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 18
+            }
+            Item { Layout.fillWidth: true }
         }
     }
 
@@ -51,7 +62,7 @@ Kirigami.ScrollablePage {
         activeFocusOnTab: true
         Accessible.name: "Repositories"
         section.property: "enabled"
-        section.delegate: Kirigami.ListSectionHeader {
+        section.delegate: SectionHeader {
             required property string section
             width: ListView.view.width
             text: section === "true" ? "Enabled" : "Disabled"
@@ -65,6 +76,10 @@ Kirigami.ScrollablePage {
             readonly property bool copr: model.id.indexOf("copr:") === 0
 
             width: ListView.view.width
+            leftPadding: root.gutter
+            rightPadding: root.gutter
+            topPadding: Kirigami.Units.largeSpacing
+            bottomPadding: Kirigami.Units.largeSpacing
             text: name || model.id
             highlighted: ListView.isCurrentItem
             Accessible.description: (model.enabled ? "Enabled" : "Disabled") + ", " + model.id
@@ -80,15 +95,13 @@ Kirigami.ScrollablePage {
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
-                Kirigami.Icon {
-                    source: root.ico(row.copr ? "user-identity" : "repository", enabled, color)
-                    color: row.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                    Layout.preferredWidth: Kirigami.Units.iconSizes.medium
-                    Layout.preferredHeight: Layout.preferredWidth
+                GlyphTile {
+                    iconName: row.copr ? "user-identity" : "repository"
+                    selected: row.highlighted
                     opacity: row.model.enabled ? 1 : 0.5
                 }
                 ColumnLayout {
-                    spacing: 0
+                    spacing: Kirigami.Units.smallSpacing / 2
                     Layout.fillWidth: true
                     QQC2.Label {
                         text: row.name || row.model.id

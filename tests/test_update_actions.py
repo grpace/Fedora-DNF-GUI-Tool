@@ -98,6 +98,35 @@ class TestUpdateRows(unittest.TestCase):
             app.updates.upgradePackage("firefox")
         run.assert_not_called()
 
+    def test_flatpak_row_update_button_confirms_then_runs_that_app(self):
+        app = _scanned(self, flatpaks=[FlatpakApp(name="Kdenlive", application_id="org.kde.kdenlive",
+                                                  branch="stable")])
+        row = app.updates.model.find("name", "Kdenlive")
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.flatpak.updateApp(row["appId"], row["branch"])
+        self.assertEqual(shown[0].title, "Update Flatpak App?")
+        command = app.flatpak_backend.build_update_command("org.kde.kdenlive", "stable")
+        self.assertEqual(command[1:], ["update", "-y", "org.kde.kdenlive//stable"])
+        run.assert_called_once_with(command, "Updating Flatpak: org.kde.kdenlive")
+        answer(app, "no")
+        with patch.object(app.runner, "run") as run:
+            app.flatpak.updateApp("org.kde.kdenlive", "stable")
+        run.assert_not_called()
+
+    def test_flatpak_update_refuses_option_like_ids(self):
+        app = _controller(self)
+        backend = app.flatpak_backend
+        self.assertEqual(backend.build_update_command("org.a.A")[1:], ["update", "-y", "org.a.A"])
+        for bad in (("--system", ""), ("org.a.A", "-x"), ("", ""), ("a b", "")):
+            with self.assertRaises(ValueError):
+                backend.build_update_command(*bad)
+        shown = answer(app, "yes")
+        with patch.object(app.runner, "run") as run:
+            app.flatpak.updateApp("--user", "")
+        self.assertEqual(shown, [])
+        run.assert_not_called()
+
     def test_held_back_rows_are_tagged(self):
         app = _scanned(self)
         model = app.updates.model

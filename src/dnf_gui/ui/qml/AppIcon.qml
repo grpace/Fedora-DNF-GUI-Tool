@@ -32,15 +32,21 @@ Item {
     implicitHeight: implicitWidth
     Accessible.ignored: true
 
+    // An icon only when there's one to draw: the theme has the app's icon
+    // (a Flatpak's exported one included) or AppStream ships a file.
+    // Anything else gets the letter tile, never an empty space.
+    readonly property string themeName: appId !== "" ? appId : (info.theme || "")
+    readonly property bool hasThemeIcon: themeName !== "" && App.themeIconExists(themeName)
+    readonly property string iconFile: appId !== "" ? "" : (info.file || "")
+
     Kirigami.Icon {
         id: image
         anchors.fill: parent
         source: tile.runtime ? root.ico("application-x-sharedlib", enabled, color)
-              : tile.appId !== "" ? tile.appId
-              : (tile.info.theme || tile.info.file || "")
-        fallback: tile.runtime || tile.appId !== "" ? "" : (tile.info.file || "")
+              : tile.hasThemeIcon ? tile.themeName
+              : tile.iconFile
         color: Kirigami.Theme.textColor
-        visible: String(source) !== "" && valid
+        visible: tile.runtime || tile.hasThemeIcon || (tile.iconFile !== "" && valid)
     }
 
     Rectangle {

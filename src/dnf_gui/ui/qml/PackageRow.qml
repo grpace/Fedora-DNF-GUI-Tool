@@ -21,6 +21,10 @@ QQC2.ItemDelegate {
 
     text: name
     highlighted: ListView.isCurrentItem
+    leftPadding: root.gutter
+    rightPadding: root.gutter
+    topPadding: Kirigami.Units.largeSpacing
+    bottomPadding: Kirigami.Units.largeSpacing
     Accessible.description: version + (repo ? ", from " + repo : "") + (installed ? ", installed" : "")
 
     onClicked: {
@@ -46,7 +50,7 @@ QQC2.ItemDelegate {
             Layout.preferredHeight: Layout.preferredWidth
         }
         ColumnLayout {
-            spacing: 0
+            spacing: Kirigami.Units.smallSpacing / 2
             Layout.fillWidth: true
             QQC2.Label {
                 text: row.name

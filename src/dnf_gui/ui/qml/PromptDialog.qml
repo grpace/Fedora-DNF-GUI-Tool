@@ -13,11 +13,23 @@ KDialogs.Dialog {
     readonly property bool hasPrompt: prompt.token !== undefined
 
     title: hasPrompt ? prompt.title : ""
-    padding: Kirigami.Units.largeSpacing * 2
+    padding: inset
     preferredWidth: Kirigami.Units.gridUnit * 26
     showCloseButton: false
     closePolicy: QQC2.Popup.CloseOnEscape
     standardButtons: QQC2.Dialog.NoButton
+
+    // The title, the body and the buttons share one left and right inset.
+    readonly property real inset: Kirigami.Units.largeSpacing * 2
+    header: KDialogs.DialogHeader {
+        dialog: dialog
+        leftPadding: dialog.inset
+        rightPadding: dialog.inset
+        topPadding: Kirigami.Units.largeSpacing * 1.5
+        contentItem: KDialogs.DialogHeaderTopContent {
+            dialog: dialog
+        }
+    }
 
     function answer(choice) {
         const token = prompt.token;
@@ -113,7 +125,10 @@ KDialogs.Dialog {
 
     footer: QQC2.DialogButtonBox {
         alignment: Qt.AlignRight
-        padding: Kirigami.Units.largeSpacing
+        leftPadding: dialog.inset
+        rightPadding: dialog.inset
+        topPadding: Kirigami.Units.largeSpacing
+        bottomPadding: dialog.inset
         Repeater {
             id: buttons
             model: dialog.hasPrompt ? dialog.prompt.buttons : []

@@ -27,12 +27,23 @@ Kirigami.ScrollablePage {
 
     header: QQC2.ToolBar {
         position: QQC2.ToolBar.Header
-        contentItem: Kirigami.SearchField {
-            id: search
-            placeholderText: "Filter by command, action or number…"
-            Accessible.name: "Filter transactions"
-            onTextChanged: page.h.items.query = text
-            KeyNavigation.down: list
+        leftPadding: root.gutter
+        rightPadding: root.gutter
+        topPadding: Kirigami.Units.largeSpacing
+        bottomPadding: Kirigami.Units.largeSpacing
+        contentItem: RowLayout {
+            spacing: Kirigami.Units.largeSpacing
+            Kirigami.SearchField {
+                id: search
+                placeholderText: "Filter by command, action or number…"
+                Accessible.name: "Filter transactions"
+                onTextChanged: page.h.items.query = text
+                KeyNavigation.down: list
+                Layout.fillWidth: true
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 18
+                Layout.preferredWidth: Kirigami.Units.gridUnit * 18
+            }
+            Item { Layout.fillWidth: true }
         }
     }
 
@@ -61,6 +72,10 @@ Kirigami.ScrollablePage {
             }
 
             width: ListView.view.width
+            leftPadding: root.gutter
+            rightPadding: root.gutter
+            topPadding: Kirigami.Units.largeSpacing
+            bottomPadding: Kirigami.Units.largeSpacing
             text: "Transaction " + model.id + ": " + command
             highlighted: ListView.isCurrentItem
             Accessible.description: model.action + ", " + altered + " packages, " + date
@@ -75,14 +90,12 @@ Kirigami.ScrollablePage {
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
-                Kirigami.Icon {
-                    source: root.ico(row.actionIcon, enabled, color)
-                    color: row.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                    Layout.preferredWidth: Kirigami.Units.iconSizes.medium
-                    Layout.preferredHeight: Layout.preferredWidth
+                GlyphTile {
+                    iconName: row.actionIcon
+                    selected: row.highlighted
                 }
                 ColumnLayout {
-                    spacing: 0
+                    spacing: Kirigami.Units.smallSpacing / 2
                     Layout.fillWidth: true
                     QQC2.Label {
                         text: row.command

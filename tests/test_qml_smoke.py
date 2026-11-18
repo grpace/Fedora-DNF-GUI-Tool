@@ -395,19 +395,39 @@ def test_escape_closes_the_log_or_the_column_by_where_focus_is(ui):
     assert _problems(warnings, messages) == []
 
 
-def test_banners_give_screen_readers_plain_text(ui):
-    """Kirigami's banner label would expose its HTML document as the
-    accessible name; screen readers must get the sentence instead."""
+def test_notices_give_screen_readers_plain_text(ui):
+    """A notice is one alert with its title as the name and its body as the
+    description; none of its text is read as markup, so dnf output in a
+    notice can't turn into HTML for a screen reader."""
     from PyQt6.QtQml import QQmlEngine, QQmlProperty
     controller, window, (warnings, messages) = ui
-    controller.updates._on_checked(_scan())       # restart needed: a banner shows
+    controller.updates._on_checked(_scan())       # restart needed: a notice shows
     _spin(300)
-    names = []
-    for item in _find(window, lambda i: i.property("readOnly") is True
-                      and "Restart to finish updating" in str(i.property("text") or "")):
-        prop = QQmlProperty(item, "Accessible.name", QQmlEngine.contextForObject(item))
-        names.append(str(prop.read() or ""))
-    assert names, "the restart banner should be showing"
+    notices = _find(window, lambda i: i.property("dismissAction") is not None
+                    and i.property("title") == "Restart to finish updating")
+    assert notices, "the restart notice should be showing"
+    notice = notices[0]
+    assert notice.isVisible()
+
+    def attached(item, name):
+        return QQmlProperty(item, name, QQmlEngine.contextForObject(item)).read()
+    assert attached(notice, "Accessible.name") == "Restart to finish updating"
+    assert str(attached(notice, "Accessible.description")).startswith("Core system updates were installed.")
+    # Every text inside is plain text, and no
+    # accessible name carries markup.
+    texts = [i for i in _items(notice) if i.metaObject().indexOfProperty("textFormat") >= 0
+             and i.metaObject().indexOfProperty("elide") >= 0]
+    assert texts
+    from PyQt6.QtQml import QQmlExpression
+
+    def plain(item):
+        expr = QQmlExpression(QQmlEngine.contextForObject(notice), item, "textFormat === Text.PlainText")
+        return expr.evaluate()[0] is True
+    assert all(plain(t) for t in texts)
+    names = [str(attached(i, "Accessible.name") or "") for i in _items(notice)]
     assert not [n for n in names if "<" in n]
-    assert any(n.startswith("Restart to finish updating. Core system") for n in names)
+    # The dismiss button is icon-only but keeps the old words.
+    later = [i for i in _items(notice) if i.property("text") == "Later" and i.isVisible()
+             and i.metaObject().indexOfProperty("display") >= 0]
+    assert later and attached(later[0], "Accessible.name") == "Later"
     assert _problems(warnings, messages) == []

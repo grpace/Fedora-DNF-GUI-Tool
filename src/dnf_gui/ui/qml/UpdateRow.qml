@@ -24,6 +24,7 @@ QQC2.ItemDelegate {
     required property string majorActionLabel
     required property string majorTooltip
     required property string appId
+    required property string branch
     required property string iconName
     required property string tooltip
 
@@ -36,6 +37,10 @@ QQC2.ItemDelegate {
 
     text: name
     highlighted: ListView.isCurrentItem
+    leftPadding: root.gutter
+    rightPadding: root.gutter
+    topPadding: Kirigami.Units.largeSpacing
+    bottomPadding: Kirigami.Units.largeSpacing
     Accessible.onPressAction: clicked()
     Accessible.description: (severity === "Security" ? "Security update. "
                              : severity ? severity + " security update. " : "")
@@ -75,7 +80,7 @@ QQC2.ItemDelegate {
         }
 
         ColumnLayout {
-            spacing: 0
+            spacing: Kirigami.Units.smallSpacing / 2
             Layout.fillWidth: true
 
             // Name and badges: the name elides only when the row is
@@ -88,7 +93,7 @@ QQC2.ItemDelegate {
                     id: nameLabel
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.max(0, Math.min(implicitWidth, nameLine.width
-                                    - (pills.width > 0 ? pills.width + Kirigami.Units.smallSpacing : 0)))
+                                    - (pills.width > 0 ? pills.width + Kirigami.Units.smallSpacing * 1.5 : 0)))
                     text: row.name
                     font.weight: Font.DemiBold
                     color: row.fg
@@ -96,9 +101,9 @@ QQC2.ItemDelegate {
                 }
                 Row {
                     id: pills
-                    x: nameLabel.width + Kirigami.Units.smallSpacing
+                    x: nameLabel.width + Kirigami.Units.smallSpacing * 1.5
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Kirigami.Units.smallSpacing
+                    spacing: Kirigami.Units.smallSpacing * 1.5
                     Pill {
                         visible: row.severity !== ""
                         text: row.severity
@@ -130,14 +135,19 @@ QQC2.ItemDelegate {
             }
         }
 
+        // Fixed width and tabular digits: sizes line up down the list.
         QQC2.Label {
             text: row.size
-            visible: row.size !== "" && !row.narrow
+            visible: !row.narrow
             color: row.dim
-            font: Kirigami.Theme.smallFont
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            font.features: { "tnum": 1 }
+            horizontalAlignment: Text.AlignRight
+            elide: Text.ElideLeft
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 4.5
         }
         QQC2.ToolButton {
-            visible: !row.flatpak
+            id: updateButton
             text: "Update"
             icon.source: root.ico("download", enabled)
             display: row.narrow ? QQC2.AbstractButton.IconOnly : QQC2.AbstractButton.TextBesideIcon
@@ -147,7 +157,9 @@ QQC2.ItemDelegate {
             QQC2.ToolTip.text: "Update only " + row.name
             QQC2.ToolTip.visible: hovered && row.narrow
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-            onClicked: App.Updates.upgradePackage(row.name)
+            // A Flatpak row updates just that app (and branch).
+            onClicked: row.flatpak ? App.Flatpak.updateApp(row.appId, row.branch)
+                                   : App.Updates.upgradePackage(row.name)
         }
         QQC2.ToolButton {
             id: more

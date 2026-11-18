@@ -21,6 +21,9 @@ Kirigami.ScrollablePage {
 
     title: packageName
     Accessible.name: packageName + " details"
+    leftPadding: root.gutter
+    rightPadding: root.gutter
+    topPadding: root.gutter
 
     actions: [
         Kirigami.Action {
@@ -71,7 +74,7 @@ Kirigami.ScrollablePage {
     ]
 
     ColumnLayout {
-        spacing: Kirigami.Units.largeSpacing * 2
+        spacing: Kirigami.Units.largeSpacing * 1.5
 
         RowLayout {
             spacing: Kirigami.Units.largeSpacing * 1.5
@@ -87,6 +90,7 @@ Kirigami.ScrollablePage {
                 Layout.fillWidth: true
                 Kirigami.Heading {
                     level: 2
+                    type: Kirigami.Heading.Type.Primary
                     text: page.packageName
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
@@ -120,10 +124,21 @@ Kirigami.ScrollablePage {
         }
 
         // ── Pending update ──
-        Kirigami.FormLayout {
+        // The two forms share one label column and sit at the header's
+        // left edge, each under its own heading.
+        Kirigami.Heading {
             visible: page.hasUpdate
-            Layout.fillWidth: true
-            Kirigami.Separator { Kirigami.FormData.label: "Update"; Kirigami.FormData.isSection: true }
+            level: 4
+            type: Kirigami.Heading.Type.Primary
+            text: "Update"
+            Layout.topMargin: Kirigami.Units.smallSpacing
+        }
+        Kirigami.FormLayout {
+            id: updateForm
+            visible: page.hasUpdate
+            twinFormLayouts: [infoForm]
+            Layout.fillWidth: false
+            Layout.alignment: Qt.AlignLeft
             QQC2.Label {
                 Kirigami.FormData.label: "Installed:"
                 visible: !!page.update.fromVersion
@@ -147,10 +162,19 @@ Kirigami.ScrollablePage {
         }
 
         // ── dnf info ──
-        Kirigami.FormLayout {
+        Kirigami.Heading {
             visible: !page.flatpak && !page.loading && !page.info.missing
-            Layout.fillWidth: true
-            Kirigami.Separator { Kirigami.FormData.label: "Package"; Kirigami.FormData.isSection: true }
+            level: 4
+            type: Kirigami.Heading.Type.Primary
+            text: "Package"
+            Layout.topMargin: Kirigami.Units.smallSpacing
+        }
+        Kirigami.FormLayout {
+            id: infoForm
+            visible: !page.flatpak && !page.loading && !page.info.missing
+            twinFormLayouts: [updateForm]
+            Layout.fillWidth: false
+            Layout.alignment: Qt.AlignLeft
             QQC2.Label {
                 Kirigami.FormData.label: "Version:"
                 text: (page.info.version || "") + (page.info.release ? "-" + page.info.release : "")

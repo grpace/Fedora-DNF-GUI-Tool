@@ -401,9 +401,9 @@ class CombinedUpdateCheckWorker(QThread):
             except Exception:
                 security_preview = None
             try:
-                reboot = self._dnf_backend.reboot_required()
+                reboot = self._dnf_backend.check_reboot()  # None: can't tell
             except Exception:
-                reboot = False
+                reboot = None
             try:
                 from dnf_gui.core.release_upgrade import check_release_upgrade
                 release_upgrade = check_release_upgrade()

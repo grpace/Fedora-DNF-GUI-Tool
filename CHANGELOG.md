@@ -47,13 +47,14 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 - The passwordless rule is written to a temporary file, checked with `visudo`, and only then moved into place, so a crash midway can't leave a broken rule that stops `sudo` from working.
 - Confirmations say "No password needed" only when the rule actually installed covers the command, and the passwordless settings explain plainly what each scope allows.
 - Installing the app's own update is offered only when GitHub published a digest to check it against.
-- The app's own update is checked against GitHub's digest a second time as root, on a copy only root can write, and that exact copy is installed, so nothing running as you can swap the file while the password prompt is open.
+- The app's own update is checked against GitHub's digest a second time as root, on a copy only root can write, and that exact copy is installed, so nothing running as you can swap the file while the password prompt is open. It must be a regular file of a sane size: a symlink, device or pipe is refused.
 
 ### Fixed
 
 - On dnf5, upgrade previews counted every pending update as one package, so confirmations and the Updates summary showed "1 packages" and the wrong download size.
 - Updates dnf leaves out because their own repository published them before something they need (for example an RPM Fusion ffmpeg build) are now reported as skipped, instead of the run looking fully successful.
 - Confirmations say "No password needed" when your passwordless rule covers the command, instead of always promising a password prompt.
+- After an update, "A restart may be needed" (shown when dnf can't tell) is no longer cleared by the rescan that follows.
 - **Later** on the restart banner now lasts until the next check instead of coming back every time you open Updates.
 - When the passwordless rule no longer matched (for example after it was removed outside the app), the retry ran `sudo -n` again instead of asking for your password with pkexec. It now falls back to the password prompt as intended.
 

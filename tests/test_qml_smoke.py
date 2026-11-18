@@ -44,8 +44,9 @@ def ui():
     window.show()
     _spin(200)
     yield controller, window, (warnings, messages)
-    controller.prompts.cancel_all()
-    controller.shutdown_threads()
+    controller._shutdown()
+    for thread in controller.detached_threads:
+        thread.wait(10000)
     ui_window.unload(engine, controller)
     QApplication.processEvents()
     qInstallMessageHandler(previous)
@@ -192,10 +193,10 @@ def test_summary_stays_at_the_top_when_results_arrive(ui):
     from PyQt6.QtQuick import QQuickItem
     _spin()
     controller.updates._on_checked(_scan(40))
-    _spin(200)
+    _spin(700)
     lists = [i for i in window.findChildren(QQuickItem)
              if i.property("objectName") == "" and i.metaObject().className().startswith("QQuickListView")
-             and i.property("pinnedTop") is not None]
+             and i.property("shownPhase") is not None]
     assert lists
     view = lists[0]
     assert abs(view.property("contentY") - view.property("originY")) < 1
@@ -228,4 +229,61 @@ def test_collapsed_sidebar_keeps_its_icons(ui):
         opacity *= parent.opacity()
         parent = parent.parentItem()
     assert opacity > 0.5
+    assert _problems(warnings, messages) == []
+
+
+def _find(window, predicate):
+    return [i for i in _items(window.contentItem()) if predicate(i)]
+
+
+def test_cancel_hidden_for_downloads_that_cannot_be_cancelled(ui):
+    controller, window, (warnings, messages) = ui
+    fake = type("W", (), {"isRunning": lambda self: True})()
+    controller.runner.start_external("Downloading app update", fake)
+    controller.toggleActivity(True)
+    _spin(150)
+    cancel = _find(window, lambda i: i.property("text") == "Cancel"
+                   and i.property("cancellable") is None and i.property("flat") is not None)
+    assert cancel and not any(c.isVisible() for c in cancel)
+    controller.runner.finish_external(True)
+    assert _problems(warnings, messages) == []
+
+
+def test_scrolling_down_is_not_pulled_back_to_the_top(ui):
+    controller, window, (warnings, messages) = ui
+    controller.updates._on_checked(_scan(120))
+    _spin(200)
+    view = _find(window, lambda i: i.property("shownPhase") is not None)[0]
+    _spin(700)   # past the settle window
+    assert abs(view.property("contentY") - view.property("originY")) < 1
+    target = view.property("originY") + 600
+    view.setProperty("contentY", target)
+    _spin(300)   # delegates get created and contentHeight is re-estimated
+    assert view.property("contentY") > view.property("originY") + 300
+    assert _problems(warnings, messages) == []
+
+
+def test_reminder_switch_saves_from_any_toggle_but_not_on_load(ui):
+    controller, window, (warnings, messages) = ui
+    controller.settings.reminders_enabled = False
+    controller.navigate("settings")
+    _spin(300)
+    assert controller.prompts.notices == []        # opening Settings saves nothing
+    switch = _find(window, lambda i: i.property("text") == "Remind me about pending updates")[0]
+    from PyQt6.QtCore import QMetaObject, Qt
+    QMetaObject.invokeMethod(switch, "toggle", Qt.ConnectionType.DirectConnection)
+    QMetaObject.invokeMethod(switch, "toggled", Qt.ConnectionType.DirectConnection)
+    _spin(100)
+    assert controller.settings.reminders_enabled is True
+    assert _problems(warnings, messages) == []
+
+
+def test_flathub_error_is_not_shown_as_no_results(ui):
+    controller, window, (warnings, messages) = ui
+    controller.navigate("flatpak")
+    _spin(200)
+    answer(controller)
+    controller.flatpak._search_generation = 1
+    controller.flatpak._on_search_error(1, "network unreachable")
+    assert controller.flatpak.searchError == "network unreachable"
     assert _problems(warnings, messages) == []

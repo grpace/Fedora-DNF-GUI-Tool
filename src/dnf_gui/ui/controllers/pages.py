@@ -199,9 +199,10 @@ def _flatpak_row(app, installed: bool) -> dict:
 
 class FlatpakController(_Loader):
     _defaults = {**_Loader._defaults, "available": True, "showRuntimes": False,
-                 "searching": False, "searchQuery": "", "searchDone": False}
+                 "searching": False, "searchQuery": "", "searchDone": False,
+                 "searchError": ""}
     changed = pyqtSignal()
-    declare(locals(), changed, {**LOADER_PROPS, "available": bool, "showRuntimes": bool, "searching": bool, "searchQuery": str, "searchDone": bool})
+    declare(locals(), changed, {**LOADER_PROPS, "available": bool, "showRuntimes": bool, "searching": bool, "searchQuery": str, "searchDone": bool, "searchError": str})
 
     def __init__(self, app, parent=None):
         super().__init__(app, parent)
@@ -253,7 +254,7 @@ class FlatpakController(_Loader):
             self._results.set_rows([])
             self._set(searching=False, searchQuery=query, searchDone=False)
             return
-        self._set(searching=True, searchQuery=query, searchDone=False)
+        self._set(searching=True, searchQuery=query, searchDone=False, searchError="")
         worker = FlatpakSearchWorker(self.app.flatpak_backend, query, parent=self)
         worker.finished.connect(lambda apps: self._on_search(generation, apps))
         worker.error.connect(lambda e: self._on_search_error(generation, e))
@@ -263,7 +264,7 @@ class FlatpakController(_Loader):
     def _on_search_error(self, generation: int, error: str) -> None:
         if generation == self._search_generation:
             self._results.set_rows([])
-            self._set(searching=False, searchDone=True)
+            self._set(searching=False, searchDone=True, searchError=error)
             self.app.show_error("Flathub Search Failed", error)
 
     def _on_search(self, generation: int, apps) -> None:

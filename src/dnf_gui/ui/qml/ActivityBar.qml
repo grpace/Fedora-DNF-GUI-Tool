@@ -77,7 +77,8 @@ QQC2.Pane {
             QQC2.Button {
                 text: "Cancel"
                 icon.name: "dialog-cancel"
-                visible: bar.runner.busy
+                // Downloads of the app's own update can't be cancelled.
+                visible: bar.runner.busy && bar.runner.cancellable
                 enabled: !bar.runner.cancelling
                 onClicked: bar.runner.cancel()
             }

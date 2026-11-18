@@ -63,9 +63,9 @@ class ReminderResult:
 def _app_command() -> list[str]:
     """argv that starts the app: the RPM/install.sh launcher if present,
     else this interpreter + module (pip installs only ship fedora-dnf-gui)."""
-    import shutil
     import sys
-    launcher = shutil.which("dnf-gui")
+    from dnf_gui.core.paths import find_system_binary
+    launcher = find_system_binary("dnf-gui")  # never a $PATH lookup (core.paths)
     return [launcher] if launcher else [sys.executable, "-m", "dnf_gui"]
 
 
@@ -224,8 +224,10 @@ class AppSettings:
 
     @property
     def update_favorite(self) -> str:
-        value = str(self.get("updates/favorite", UPDATE_MODE_KEYS[0]))
-        return value if value in UPDATE_MODE_KEYS else UPDATE_MODE_KEYS[0]
+        # Default: Update Everything, so the main button installs everything
+        # the Updates page counts (system packages and Flatpak apps).
+        value = str(self.get("updates/favorite", "everything"))
+        return value if value in UPDATE_MODE_KEYS else "everything"
 
     @update_favorite.setter
     def update_favorite(self, key: str) -> None:

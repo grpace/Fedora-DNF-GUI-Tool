@@ -25,10 +25,10 @@ Severity spelling differs between dnf4 (``Critical/Sec.``) and dnf5
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 from dataclasses import dataclass, field
 from typing import Optional
+from dnf_gui.core.paths import system_binary
 
 _SEVERITY_RE = re.compile(r"(critical|important|moderate|low)", re.IGNORECASE)
 _SEVERITY_RANK = {"critical": 4, "important": 3, "moderate": 2, "low": 1, "": 0}
@@ -131,7 +131,7 @@ def _join_names(names: list[str]) -> str:
 
 
 def _dnf_binary() -> str:
-    return shutil.which("dnf5") or shutil.which("dnf") or "dnf"
+    return system_binary("dnf5", "dnf")
 
 
 def _run(args: list[str], timeout: int = 90) -> Optional[str]:

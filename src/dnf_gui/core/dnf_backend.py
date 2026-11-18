@@ -5,10 +5,10 @@ import os
 import platform
 import re
 import subprocess
-import shutil
 from typing import Iterable, Optional
 
 from dnf_gui.core.package import Package, PackageStatus, UpdateInfo, UpgradePreview
+from dnf_gui.core.paths import system_binary
 
 # COPR format: user/project or @group/project (alphanumeric, dots, hyphens)
 _COPR_PATTERN = re.compile(r"^[@]?[\w][\w.-]*/[\w.-]+$")
@@ -74,13 +74,8 @@ class DNFBackend:
 
     def _find_dnf(self) -> str:
         """Locate the dnf binary. Prefers dnf5 on Fedora 41+."""
-        dnf5 = shutil.which("dnf5")
-        if dnf5:
-            return dnf5
-        dnf = shutil.which("dnf")
-        if dnf:
-            return dnf
-        return "dnf"
+        # System directories only: see core.paths.
+        return system_binary("dnf5", "dnf")
 
     # ─── Read-Only Operations (no root needed) ──────────────────────
 

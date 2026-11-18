@@ -32,6 +32,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from dnf_gui.core.paths import system_binary
 
 SYSTEM_AUTOSTART = "/etc/xdg/autostart/org.kde.discover.notifier.desktop"
 # Plasma starts autostart entries as systemd user units; masking the unit
@@ -280,7 +281,7 @@ class DiscoverManager:
         Also restores the autostart file if an older version of this app
         deleted it (it belongs to the plasma-discover-notifier package).
         """
-        dnf = shutil.which("dnf5") or shutil.which("dnf") or "dnf"
+        dnf = system_binary("dnf5", "dnf")
         config = SYSTEM_DISCOVER_CONFIG
         return [
             ["pkexec", "bash", "-c",
@@ -293,5 +294,5 @@ class DiscoverManager:
 
     def build_remove_notifier_package_command(self) -> list[str]:
         """Offer to remove plasma-discover-notifier but keep Discover itself."""
-        dnf = shutil.which("dnf5") or shutil.which("dnf") or "dnf"
+        dnf = system_binary("dnf5", "dnf")
         return ["pkexec", dnf, "remove", "-y", "plasma-discover-notifier"]

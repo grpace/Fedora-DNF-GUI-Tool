@@ -1,9 +1,9 @@
 """Flatpak backend — manage Flatpak applications."""
 
 import subprocess
-import shutil
 from dataclasses import dataclass
 from typing import Optional
+from dnf_gui.core.paths import system_binary
 
 
 @dataclass
@@ -34,7 +34,7 @@ class FlatpakBackend:
     """Interface to Flatpak CLI for managing Flatpak applications."""
 
     def __init__(self):
-        self._flatpak = shutil.which("flatpak") or "flatpak"
+        self._flatpak = system_binary("flatpak")
 
     @property
     def available(self) -> bool:

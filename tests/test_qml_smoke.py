@@ -290,3 +290,29 @@ def test_flathub_error_is_not_shown_as_no_results(ui):
     controller.flatpak.search("")   # clearing the box clears the error
     assert controller.flatpak.searchError == ""
     assert _problems(warnings, messages) == []
+
+
+def test_opening_settings_keeps_non_default_reminder_choices(ui):
+    """Saved values that differ from the defaults must survive opening
+    Settings (switches update one at a time from the controller)."""
+    controller, window, (warnings, messages) = ui
+    settings = controller.settings
+    settings.reminders_enabled = True
+    settings.security_only = True
+    settings.notify_flatpak = False
+    settings.check_interval_hours = 72
+    controller.navigate("settings")
+    _spin(400)
+    assert (settings.reminders_enabled, settings.security_only,
+            settings.notify_flatpak, settings.check_interval_hours) == (True, True, False, 72)
+    assert controller.prompts.notices == []
+    # A real change saves just that field.
+    switch = _find(window, lambda i: i.property("text") == "Include Flatpak updates"
+                   and i.property("checkable") is True)[0]
+    from PyQt6.QtCore import QMetaObject, Qt
+    assert switch.property("checked") is False   # shows the saved value
+    QMetaObject.invokeMethod(switch, "toggle", Qt.ConnectionType.DirectConnection)
+    _spin(150)
+    assert (settings.reminders_enabled, settings.security_only,
+            settings.notify_flatpak, settings.check_interval_hours) == (True, True, True, 72)
+    assert _problems(warnings, messages) == []

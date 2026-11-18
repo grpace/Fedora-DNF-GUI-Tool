@@ -271,8 +271,9 @@ def test_reminder_switch_saves_from_any_toggle_but_not_on_load(ui):
     assert controller.prompts.notices == []        # opening Settings saves nothing
     switch = _find(window, lambda i: i.property("text") == "Remind me about pending updates")[0]
     from PyQt6.QtCore import QMetaObject, Qt
+    # What a screen reader's toggle action does: toggle() flips `checked`
+    # and (on Qt 6.11) emits no toggled() signal.
     QMetaObject.invokeMethod(switch, "toggle", Qt.ConnectionType.DirectConnection)
-    QMetaObject.invokeMethod(switch, "toggled", Qt.ConnectionType.DirectConnection)
     _spin(100)
     assert controller.settings.reminders_enabled is True
     assert _problems(warnings, messages) == []
@@ -286,4 +287,6 @@ def test_flathub_error_is_not_shown_as_no_results(ui):
     controller.flatpak._search_generation = 1
     controller.flatpak._on_search_error(1, "network unreachable")
     assert controller.flatpak.searchError == "network unreachable"
+    controller.flatpak.search("")   # clearing the box clears the error
+    assert controller.flatpak.searchError == ""
     assert _problems(warnings, messages) == []

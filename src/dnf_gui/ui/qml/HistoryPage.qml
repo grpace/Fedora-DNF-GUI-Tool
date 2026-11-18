@@ -7,6 +7,14 @@ import org.kde.kirigami as Kirigami
 Kirigami.ScrollablePage {
     id: page
 
+    // Beside a details column: drag the divider to resize this list.
+    Kirigami.ColumnView.interactiveResizeEnabled: true
+    Kirigami.ColumnView.minimumWidth: Kirigami.Units.gridUnit * 20
+    Kirigami.ColumnView.maximumWidth: Math.max(Kirigami.Units.gridUnit * 20,
+                                               root.pageStack.width - Kirigami.Units.gridUnit * 22)
+    Kirigami.ColumnView.preferredWidth: root.listColumnWidth
+    Kirigami.ColumnView.onPreferredWidthChanged: root.rememberListWidth(Kirigami.ColumnView.preferredWidth)
+
     readonly property var h: App.History
 
     title: "History"

@@ -269,3 +269,25 @@ def test_escape_closes_the_log_or_the_column_by_where_focus_is(ui):
     _key(window, Qt.Key.Key_Escape)  # no column to close: the log closes
     assert wait_until(lambda: not controller.activityExpanded)
     assert problems() == []
+
+
+def test_dragging_the_column_divider_resizes_the_list_and_is_remembered(ui):
+    controller, window, problems = ui
+    _scan(controller)
+    spin(150)
+    call(window, "openPackageDetails", "pkg1")
+    spin(300)
+    listing, details = _columns(window)[:2]
+    assert attached(listing, "Kirigami.ColumnView.interactiveResizeEnabled") is True
+    before = listing.width()
+    x, _, w, _ = _scene_rect(listing)
+    edge = QPointF(x + w, window.height() / 2).toPoint()
+    QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, edge)
+    for step in range(1, 13):
+        QTest.mouseMove(window, edge + QPointF(step * 10, 0).toPoint())
+        spin(10)
+    QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                       edge + QPointF(120, 0).toPoint())
+    assert wait_until(lambda: listing.width() > before + 60), (before, listing.width())
+    assert wait_until(lambda: controller.settings.list_column_width > before + 60)
+    assert problems() == []

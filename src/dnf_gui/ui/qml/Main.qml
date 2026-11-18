@@ -147,6 +147,14 @@ Kirigami.ApplicationWindow {
     }
 
     pageStack.defaultColumnWidth: Kirigami.Units.gridUnit * 28
+    // Dynamic columns honor each list's width and its draggable divider
+    // (Kirigami's default fixes every column at defaultColumnWidth).
+    Binding {
+        target: root.pageStack.columnView
+        property: "columnResizeMode"
+        value: root.pageStack.wideMode ? Kirigami.ColumnView.DynamicColumns
+                                       : Kirigami.ColumnView.SingleColumn
+    }
     pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.ToolBar
     pageStack.globalToolBar.showNavigationButtons: Kirigami.ApplicationHeaderStyle.ShowBackButton
 
@@ -176,6 +184,21 @@ Kirigami.ApplicationWindow {
             page.bottomPadding = Qt.binding(() => base + root.bottomInset);
         }
         return page;
+    }
+    // Width of a list beside its details column: drag the divider to change
+    // it (Updates, Installed, History share it); remembered across launches.
+    property real listColumnWidth: App.listColumnWidth > 0 ? App.listColumnWidth
+                                                           : Kirigami.Units.gridUnit * 30
+    function rememberListWidth(width) {
+        if (width > 0 && Math.abs(width - listColumnWidth) >= 1) {
+            listColumnWidth = width;
+            saveListWidth.restart();
+        }
+    }
+    Timer {
+        id: saveListWidth
+        interval: 500
+        onTriggered: App.saveListColumnWidth(Math.round(root.listColumnWidth))
     }
     readonly property real bottomInset: activity.visible ? activity.reservedHeight : 0
 

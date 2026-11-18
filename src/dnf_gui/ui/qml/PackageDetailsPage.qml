@@ -27,6 +27,13 @@ Kirigami.ScrollablePage {
 
     actions: [
         Kirigami.Action {
+            text: "Close Details"
+            icon.source: root.ico("view-right-close", enabled)
+            displayHint: Kirigami.DisplayHint.IconOnly | Kirigami.DisplayHint.KeepVisible
+            tooltip: "Close Details (Esc)"
+            onTriggered: root.closeColumns()
+        },
+        Kirigami.Action {
             text: "Update"
             icon.source: root.ico("download", enabled)
             visible: page.hasUpdate && !page.flatpak

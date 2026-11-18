@@ -40,6 +40,7 @@ from dnf_gui.ui.controllers.updates import UpdatesController
 from dnf_gui.ui.iconset import IconSet
 
 RELEASES_URL = "https://github.com/grpace/Fedora-DNF-GUI-Tool/releases"
+WEBSITE_URL = "https://greg.tech"
 
 # Stable page keys: ``--page``, notification clicks and the single-instance
 # socket use them (app.PAGE_CHOICES). Order = Ctrl+1..9, as in v1.
@@ -740,6 +741,14 @@ class AppController(StateObject):
                                and getattr(update_info, "sha256", "")),
             "notes": update_info.release_notes or "",
             "url": update_info.release_url or RELEASES_URL})
+
+    @pyqtSlot()
+    def openWebsite(self) -> None:
+        """Greg.Tech, who makes the app (the sidebar and About credit)."""
+        if not QDesktopServices.openUrl(QUrl(WEBSITE_URL)):
+            self.prompts.inform(
+                "Open Website",
+                f"Your web browser couldn't be opened. The website is:\n\n{WEBSITE_URL}")
 
     @pyqtSlot()
     def openReleases(self) -> None:

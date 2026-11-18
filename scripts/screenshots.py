@@ -23,7 +23,7 @@ from pathlib import Path
 
 SCHEMES = {"light": "BreezeLight", "dark": "BreezeDark"}
 ALL_PAGES = ("updates", "updates-details", "running", "installed", "flatpak", "sysinfo",
-             "tools", "repos", "history", "settings", "settings-discover", "activity", "prompt")
+             "tools", "repos", "history", "settings", "settings-discover", "activity", "prompt", "menu")
 
 
 def _scratch_config(theme: str) -> str:
@@ -89,7 +89,7 @@ def _child(args) -> int:
             controller.prompts.cancel_all()
             controller.toggleActivity(False)
             controller.closeActivity()
-            base = "updates" if page in ("updates-details", "prompt") else page
+            base = "updates" if page in ("updates-details", "prompt", "menu") else page
             if page == "settings-discover":
                 base = "settings"
             if base in ("activity", "running"):

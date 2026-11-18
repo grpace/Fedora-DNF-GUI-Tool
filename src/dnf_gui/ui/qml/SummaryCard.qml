@@ -131,7 +131,9 @@ Kirigami.AbstractCard {
 
                 QQC2.Menu {
                     id: modeMenu
-                    Repeater {
+                    // Inserted at their own positions: a Repeater's items land
+                    // after the static ones, which put the separator first.
+                    Instantiator {
                         model: card.u.modes
                         delegate: QQC2.MenuItem {
                             required property var modelData
@@ -140,6 +142,8 @@ Kirigami.AbstractCard {
                             icon.source: root.ico(modelData.favorite ? "starred-symbolic" : "", enabled)
                             onTriggered: card.u.runMode(modelData.key)
                         }
+                        onObjectAdded: (index, object) => modeMenu.insertItem(index, object)
+                        onObjectRemoved: (index, object) => modeMenu.removeItem(object)
                     }
                     QQC2.MenuSeparator {}
                     QQC2.Menu {

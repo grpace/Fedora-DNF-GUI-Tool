@@ -14,15 +14,15 @@ No. The takeover only turns off Discover's *update* checks and notifications. Di
 
 dnf and PackageKit lock the package database, so they can't change the system at the same time; one waits for the other. Conflicts in practice come from both apps checking for updates and notifying you, which the takeover turns off.
 
-### What does "Update Without Major" skip, and is that safe long term?
+### What does "Update Without Core" skip, and is that safe long term?
 
-By default it skips the kernel (`kernel*`), firmware (`linux-firmware*`, `*-gpu-firmware`), NVIDIA and Mesa graphics drivers (`*nvidia*`, `akmod-*`, `mesa-*`) and the bootloader (`grub2-*`, `shim-*`). These are the updates most likely to need a reboot or affect the display. They're tagged **Major** on the Updates page.
+By default it skips the kernel (`kernel*`), firmware (`linux-firmware*`, `*-gpu-firmware`), NVIDIA and Mesa graphics drivers (`*nvidia*`, `akmod-*`, `mesa-*`) and the bootloader (`grub2-*`, `shim-*`). These are the updates most likely to need a reboot or affect the display. They're tagged **Core** on the Updates page.
 
 It's meant for day-to-day updates, not forever. Kernel and driver updates include security fixes, so run **Upgrade All** regularly, for example on a day when a reboot suits you.
 
-### What does the "Major" tag mean?
+### What does the "Core" tag mean?
 
-It marks an update that **Update Without Major** will skip. It doesn't mean the package is frozen: **Upgrade All** and **Update Everything** still install it. Open the update to see why it counts as major: either it matches one of the core patterns above, or you chose **Treat as Major** for it.
+It marks an update that **Update Without Core** will skip. It doesn't mean the package is frozen: **Upgrade All** and **Update Everything** still install it. Open the update to see why it counts as core: either it matches one of the core patterns above, or you chose **Treat as Core** for it.
 
 ### How does it know a new Fedora release is out?
 
@@ -56,7 +56,7 @@ The Updates page shows a banner naming the package holding the update back, and 
 
 ### Why does it ask for my password?
 
-Anything that changes the system runs through polkit (`pkexec`), the same password dialog other desktop tools use. To stop prompts for routine updates, use **Settings → Passwordless Updates → Turn On…** with **Updates Only**. It covers exactly the Upgrade All, Security Only and Update Without Major commands; everything else still asks.
+Anything that changes the system runs through polkit (`pkexec`), the same password dialog other desktop tools use. To stop prompts for routine updates, use **Settings → Passwordless Updates → Turn On…** with **Updates Only**. It covers exactly the Upgrade All, Security Only and Update Without Core commands; everything else still asks.
 
 ### What does it connect to?
 

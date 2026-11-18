@@ -10,7 +10,7 @@ Owns:
    - ``reminders/last_check`` (ISO timestamp)
    - ``discover/notifier_overridden`` (bool)
    - ``passwordless/scope`` ("off" | "updates" | "full")
-   - ``updates/held_back`` (comma-separated globs for "Update without Major")
+   - ``updates/held_back`` (comma-separated globs for "Update Without Core")
    - ``updates/favorite`` (update mode on the main Updates button)
    - ``upgrade/dismissed_release`` (Fedora release the upgrade banner was dismissed for)
 2. **Background checker** — ``dnf-gui --check --scheduled --wait`` runs

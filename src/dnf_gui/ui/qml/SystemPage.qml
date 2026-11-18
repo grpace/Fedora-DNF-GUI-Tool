@@ -15,13 +15,13 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Refresh"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             enabled: !page.s.loading
             onTriggered: page.s.refresh()
         },
         Kirigami.Action {
             text: "Copy System Details"
-            icon.name: "edit-copy"
+            icon.source: root.ico("edit-copy", enabled)
             enabled: page.s.loaded
             displayHint: Kirigami.DisplayHint.AlwaysHide
             onTriggered: App.copyText(
@@ -70,7 +70,7 @@ Kirigami.ScrollablePage {
         header: RowLayout {
             spacing: Kirigami.Units.largeSpacing
             Kirigami.Icon {
-                source: infoCard.iconName
+                source: root.ico(infoCard.iconName, enabled)
                 implicitWidth: Kirigami.Units.iconSizes.smallMedium
                 implicitHeight: implicitWidth
             }
@@ -92,7 +92,7 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             Kirigami.Icon {
                 source: "fedora-logo-icon"
-                fallback: "computer"
+                fallback: root.ico("computer", enabled)
                 Layout.preferredWidth: Kirigami.Units.iconSizes.huge
                 Layout.preferredHeight: Layout.preferredWidth
             }

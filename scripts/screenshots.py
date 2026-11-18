@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 SCHEMES = {"light": "BreezeLight", "dark": "BreezeDark"}
-ALL_PAGES = ("updates", "updates-details", "installed", "flatpak", "sysinfo",
+ALL_PAGES = ("updates", "updates-details", "running", "installed", "flatpak", "sysinfo",
              "tools", "repos", "history", "settings", "activity", "prompt")
 
 
@@ -90,7 +90,7 @@ def _child(args) -> int:
             controller.toggleActivity(False)
             controller.closeActivity()
             base = "updates" if page in ("updates-details", "prompt") else page
-            if base == "activity":
+            if base in ("activity", "running"):
                 base = "updates"
             controller.navigate(base)
             if args.demo:

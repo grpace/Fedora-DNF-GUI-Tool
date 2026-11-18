@@ -33,10 +33,13 @@ Kirigami.AbstractCard {
             Kirigami.Icon {
                 anchors.fill: parent
                 visible: !card.checking
-                source: card.phase === "uptodate" ? "update-none"
-                      : card.phase === "failed" ? "network-disconnect"
-                      : card.u.securityTotal > 0 ? "update-high"
-                      : "update-medium"
+                source: root.ico(card.phase === "uptodate" ? "update-none"
+                               : card.phase === "failed" ? "network-disconnect"
+                               : "update-high", enabled, color)
+                color: card.phase === "uptodate" ? Kirigami.Theme.positiveTextColor
+                     : card.phase === "failed" ? Kirigami.Theme.negativeTextColor
+                     : card.u.securityTotal > 0 ? Kirigami.Theme.neutralTextColor
+                     : Kirigami.Theme.highlightColor
             }
         }
 
@@ -80,7 +83,7 @@ Kirigami.AbstractCard {
                     visible: card.phase === "ready" || (card.phase === "failed" && card.u.total > 0)
                     highlighted: true
                     enabled: !!card.fav.enabled && !App.Runner.busy
-                    icon.name: card.fav.key === "security" ? "security-high" : "download"
+                    icon.source: root.ico(card.fav.key === "security" ? "security-high" : "download", enabled)
                     text: (card.fav.title || "") + (card.fav.count > 0 ? " (" + card.fav.count + ")" : "")
                     QQC2.ToolTip.text: (card.fav.description || "") + " · " + (card.fav.detail || "")
                                        + (card.fav.key !== card.u.favorite ? " · Your chosen main option has nothing to install right now" : "")
@@ -93,7 +96,7 @@ Kirigami.AbstractCard {
                     id: moreButton
                     visible: mainButton.visible
                     text: "Other Ways to Update"
-                    icon.name: "arrow-down"
+                    icon.source: root.ico("arrow-down", enabled)
                     enabled: !App.Runner.busy
                     onClicked: modeMenu.popup(moreButton, 0, moreButton.height)
                     Accessible.role: Accessible.ButtonMenu
@@ -106,7 +109,7 @@ Kirigami.AbstractCard {
                                 required property var modelData
                                 text: modelData.title + "  ·  " + modelData.detail
                                 enabled: modelData.enabled
-                                icon.name: modelData.favorite ? "starred-symbolic" : ""
+                                icon.source: root.ico(modelData.favorite ? "starred-symbolic" : "", enabled)
                                 onTriggered: card.u.runMode(modelData.key)
                             }
                         }
@@ -131,7 +134,7 @@ Kirigami.AbstractCard {
                     visible: card.phase === "uptodate" || card.phase === "failed"
                     highlighted: card.phase === "failed"
                     text: "Check Again"
-                    icon.name: "view-refresh"
+                    icon.source: root.ico("view-refresh", enabled)
                     onClicked: card.u.check()
                 }
             }

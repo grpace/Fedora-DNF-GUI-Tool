@@ -44,10 +44,8 @@ QQC2.ItemDelegate {
             Layout.alignment: item.collapsed ? Qt.AlignHCenter : Qt.AlignLeft
             Kirigami.Icon {
                 anchors.fill: parent
-                source: item.iconName
-                fallback: item.iconFallback
+                source: root.ico(item.iconName, enabled, color)
                 color: item.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                isMask: false
             }
             // Badge dot on the icon when collapsed.
             Rectangle {

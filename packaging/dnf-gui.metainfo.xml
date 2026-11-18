@@ -12,7 +12,7 @@
     <p>Features:</p>
     <ul>
       <li>Combined DNF, Flatpak and security-advisory updates with download previews</li>
-      <li>Update without Major: upgrade everything except the kernel, graphics drivers, firmware and bootloader</li>
+      <li>Update Without Core: upgrade everything except the kernel, graphics drivers, firmware and bootloader</li>
       <li>Security-only upgrades and a reboot-required banner</li>
       <li>Guided Fedora release upgrades when a new version is out</li>
       <li>Discover takeover, background update reminders and optional passwordless updates</li>
@@ -24,7 +24,7 @@
   <launchable type="desktop-id">dnf-gui.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <caption>Updates grouped by security fixes and major updates (dark)</caption>
+      <caption>Updates grouped by security fixes and core updates (dark)</caption>
       <image>https://raw.githubusercontent.com/grpace/Fedora-DNF-GUI-Tool/master/docs/screenshots/updates-dark.png</image>
     </screenshot>
     <screenshot>
@@ -37,7 +37,7 @@
       <description>
         <p>A new native KDE Plasma interface built with Kirigami. It follows your Plasma colors, fonts and light or dark setting.</p>
         <ul>
-          <li>The Updates page shows one clear status and one main button, with updates grouped into security fixes, major updates, everything else and Flatpak apps.</li>
+          <li>The Updates page shows one clear status and one main button, with updates grouped into security fixes, core updates, everything else and Flatpak apps.</li>
           <li>Package and transaction details open beside the list.</li>
           <li>Command output follows you between pages, with live progress, Cancel and Copy Output.</li>
           <li>Every page is redesigned, with keyboard and screen reader support throughout.</li>

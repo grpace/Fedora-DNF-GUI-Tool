@@ -13,7 +13,7 @@ from dnf_gui.core.paths import system_binary
 # COPR format: user/project or @group/project (alphanumeric, dots, hyphens)
 _COPR_PATTERN = re.compile(r"^[@]?[\w][\w.-]*/[\w.-]+$")
 
-# Packages "Update without Major" holds back by default: the kernel and its
+# Packages "Update Without Core" holds back by default: the kernel and its
 # out-of-tree modules, GPU drivers + firmware, and the bootloader. These are
 # the updates most likely to need a reboot or break graphics if they land
 # half-tested, so they wait for a deliberate full upgrade.

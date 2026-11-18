@@ -22,7 +22,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/updates-dark.png" width="49%" alt="Updates page grouped into security fixes and major updates, dark">
+  <img src="docs/screenshots/updates-dark.png" width="49%" alt="Updates page grouped into security fixes and core updates, dark">
   <img src="docs/screenshots/updates-details-light.png" width="49%" alt="Package details beside the update list, light">
 </p>
 
@@ -73,11 +73,11 @@ DNF Package Manager does the job the way you would in a terminal, with a proper 
 - **One clear status, one main button.** The Updates page says what's waiting and why it matters ("3 security advisories, 1 critical"), or that you're up to date and when it last checked. Never "up to date" when the check failed. The main button runs your chosen mode, with its count; **Other Ways to Update** lists the rest and what each would install. `Ctrl+U` runs the main one from anywhere.
   - **Upgrade All:** `dnf upgrade --refresh`.
   - **Update Everything:** system packages, then all Flatpak apps, in one session.
-  - **Update Without Major:** everything except core packages (`kernel*`, `linux-firmware*`, `*-gpu-firmware`, `*nvidia*`, `akmod-*`, `mesa-*`, `grub2-*`, `shim-*`), via `dnf upgrade --exclude=…`.
+  - **Update Without Core:** everything except core packages (`kernel*`, `linux-firmware*`, `*-gpu-firmware`, `*nvidia*`, `akmod-*`, `mesa-*`, `grub2-*`, `shim-*`), via `dnf upgrade --exclude=…`.
   - **Security Only:** `dnf upgrade --security`.
-- **A list that tells you something.** Updates are grouped into Security Fixes, Major Updates, Other Updates and Flatpak Apps. Each row shows the installed and new version (`145.0 → 146.0.1`), the download size, the severity of security fixes, and a **Major** tag for updates Update Without Major skips. Filter by name, or by All, Security, Major or Flatpak.
+- **A list that tells you something.** Updates are grouped into Security Fixes, Core Updates, Other Updates and Flatpak Apps. Each row shows the installed and new version (`145.0 → 146.0.1`), the download size, the severity of security fixes, and a **Core** tag for updates Update Without Core skips. Filter by name, or by All, Security, Core or Flatpak.
 - **Details beside the list:** click an update for its security status, versions and `dnf info`, in a column next to the list.
-- **Decide what counts as major:** **Treat as Major** on any row's menu, or edit the patterns in Settings.
+- **Decide what counts as core:** **Treat as Core** on any row's menu, or edit the patterns in Settings.
 - **Previews before you confirm:** package count and download size for every upgrade.
 - **Reboot banner** only when a kernel or core library update needs it.
 - **Fedora release upgrades.** When a new Fedora release is out (betas are never offered), a banner shows how long your current release keeps getting updates. It then walks you through Fedora's documented `dnf system-upgrade` flow: update, download the new release while you keep working, and restart only when you say so.
@@ -170,7 +170,7 @@ DNF_GUI_FORCE_CHECK=1 dnf-gui --check   # ignore the reminder interval
 - **Read-only work runs as you.** Update checks, searches, package details, history and system information need no privileges.
 - **Changes go through polkit.** Installs, removals, upgrades and repository changes run via `pkexec`, which shows the standard desktop password dialog.
 - **No shell interpolation.** Commands run as argument lists. The few fixed shell scripts (the firmware check, the sudoers installer and the Discover takeover) never contain user input.
-- **Passwordless updates are exact-match.** The optional rule in `/etc/sudoers.d/90-dnf-gui` lists only the exact command lines for Upgrade All, Security Only and Update without Major, with no wildcards. It's written to a temporary file, checked with `visudo`, and only then moved into place, and your login name comes from your account entry, not the environment. An "All DNF operations" scope exists for single-user machines; it removes every prompt, so any program running as you could change system packages.
+- **Passwordless updates are exact-match.** The optional rule in `/etc/sudoers.d/90-dnf-gui` lists only the exact command lines for Upgrade All, Security Only and Update Without Core, with no wildcards. It's written to a temporary file, checked with `visudo`, and only then moved into place, and your login name comes from your account entry, not the environment. An "All DNF operations" scope exists for single-user machines; it removes every prompt, so any program running as you could change system packages.
 - **System programs only.** Privileged commands run `dnf`, `flatpak`, `sudo` and `visudo` from `/usr/bin` and the other system directories, never from `$PATH` (Fedora puts the user-writable `~/.local/bin` first). The launcher and menu entry use absolute paths too.
 - **Verified self-updates.** App updates download only from GitHub and are offered only when GitHub published a SHA-256 digest for the file. After you approve, a root step copies the download somewhere only root can write, checks that copy against the digest again, and installs exactly that copy, so nothing running as you can swap the file while the password prompt is open.
 

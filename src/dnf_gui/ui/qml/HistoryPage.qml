@@ -14,7 +14,7 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Refresh"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             enabled: !page.h.loading
             onTriggered: page.h.refresh()
         }
@@ -76,7 +76,8 @@ Kirigami.ScrollablePage {
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Icon {
-                    source: row.actionIcon
+                    source: root.ico(row.actionIcon, enabled, color)
+                    color: row.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
                     Layout.preferredWidth: Kirigami.Units.iconSizes.medium
                     Layout.preferredHeight: Layout.preferredWidth
                 }
@@ -101,7 +102,7 @@ Kirigami.ScrollablePage {
                     }
                 }
                 QQC2.ToolButton {
-                    icon.name: "edit-undo"
+                    icon.source: root.ico("edit-undo", enabled)
                     text: "Undo…"
                     display: row.width < Kirigami.Units.gridUnit * 28 ? QQC2.AbstractButton.IconOnly
                                                                       : QQC2.AbstractButton.TextBesideIcon
@@ -124,7 +125,7 @@ Kirigami.ScrollablePage {
             anchors.centerIn: parent
             width: parent.width - Kirigami.Units.gridUnit * 4
             visible: list.count === 0 && !page.h.loading
-            icon.name: "view-history"
+            icon.source: root.ico("view-history", enabled)
             text: page.h.error !== "" ? "Couldn't Load History"
                   : page.h.items.query !== "" ? "No Matching Transactions" : "No Transactions Yet"
             explanation: page.h.error

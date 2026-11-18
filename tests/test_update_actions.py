@@ -104,11 +104,11 @@ class TestUpdateRows(unittest.TestCase):
         self.assertEqual({r["name"]: r["major"] for r in model.rows()},
                          {"kernel-core": True, "firefox": False})
         self.assertEqual(app.updates.majorCount, 1)
-        self.assertIn("skips 1 major", _mode(app, "minor")["detail"])
+        self.assertIn("skips 1 core", _mode(app, "minor")["detail"])
         reason = model.find("name", "kernel-core")["majorReason"]
         # The tooltip says why it's major and what that means.
         self.assertIn("kernel*", reason)
-        self.assertIn("Update Without Major skips it", reason)
+        self.assertIn("Update Without Core skips it", reason)
 
     def test_mode_states_follow_scan(self):
         app = _scanned(self, flatpaks=[FlatpakApp(name="A", application_id="org.a.A")],

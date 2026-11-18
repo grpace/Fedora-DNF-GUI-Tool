@@ -8,8 +8,16 @@ import org.kde.kirigami as Kirigami
 Kirigami.GlobalDrawer {
     id: drawer
 
+    // Folds to icons on narrow windows; the header button overrides that
+    // until the window crosses the width threshold again.
+    property bool autoCollapsed: false
+    property var userCollapsed: null
+    onAutoCollapsedChanged: userCollapsed = null
+    collapsed: userCollapsed === null ? autoCollapsed : userCollapsed
+
     modal: false
     collapsible: true
+    collapseButtonVisible: false  // replaced by the header button
     showHeaderWhenCollapsed: true
     preferredSize: Kirigami.Units.gridUnit * 13  // expanded width; collapsing animates
     // Keep the nav entries (icons, badge dot, tooltips) as a rail.
@@ -49,6 +57,18 @@ Kirigami.GlobalDrawer {
                 elide: Text.ElideRight
                 visible: !drawer.collapsed
                 Layout.fillWidth: true
+            }
+            QQC2.ToolButton {
+                display: QQC2.AbstractButton.IconOnly
+                icon.source: root.ico("sidebar-collapse", enabled)
+                text: drawer.collapsed ? "Expand Sidebar" : "Collapse Sidebar"
+                Accessible.name: text
+                QQC2.ToolTip.text: text
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                Layout.alignment: drawer.collapsed ? Qt.AlignHCenter : Qt.AlignRight
+                Layout.fillWidth: drawer.collapsed
+                onClicked: drawer.userCollapsed = !drawer.collapsed
             }
         }
     }

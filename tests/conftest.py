@@ -56,6 +56,10 @@ def _hermetic_controller(monkeypatch):
     # Never run the real `dnf needs-restarting` after a simulated upgrade.
     monkeypatch.setattr(worker.RebootCheckWorker, "run",
                         lambda self: self.finished.emit(False))
+    # App icons come from the system's AppStream catalogs: one known app.
+    monkeypatch.setattr(
+        worker.AppIconsWorker, "run",
+        lambda self: self.finished.emit({"firefox": {"theme": "org.mozilla.firefox", "file": ""}}))
     # Never show real desktop notifications; tests patch send to inspect them.
     from dnf_gui.core import notifications
     monkeypatch.setattr(notifications.Notifier, "_dbus_notify",

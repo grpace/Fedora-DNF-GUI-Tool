@@ -180,7 +180,7 @@ def after_navigate(controller, page: str, window) -> None:
         QMetaObject.invokeMethod(window, "openPackageDetails",
                                  Qt.ConnectionType.DirectConnection,
                                  Q_ARG("QVariant", "firefox"))
-    elif page == "activity":
+    elif page in ("activity", "running"):
         runner = controller.runner
         runner._begin("System Upgrade", "  System Upgrade")
         for line in ("$ pkexec dnf5 upgrade -y --refresh", "Updating and loading repositories:",
@@ -192,6 +192,9 @@ def after_navigate(controller, page: str, window) -> None:
             runner.append(line)
         runner._set(status="running", step="kernel-core-0:7.2.8-300.fc45.x86_64 (4 of 10)",
                     progress=0.4)
-        controller.toggleActivity(True)
+        if page == "activity":
+            controller.toggleActivity(True)
+        else:
+            controller._set(activityVisible=True)
     elif page == "prompt":
         controller.updates.forceSecurity()

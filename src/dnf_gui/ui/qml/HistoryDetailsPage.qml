@@ -16,13 +16,13 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Undo…"
-            icon.name: "edit-undo"
+            icon.source: root.ico("edit-undo", enabled)
             enabled: !App.Runner.busy
             onTriggered: page.h.undo(page.transactionId)
         },
         Kirigami.Action {
             text: "Copy Details"
-            icon.name: "edit-copy"
+            icon.source: root.ico("edit-copy", enabled)
             enabled: page.h.detailText !== ""
             displayHint: Kirigami.DisplayHint.AlwaysHide
             onTriggered: App.copyText(page.h.detailText)

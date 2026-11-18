@@ -42,7 +42,7 @@ QQC2.ItemDelegate {
                             + (waiting ? "Waiting on another repository. " : "")
                             + (size ? size + " download. " : "")
                             + (repo && repo !== "updates" ? "From " + repo + ". " : "")
-                            + (major ? "Major update. " : "")
+                            + (major ? "Core update. " : "")
                             + (flatpak ? "Flatpak app. " : "")
                             + (fromVersion ? "From " + fromVersion + " to " + toVersion : toVersion)
 
@@ -67,9 +67,9 @@ QQC2.ItemDelegate {
     contentItem: RowLayout {
         spacing: Kirigami.Units.largeSpacing
 
-        Kirigami.Icon {
-            source: row.iconName
-            fallback: "package-x-generic"
+        AppIcon {
+            name: row.name
+            appId: row.flatpak ? row.iconName : ""
             Layout.preferredWidth: Kirigami.Units.iconSizes.medium
             Layout.preferredHeight: Layout.preferredWidth
         }
@@ -113,7 +113,7 @@ QQC2.ItemDelegate {
                     }
                     Pill {
                         visible: row.major
-                        text: "Major"
+                        text: "Core"
                         tone: "info"
                         selected: row.highlighted
                     }
@@ -139,7 +139,7 @@ QQC2.ItemDelegate {
         QQC2.ToolButton {
             visible: !row.flatpak
             text: "Update"
-            icon.name: "download"
+            icon.source: root.ico("download", enabled)
             display: row.narrow ? QQC2.AbstractButton.IconOnly : QQC2.AbstractButton.TextBesideIcon
             enabled: !App.Runner.busy
             activeFocusOnTab: false  // one Tab stop per row
@@ -151,7 +151,7 @@ QQC2.ItemDelegate {
         }
         QQC2.ToolButton {
             id: more
-            icon.name: "overflow-menu"
+            icon.source: root.ico("overflow-menu", enabled)
             text: "More Actions for " + row.name
             display: QQC2.AbstractButton.IconOnly
             activeFocusOnTab: false
@@ -164,14 +164,14 @@ QQC2.ItemDelegate {
                 id: menu
                 QQC2.MenuItem {
                     text: "Show Details"
-                    icon.name: "documentinfo"
+                    icon.source: root.ico("documentinfo", enabled)
                     onTriggered: row.clicked()
                 }
                 QQC2.MenuItem {
                     visible: !row.flatpak
                     height: visible ? implicitHeight : 0
                     text: row.majorActionLabel
-                    icon.name: "flag"
+                    icon.source: root.ico("flag", enabled)
                     enabled: row.canToggleMajor
                     onTriggered: App.Updates.toggleMajor(row.name)
                     QQC2.ToolTip.text: row.majorTooltip
@@ -181,12 +181,12 @@ QQC2.ItemDelegate {
                     visible: row.flatpak
                     height: visible ? implicitHeight : 0
                     text: "Open Flatpak Page"
-                    icon.name: "folder-flatpak"
+                    icon.source: root.ico("folder-flatpak", enabled)
                     onTriggered: App.navigate("flatpak")
                 }
                 QQC2.MenuItem {
                     text: "Copy Name"
-                    icon.name: "edit-copy"
+                    icon.source: root.ico("edit-copy", enabled)
                     onTriggered: App.copyText(row.flatpak ? row.appId : row.name)
                 }
             }

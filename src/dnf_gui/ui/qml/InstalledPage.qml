@@ -17,13 +17,13 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Refresh"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             enabled: !page.p.loading
             onTriggered: page.p.refresh()
         },
         Kirigami.Action {
             text: "Sort: " + page.sortLabels[page.p.sort]
-            icon.name: "view-sort"
+            icon.source: root.ico("view-sort", enabled)
             visible: page.mode === "installed"
             Kirigami.Action { text: "Name (A–Z)"; checkable: true; checked: page.p.sort === "name"; onTriggered: page.p.setSort("name") }
             Kirigami.Action { text: "Name (Z–A)"; checkable: true; checked: page.p.sort === "name_desc"; onTriggered: page.p.setSort("name_desc") }
@@ -72,7 +72,7 @@ Kirigami.ScrollablePage {
             QQC2.Button {
                 visible: page.mode === "find"
                 text: "Search"
-                icon.name: "search"
+                icon.source: root.ico("search", enabled)
                 enabled: search.text.trim().length >= 2 && !page.p.searching
                 onClicked: page.p.search(search.text)
             }
@@ -101,7 +101,7 @@ Kirigami.ScrollablePage {
             anchors.centerIn: parent
             width: parent.width - Kirigami.Units.gridUnit * 4
             visible: list.count === 0 && !(page.mode === "installed" ? page.p.loading : page.p.searching)
-            icon.name: page.mode === "find" && !page.p.searchDone ? "search" : "edit-find"
+            icon.source: root.ico(page.mode === "find" && !page.p.searchDone ? "search" : "edit-find", enabled)
             text: page.mode === "installed"
                   ? (page.p.error !== "" ? "Couldn't List Packages"
                      : page.p.installed.query !== "" ? "No Installed Packages Match" : "Nothing Loaded Yet")
@@ -114,7 +114,7 @@ Kirigami.ScrollablePage {
             helpfulAction: Kirigami.Action {
                 enabled: page.mode === "installed" && page.p.installed.query !== ""
                 text: "Search Repositories for “" + page.p.installed.query + "”"
-                icon.name: "search"
+                icon.source: root.ico("search", enabled)
                 onTriggered: {
                     const q = page.p.installed.query;
                     page.mode = "find";

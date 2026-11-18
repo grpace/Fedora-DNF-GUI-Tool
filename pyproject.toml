@@ -45,7 +45,7 @@ where = ["src"]
 include = ["dnf_gui*"]
 
 [tool.setuptools.package-data]
-"dnf_gui.ui" = ["qml/*.qml", "icons/*.svg", "icons/LICENSE", "icons/README"]
+"dnf_gui.ui" = ["qml/*.qml", "icons/*.svg", "icons/LICENSE", "icons/README", "app_icon.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

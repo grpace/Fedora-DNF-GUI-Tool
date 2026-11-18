@@ -44,6 +44,9 @@ Kirigami.ApplicationWindow {
         return base + name + ".svg";
     }
 
+    // The app icon, from the package itself (also right when run from source).
+    readonly property url appIcon: Qt.resolvedUrl("../app_icon.svg")
+
     title: "DNF Package Manager"
     width: Kirigami.Units.gridUnit * 64
     height: Kirigami.Units.gridUnit * 42

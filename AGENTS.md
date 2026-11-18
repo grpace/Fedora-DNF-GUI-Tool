@@ -23,6 +23,7 @@ PyQt6 + Kirigami (QML) desktop app that replaces KDE Discover as the updater on 
 - Colors come from `Kirigami.Theme`. The ones the app derives must match `check_contrast.py`: `Main.qml` `secondaryMix` (`SECONDARY_MIX`), `Pill.qml` (`PILL_MIX`, `PILL_FILL`), `Notice.qml` `tintMix` (`NOTICE_MIX`), `PrimaryButton.qml`/`NavItem.qml` accent mix (`PRIMARY_MIX`), and `AppIcon.qml` tile colors (white text on each, checked in `tests/test_icons.py`).
 - Spacing comes from `Main.qml`'s `gutter` (page edges, rows, section headers, toolbars) and Kirigami units; reuse it instead of new margins.
 - `packaging/`: RPM spec and AppStream metainfo. `assets/dnf-gui.desktop` is shared by the spec and `install.sh`.
+- `src/dnf_gui/ui/app_icon.svg`: the one app icon. The RPM and `install.sh` install it as the `dnf-gui` theme icon; the window, sidebar and About use the file directly; the README shows it. Don't add copies (`tests/test_icons.py` checks).
 - `RELEASING.md`: the release checklist. Follow it rather than improvising.
 
 ## Conventions

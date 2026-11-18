@@ -26,6 +26,7 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 ### Changed
 
 - **Native look.** The app follows your Plasma color scheme, accent, fonts and light or dark setting. The in-app light/dark toggle is gone; change it in System Settings.
+- **A new app icon:** a package and an update arrow on a Fedora-blue tile, used everywhere: the application menu, the window and taskbar, the sidebar and About.
 - **Clearer icons:** one bold, consistent icon set (Phosphor) in place of the thin line icons, dimmed when an action isn't available.
 - **"Major" updates are now called "Core" updates:** the Core tag and filter, Core Updates, Update Without Core and Treat as Core. Your list of core packages and the passwordless rule carry over unchanged.
 - **Compact notices.** A needed restart, a new Fedora release, an app update and security fixes waiting on another repository each take one line, with their actions inline and the full text a click away.

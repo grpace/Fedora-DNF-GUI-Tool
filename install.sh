@@ -137,8 +137,8 @@ install_desktop() {
 
     # Install icon
     mkdir -p "${ICON_DIR}"
-    if [ -f "assets/icons/app_icon.svg" ]; then
-        cp "assets/icons/app_icon.svg" "${ICON_FILE}"
+    if [ -f "src/dnf_gui/ui/app_icon.svg" ]; then
+        cp "src/dnf_gui/ui/app_icon.svg" "${ICON_FILE}"
         echo -e "  ${GREEN}✓${NC} Icon installed"
     fi
 

@@ -358,7 +358,7 @@ FormCard.FormCardPage {
                          ? "Version " + App.appUpdate.version + " is available."
                          : "Runs real dnf and Flatpak commands, so what you see is what your system does."
             leading: Kirigami.Icon {
-                source: "dnf-gui"
+                source: root.appIcon
                 fallback: "system-software-update"
                 implicitWidth: Kirigami.Units.iconSizes.medium
                 implicitHeight: implicitWidth

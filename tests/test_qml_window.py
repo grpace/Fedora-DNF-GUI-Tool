@@ -73,7 +73,8 @@ def test_window_buttons_are_named_for_screen_readers(ui):
     assert names == ["Minimize", "Maximize", "Close"]
     # Top-right corner, all three in a row.
     x, y, w, _ = _scene_rect(controls)
-    assert y == 0 and abs(x + w - window.width()) < 1
+    # Top-right corner, inset a few pixels so the hover pills clear the rounded edge.
+    assert 0 <= y <= 2 and 0 <= window.width() - (x + w) <= 6
     assert problems() == []
 
 

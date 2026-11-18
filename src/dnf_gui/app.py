@@ -166,7 +166,8 @@ def main():
     # Wayland uses it as the app id to match the window to its icon.
     app.setDesktopFileName(DESKTOP_FILE_NAME)
     from PyQt6.QtGui import QIcon
-    app.setWindowIcon(QIcon.fromTheme("dnf-gui", QIcon.fromTheme("system-software-update")))
+    from dnf_gui.ui.window import APP_ICON
+    app.setWindowIcon(QIcon.fromTheme("dnf-gui", QIcon(str(APP_ICON))))
 
     # One window per user: a second launch (the menu, or a clicked
     # notification) brings the running window to the requested page.

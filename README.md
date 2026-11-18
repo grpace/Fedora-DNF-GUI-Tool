@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/icons/app_icon.svg" width="96" height="96" alt="DNF Package Manager logo">
+  <img src="src/dnf_gui/ui/app_icon.svg" width="96" height="96" alt="DNF Package Manager logo">
   <h1>DNF Package Manager</h1>
   <p><b>The Discover alternative for Fedora KDE.</b></p>
   <p>Updates you can see, control and trust. Every action runs the real <code>dnf</code> and <code>flatpak</code> commands, with live output.</p>
@@ -208,7 +208,7 @@ src/dnf_gui/
   ui/         controllers/ (Python state and actions for QML), qml/ (Kirigami pages),
               icons/ (bundled Phosphor icons), iconset.py (draws them in the theme's colors)
 packaging/    RPM spec and AppStream metadata
-assets/       icon and desktop entry
+assets/       desktop entry
 docs/         guides and screenshots
 tests/        pytest suite
 ```

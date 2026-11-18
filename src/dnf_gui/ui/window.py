@@ -9,6 +9,8 @@ from PyQt6.QtQml import QQmlApplicationEngine
 
 QML_DIR = Path(__file__).resolve().parent / "qml"
 MAIN_QML = QML_DIR / "Main.qml"
+# The app icon (also installed as the dnf-gui theme icon by the RPM and install.sh).
+APP_ICON = Path(__file__).resolve().parent / "app_icon.svg"
 
 # What a missing QML import means on Fedora.
 REQUIRED_PACKAGES = ("kf6-kirigami", "kf6-kirigami-addons", "kf6-qqc2-desktop-style",

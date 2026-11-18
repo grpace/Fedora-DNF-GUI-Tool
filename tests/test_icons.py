@@ -278,3 +278,27 @@ def test_update_rows_use_app_icons(ui):
     assert [i.property("source") for i in images] == ["org.mozilla.firefox"]
     assert by_name(window, "windowControls")  # the window is the real one
     assert problems() == []
+
+
+def test_one_app_icon_is_used_everywhere():
+    """The app icon lives once, in the package; every installer, the README
+    and the interface use that file (no stale copies)."""
+    from pathlib import Path
+
+    from PyQt6.QtSvg import QSvgRenderer
+    from dnf_gui.ui.window import APP_ICON
+
+    repo = Path(__file__).resolve().parents[1]
+    assert APP_ICON == repo / "src" / "dnf_gui" / "ui" / "app_icon.svg"
+    assert QSvgRenderer(str(APP_ICON)).isValid()
+    assert "cp src/%{app_module}/ui/app_icon.svg" in (repo / "packaging" / "dnf-gui.spec").read_text()
+    assert 'cp "src/dnf_gui/ui/app_icon.svg"' in (repo / "install.sh").read_text()
+    assert 'src="src/dnf_gui/ui/app_icon.svg"' in (repo / "README.md").read_text()
+    assert "app_icon.svg" in (repo / "pyproject.toml").read_text()
+    qml = repo / "src" / "dnf_gui" / "ui" / "qml"
+    assert 'Qt.resolvedUrl("../app_icon.svg")' in (qml / "Main.qml").read_text()
+    for page in ("Sidebar.qml", "SettingsPage.qml"):
+        assert "source: root.appIcon" in (qml / page).read_text(), page
+    stale = [p for p in repo.rglob("app_icon*.svg")
+             if p != APP_ICON and ".git" not in p.parts and "prototypes" not in p.parts]
+    assert not stale, stale

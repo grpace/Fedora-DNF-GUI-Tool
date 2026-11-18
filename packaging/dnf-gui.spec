@@ -68,7 +68,7 @@ install -Dm644 assets/dnf-gui.desktop %{buildroot}%{_datadir}/applications/%{app
 
 # Icon
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
-cp assets/icons/app_icon.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{app_name}.svg
+cp src/%{app_module}/ui/app_icon.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{app_name}.svg
 
 # AppStream metadata (author, description for Discover/Software)
 mkdir -p %{buildroot}%{_metainfodir}
@@ -104,7 +104,7 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 - Keyboard and screen reader support throughout; text meets WCAG AA in Breeze Light and Dark
 - The app restarts itself after installing its own update
 - Security: privileged tools run from system paths only, never $PATH; self-updates are re-verified as root on a root-only copy; the passwordless rule is checked with visudo before it goes live
-- Own title bar, a floating status capsule for running commands, bold icons and app icons on package rows
+- New app icon; own title bar, a floating status capsule for running commands, bold icons and app icons on package rows
 - Compact notices; "Major" updates are now "Core" updates; update single Flatpaks from the Updates page
 - More on the System page: device, firmware, Plasma version, root filesystem, last update
 

@@ -63,7 +63,7 @@ Kirigami.GlobalDrawer {
         contentItem: RowLayout {
             spacing: Kirigami.Units.smallSpacing
             Kirigami.Icon {
-                source: "dnf-gui"
+                source: root.appIcon
                 fallback: "system-software-update"
                 implicitWidth: Kirigami.Units.iconSizes.smallMedium
                 implicitHeight: implicitWidth

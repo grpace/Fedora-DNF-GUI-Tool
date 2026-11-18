@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>DNF Package Manager</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12c58a"/>
+      <stop offset="1" stop-color="#0b6f88"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Tile -->
+  <rect x="6" y="6" width="116" height="116" rx="30" fill="url(#tile)"/>
+  <rect x="6" y="6" width="116" height="116" rx="30" fill="url(#shine)"/>
+  <rect x="6.75" y="6.75" width="114.5" height="114.5" rx="29.25" fill="none" stroke="#063f4f" stroke-opacity="0.3" stroke-width="1.5"/>
+  <!-- Progress ring, nearly complete -->
+  <circle cx="64" cy="64" r="38" fill="none" stroke="#ffffff" stroke-opacity="0.24" stroke-width="10"/>
+  <path d="M64 26 A38 38 0 1 1 28.3 51" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round"/>
+  <!-- Package: top, left and right faces -->
+  <path d="M64 42 L85 52.5 L64 63 L43 52.5 Z" fill="#ffffff"/>
+  <path d="M43 56.5 L62 66 L62 88 L43 78.5 Z" fill="#ffffff" fill-opacity="0.86"/>
+  <path d="M66 66 L85 56.5 L85 78.5 L66 88 Z" fill="#ffffff" fill-opacity="0.66"/>
+</svg>

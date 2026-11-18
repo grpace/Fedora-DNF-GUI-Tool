@@ -97,7 +97,7 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 /usr/bin/appstreamcli refresh --force &>/dev/null || :
 
 %changelog
-* Tue Nov 17 2026 Greg.Tech <hello@greg.tech> - 2.0.0-1
+* Wed Nov 18 2026 Greg.Tech <hello@greg.tech> - 2.0.0-1
 - New native KDE Plasma interface (Kirigami): follows your Plasma colors and fonts
 - Updates page: one clear status, one main button, updates grouped by security, core and Flatpak
 - Package and transaction details open beside the list

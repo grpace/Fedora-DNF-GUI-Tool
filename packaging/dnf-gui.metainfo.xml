@@ -33,7 +33,7 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="2.0.0" date="2026-11-17">
+    <release version="2.0.0" date="2026-11-18">
       <description>
         <p>A new native KDE Plasma interface built with Kirigami. It follows your Plasma colors, fonts and light or dark setting.</p>
         <ul>

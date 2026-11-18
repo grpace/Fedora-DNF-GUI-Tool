@@ -5,7 +5,7 @@ All notable changes to Fedora DNF GUI Tool are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-11-17
+## [2.0.0] - 2026-11-18
 
 A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami). Every page is redesigned; the update modes and background reminders work as before, and a security review hardened how privileged commands and the self-update run (see Security).
 

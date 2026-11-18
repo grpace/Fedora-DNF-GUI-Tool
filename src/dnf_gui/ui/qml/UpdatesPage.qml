@@ -114,9 +114,16 @@ Kirigami.ScrollablePage {
             text: section
             QQC2.Label {
                 text: section === "Security Fixes" ? "Included in Security Only"
-                    : section === "Major Updates" ? "Kernel, drivers, firmware and bootloader · Update Without Major skips these"
+                    : section === "Major Updates" ? "Skipped by Update Without Major · kernel, drivers, firmware and bootloader"
                     : ""
                 visible: text !== "" && !root.compact
+                // Shrinks and elides in a narrow column instead of running
+                // past its edge; the key phrase comes first.
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.maximumWidth: Math.ceil(implicitWidth) + 2  // rounding slack
+                horizontalAlignment: Text.AlignRight
+                elide: Text.ElideRight
                 font: Kirigami.Theme.smallFont
                 color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
             }

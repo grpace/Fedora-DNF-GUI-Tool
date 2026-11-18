@@ -17,6 +17,27 @@ Kirigami.ApplicationWindow {
         "history": "HistoryPage.qml", "settings": "SettingsPage.qml"
     })
 
+    // The app's own bold icons (ui/icons), drawn in the theme's colors:
+    // ico("download", enabled) is a file URL, or "" for a name the app
+    // doesn't ship.
+    readonly property string iconBase: App.iconBaseFor(Kirigami.Theme.textColor)
+    readonly property string iconBaseDisabled: App.iconBaseFor(Kirigami.Theme.disabledTextColor)
+    readonly property var iconSet: {
+        const names = {};
+        for (const n of App.iconNames)
+            names[n] = true;
+        return names;
+    }
+    // Pass the control's own `enabled` (dimmed when false) and, for a
+    // colored icon, its `color`: the file is drawn in that color.
+    function ico(name, enabled, color) {
+        if (!name || !iconSet[name])
+            return "";
+        const base = color !== undefined ? App.iconBaseFor(color)
+                   : enabled === false ? iconBaseDisabled : iconBase;
+        return base + name + ".svg";
+    }
+
     title: "DNF Package Manager"
     width: Kirigami.Units.gridUnit * 64
     height: Kirigami.Units.gridUnit * 42
@@ -42,8 +63,16 @@ Kirigami.ApplicationWindow {
             console.error(component.errorString());
             return null;
         }
-        return component.createObject(pageHolder, props || {});
+        const page = component.createObject(pageHolder, props || {});
+        // The activity capsule floats over the pages' bottom edge: give
+        // every page room to scroll its last row clear of it.
+        if (page && page.bottomPadding !== undefined) {
+            const base = page.bottomPadding;
+            page.bottomPadding = Qt.binding(() => base + root.bottomInset);
+        }
+        return page;
     }
+    readonly property real bottomInset: activity.visible ? activity.reservedHeight : 0
 
     // Kirigami's ColumnView hands a removed page back to its original
     // parent; parking pages here keeps a removed page hidden.
@@ -150,15 +179,15 @@ Kirigami.ApplicationWindow {
     }
 
     globalDrawer: Sidebar {
-        collapsed: root.compact
+        autoCollapsed: root.compact
     }
 
     // Activity bar under the pages (not the window footer, which Kirigami
     // lays out under the sidebar).
-    pageStack.anchors.bottomMargin: activity.visible ? activity.height : 0
     ActivityBar {
         id: activity
         parent: root.pageStack.parent
+        z: 10  // the open log floats over the page
         visible: App.activityVisible
         anchors {
             left: root.pageStack.left

@@ -17,7 +17,7 @@ Kirigami.InlineMessage {
     Layout.leftMargin: Kirigami.Units.largeSpacing
     Layout.rightMargin: Kirigami.Units.largeSpacing
     showCloseButton: false
-    icon.name: iconName
+    icon.source: root.ico(iconName, enabled)
     // Rich text, so dnf output in the body can't be read as markup.
     function escapeText(s) {
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

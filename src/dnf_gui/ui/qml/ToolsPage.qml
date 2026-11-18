@@ -15,7 +15,7 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Refresh"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             onTriggered: page.s.refreshTools()
         }
     ]
@@ -61,12 +61,13 @@ Kirigami.ScrollablePage {
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Icon {
-                    source: row.model.id === "add_flathub" ? "flatpak-discover"
-                          : row.isSource ? "repository"
-                          : row.model.id.indexOf("firmware") === 0 ? "cpu"
-                          : row.model.id.indexOf("cache") >= 0 ? "edit-clear-all"
-                          : "view-refresh"
-                    fallback: "tools"
+                    source: root.ico(row.model.id === "add_flathub" ? "flatpak-discover"
+                                   : row.isSource ? "repository"
+                                   : row.model.id.indexOf("firmware") === 0 ? "cpu"
+                                   : row.model.id === "clean_cache" ? "edit-clear-all"
+                                   : row.model.id === "distro_sync" ? "distro-sync"
+                                   : "view-refresh", enabled, color)
+                    color: row.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
                     Layout.preferredWidth: Kirigami.Units.iconSizes.medium
                     Layout.preferredHeight: Layout.preferredWidth
                 }
@@ -99,7 +100,7 @@ Kirigami.ScrollablePage {
                     activeFocusOnTab: false
                     visible: !(row.done && row.isSource)
                     text: row.model.action
-                    icon.name: row.destructive ? "dialog-warning" : ""
+                    icon.source: root.ico(row.destructive ? "dialog-warning" : "", enabled)
                     enabled: !App.Runner.busy
                     Accessible.name: row.model.action + " " + row.title
                     onClicked: page.s.runTool(row.model.id)

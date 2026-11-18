@@ -21,15 +21,15 @@ from dnf_gui.ui.controllers.base import FilterModel, RowModel, StateObject, stat
 UPDATE_MODES = (
     ("all", "Upgrade All", "Every system package (dnf upgrade)"),
     ("everything", "Update Everything", "System packages, then all Flatpak apps"),
-    ("minor", "Update Without Major",
-     "Skips major updates: kernel, graphics drivers, firmware, bootloader"),
+    ("minor", "Update Without Core",
+     "Skips core updates: kernel, graphics drivers, firmware, bootloader"),
     ("security", "Security Only", "Only packages with security advisories"),
 )
 assert tuple(k for k, _, _ in UPDATE_MODES) == tuple(UPDATE_MODE_KEYS)
 
 GROUPS = {  # key: (rank, section title)
     "security": (0, "Security Fixes"),
-    "major": (1, "Major Updates"),
+    "major": (1, "Core Updates"),
     "other": (2, "Other Updates"),
     "flatpak": (3, "Flatpak Apps"),
 }
@@ -338,21 +338,21 @@ class UpdatesController(StateObject):
 
     def _major_reason(self, name: str) -> str:
         pattern = self._major_pattern(name)
-        why = ("You marked this as major." if pattern == name
+        why = ("You marked this as core." if pattern == name
                else f"Core package (matches “{pattern}”).")
-        return (f"{why} Update Without Major skips it; Upgrade All and "
+        return (f"{why} Update Without Core skips it; Upgrade All and "
                 "Update Everything install it.")
 
     def _hold_action(self, name: str) -> tuple[str, str, bool]:
-        """(label, tooltip, enabled) for the row's Treat as Major action."""
+        """(label, tooltip, enabled) for the row's Treat as Core action."""
         if name in self._held_back:
-            return ("Don't Treat as Major", "Update Without Major will install "
+            return ("Don't Treat as Core", "Update Without Core will install "
                     "it again.", True)
         pattern = self._major_pattern(name)
         if pattern:
-            return ("Don't Treat as Major", f"Counts as major because it matches "
+            return ("Don't Treat as Core", f"Counts as core because it matches "
                     f"“{pattern}”. Change the patterns in Settings.", False)
-        return ("Treat as Major", "Update Without Major will skip it. Upgrade "
+        return ("Treat as Core", "Update Without Core will skip it. Upgrade "
                 "All still installs it.", True)
 
     def _refresh_modes(self) -> None:
@@ -373,7 +373,7 @@ class UpdatesController(StateObject):
             "everything": (dnf + flatpak > 0,
                            f"{_plural(dnf, 'package')} + {flatpak} Flatpak"
                            if flatpak else _plural(dnf, "package"), dnf + flatpak),
-            "minor": (minor > 0, f"{_plural(minor, 'package')} (skips {held} major)"
+            "minor": (minor > 0, f"{_plural(minor, 'package')} (skips {held} core)"
                       if held else _plural(minor, "package"), minor),
             # Stays enabled with waiting advisories: it explains and offers Force.
             "security": (self._state["securityTotal"] > 0, sec_detail,
@@ -632,22 +632,22 @@ class UpdatesController(StateObject):
             count_fallback=len(self.minor_package_names()))
         detail = f"\n\n{preview_text}." if preview_text else ""
         if held:
-            held_text = (f"Major updates skipped ({len(held)}): "
+            held_text = (f"Core updates skipped ({len(held)}): "
                          f"{self._plain_names(held)}.\n"
                          "These install when you run Upgrade All.")
         else:
-            held_text = "No major updates are pending right now."
+            held_text = "No core updates are pending right now."
         self.app.prompts.confirm(
-            "Update Without Major?",
-            "Install everything except major updates (kernel, graphics "
+            "Update Without Core?",
+            "Install everything except core updates (kernel, graphics "
             f"drivers, firmware, bootloader)?{detail}\n\n{held_text}\n\n"
-            "What counts as major can be changed in Settings. "
+            "What counts as core can be changed in Settings. "
             + self.app.password_note(
                 self.app.backend.build_upgrade_without_major_command(patterns)),
             lambda: self.app.runner.run(
                 self.app.backend.build_upgrade_without_major_command(patterns),
-                "Update without Major"),
-            confirm_label="Update Without Major")
+                "Update Without Core"),
+            confirm_label="Update Without Core")
 
     @pyqtSlot(str)
     def upgradePackage(self, name: str) -> None:
@@ -662,7 +662,7 @@ class UpdatesController(StateObject):
 
     @pyqtSlot(str)
     def toggleMajor(self, name: str) -> None:
-        """Per-row Treat as Major / Don't Treat as Major."""
+        """Per-row Treat as Core / Don't Treat as Core."""
         self.app.settings_controller.toggle_hold(
             name, name not in self._held_back)
 

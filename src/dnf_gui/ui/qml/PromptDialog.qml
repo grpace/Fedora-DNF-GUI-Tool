@@ -70,9 +70,12 @@ KDialogs.Dialog {
             spacing: Kirigami.Units.largeSpacing * 1.5
             Layout.fillWidth: true
             Kirigami.Icon {
-                source: dialog.prompt.level === "error" ? "dialog-error"
-                      : dialog.prompt.level === "warning" ? "dialog-warning"
-                      : "dialog-information"
+                source: root.ico(dialog.prompt.level === "error" ? "dialog-error"
+                               : dialog.prompt.level === "warning" ? "dialog-warning"
+                               : "dialog-information", enabled, color)
+                color: dialog.prompt.level === "error" ? Kirigami.Theme.negativeTextColor
+                     : dialog.prompt.level === "warning" ? Kirigami.Theme.neutralTextColor
+                     : Kirigami.Theme.highlightColor
                 implicitWidth: Kirigami.Units.iconSizes.large
                 implicitHeight: implicitWidth
                 Layout.alignment: Qt.AlignTop
@@ -120,7 +123,7 @@ KDialogs.Dialog {
                 readonly property string choice: modelData.id
                 text: modelData.label
                 // The confirming button of a destructive prompt looks it.
-                icon.name: dialog.prompt.destructive && index === 0 ? "dialog-warning" : ""
+                icon.source: root.ico(dialog.prompt.destructive && index === 0 ? "dialog-warning" : "", enabled)
                 highlighted: choice === dialog.prompt.defaultChoice
                 QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.ActionRole
                 onClicked: dialog.answer(choice)

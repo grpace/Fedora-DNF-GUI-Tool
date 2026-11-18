@@ -29,6 +29,20 @@ class CallWorker(QThread):
             self.error.emit(str(e))
 
 
+class AppIconsWorker(QThread):
+    """Read the AppStream catalogs: which packages are apps, and their icons."""
+
+    finished = pyqtSignal(object)   # dict[str, dict]
+
+    def run(self):
+        from dnf_gui.core import appicons
+        try:
+            icons = appicons.load_app_icons()
+        except Exception:
+            icons = {}
+        self.finished.emit(icons)
+
+
 class PackageListWorker(QThread):
     """Worker thread to fetch the installed package list."""
     

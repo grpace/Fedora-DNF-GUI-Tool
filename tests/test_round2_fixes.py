@@ -72,7 +72,7 @@ def test_broken_dependency_skips_are_reported():
 
     c = _controller()
     c.runner._output = FFMPEG_SKIPPED.splitlines()
-    c._on_operation_finished(0, "Update without Major", False)
+    c._on_operation_finished(0, "Update Without Core", False)
     assert c.runner.statusText == "Completed · 2 Updates Skipped"
     assert "ffmpeg, ffmpeg-libs" in c.runner.text()
 

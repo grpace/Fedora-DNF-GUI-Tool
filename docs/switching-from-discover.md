@@ -65,18 +65,18 @@ On the **Updates** page, the main button runs your favorite update mode. Open th
 |---|---|---|
 | Upgrade All | `dnf upgrade --refresh` | Keeping everything current |
 | Update Everything | `dnf upgrade`, then `flatpak update` | One click for system and apps |
-| Update Without Major | `dnf upgrade --exclude=kernel*,*nvidia*,mesa-*,…` | Day-to-day updates that won't touch the kernel or graphics stack |
+| Update Without Core | `dnf upgrade --exclude=kernel*,*nvidia*,mesa-*,…` | Day-to-day updates that won't touch the kernel or graphics stack |
 | Security Only | `dnf upgrade --security` | Getting fixes fast with minimal change |
 
 Click the star next to a mode to make it the main button. `Ctrl+U` runs it from any page.
 
-Rows tagged **Major** are the updates Update Without Major skips: by default the kernel, firmware, graphics drivers and bootloader. Open a row to see why a package counts as major. To have Update Without Major skip something else as well, choose **Treat as Major** from its row menu (**Don't Treat as Major** undoes it). The default patterns are editable under **Settings → Updates → Major packages**.
+Rows tagged **Core** are the updates Update Without Core skips: by default the kernel, firmware, graphics drivers and bootloader. Open a row to see why a package counts as core. To have Update Without Core skip something else as well, choose **Treat as Core** from its row menu (**Don't Treat as Core** undoes it). The default patterns are editable under **Settings → Updates → Core packages**.
 
-> "Major" doesn't mean "never updated". Upgrade All and Update Everything install major updates too, and kernel updates include security fixes, so run **Upgrade All** regularly.
+> "Core" doesn't mean "never updated". Upgrade All and Update Everything install core updates too, and kernel updates include security fixes, so run **Upgrade All** regularly.
 
 ## 5. Optional: stop the password prompts
 
-**Settings → Passwordless Updates → Turn On…** with **Updates Only** installs a sudoers rule covering exactly three commands: Upgrade All, Security Only and Update without Major. Installs, removals, repository changes and firmware updates still ask for a password. The rule names the exact Update without Major command, so after you change which packages count as major, Settings tells you to click **Turn On Again…** once more.
+**Settings → Passwordless Updates → Turn On…** with **Updates Only** installs a sudoers rule covering exactly three commands: Upgrade All, Security Only and Update Without Core. Installs, removals, repository changes and firmware updates still ask for a password. The rule names the exact Update Without Core command, so after you change which packages count as core, Settings tells you to click **Turn On Again…** once more.
 
 ## Optional: reclaim PackageKit's cache
 

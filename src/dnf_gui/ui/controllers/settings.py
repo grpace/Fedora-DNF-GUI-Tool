@@ -18,13 +18,13 @@ INTERVALS = [{"hours": 12, "label": "Every 12 Hours"}, {"hours": 24, "label": "D
 
 
 def _patterns_text(n: int) -> str:
-    return f"{n} pattern{'s' if n != 1 else ''} count as major."
+    return f"{n} pattern{'s' if n != 1 else ''} count as core."
 
 
 class SettingsController(StateObject):
     changed = pyqtSignal()
     _defaults = {
-        # Update Without Major
+        # Update Without Core
         "heldBack": "", "heldBackMessage": "",
         # Reminders
         "remindersEnabled": False, "securityOnly": False, "notifyFlatpak": True,
@@ -74,7 +74,7 @@ class SettingsController(StateObject):
         self.load_discover_status()
         self.load_passwordless_status()
 
-    # ── Update Without Major ───────────────────────────────────
+    # ── Update Without Core ───────────────────────────────────
 
     @pyqtSlot(str)
     def saveHeldBack(self, text: str) -> None:
@@ -111,7 +111,7 @@ class SettingsController(StateObject):
         self.saveHeldBack("")
 
     def toggle_hold(self, name: str, hold: bool) -> None:
-        """Per-row Treat as Major from the Updates page."""
+        """Per-row Treat as Core from the Updates page."""
         patterns = self.app.settings.held_back_patterns
         if hold and name not in patterns:
             patterns.append(name)
@@ -123,16 +123,16 @@ class SettingsController(StateObject):
         self.app.updates.set_held_back_patterns(patterns)
         self.app.forget_passwordless_status()
         self._set(heldBack=", ".join(patterns),
-                  heldBackMessage=f"Marked {name} as major." if hold
-                  else f"{name} no longer counts as major.")
-        self.app.prompts.toast(f"{name} now counts as major" if hold
-                               else f"{name} no longer counts as major")
+                  heldBackMessage=f"Marked {name} as core." if hold
+                  else f"{name} no longer counts as core.")
+        self.app.prompts.toast(f"{name} now counts as core" if hold
+                               else f"{name} no longer counts as core")
         if (self.app.settings.passwordless_scope == "updates"
                 and not self._hold_notice_shown):
             self._hold_notice_shown = True
             self.app.prompts.inform(
-                "Major Packages Changed",
-                "Passwordless Updates Only lists the exact Update Without Major "
+                "Core Packages Changed",
+                "Passwordless Updates Only lists the exact Update Without Core "
                 "command, so it asks for your password until you choose Turn On "
                 "again under Settings → Passwordless Updates.")
 
@@ -218,8 +218,8 @@ class SettingsController(StateObject):
             text = f"Your setting is {label(remembered, remembered)}."
         notes = []
         if not covered:
-            notes.append("Update Without Major still asks for a password: your "
-                         "list of major packages changed after the rule was "
+            notes.append("Update Without Core still asks for a password: your "
+                         "list of core packages changed after the rule was "
                          "installed. Turn it on again to update it.")
         if legacy:
             notes.append("Your rule uses an older, overly broad format that could "
@@ -255,7 +255,7 @@ class SettingsController(StateObject):
             destructive = True
         else:
             title = "Turn On Passwordless Updates?"
-            text = ("• Upgrade All, Security Only and Update Without Major run "
+            text = ("• Upgrade All, Security Only and Update Without Core run "
                     "without a password\n"
                     "• Installs, removals, repo changes and firmware updates still "
                     "ask\n\n"

@@ -1,4 +1,4 @@
-// Small status label ("Critical", "Major"). Colors come from the Plasma
+// Small status label ("Critical", "Core"). Colors come from the Plasma
 // color scheme; on a selected row it switches to the selection's text
 // color so it stays readable on the highlight.
 import QtQuick

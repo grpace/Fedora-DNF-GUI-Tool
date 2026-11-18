@@ -40,8 +40,8 @@ QQC2.ItemDelegate {
 
     contentItem: RowLayout {
         spacing: Kirigami.Units.largeSpacing
-        Kirigami.Icon {
-            source: "package-x-generic"
+        AppIcon {
+            name: row.name
             Layout.preferredWidth: Kirigami.Units.iconSizes.medium
             Layout.preferredHeight: Layout.preferredWidth
         }
@@ -78,7 +78,7 @@ QQC2.ItemDelegate {
         QQC2.ToolButton {
             visible: row.findMode && !row.installed
             text: "Install"
-            icon.name: "list-add"
+            icon.source: root.ico("list-add", enabled)
             display: row.narrow ? QQC2.AbstractButton.IconOnly : QQC2.AbstractButton.TextBesideIcon
             enabled: !App.Runner.busy
             activeFocusOnTab: false
@@ -87,7 +87,7 @@ QQC2.ItemDelegate {
         }
         QQC2.ToolButton {
             id: more
-            icon.name: "overflow-menu"
+            icon.source: root.ico("overflow-menu", enabled)
             text: "More Actions for " + row.name
             display: QQC2.AbstractButton.IconOnly
             activeFocusOnTab: false
@@ -97,9 +97,9 @@ QQC2.ItemDelegate {
             onClicked: menu.popup(more, 0, more.height)
             QQC2.Menu {
                 id: menu
-                QQC2.MenuItem { text: "Show Details"; icon.name: "documentinfo"; onTriggered: row.clicked() }
+                QQC2.MenuItem { text: "Show Details"; icon.source: root.ico("documentinfo", enabled); onTriggered: row.clicked() }
                 QQC2.MenuItem {
-                    text: "Copy Name"; icon.name: "edit-copy"
+                    text: "Copy Name"; icon.source: root.ico("edit-copy", enabled)
                     onTriggered: App.copyText(row.name)
                 }
                 QQC2.MenuSeparator { visible: row.installed }
@@ -107,7 +107,7 @@ QQC2.ItemDelegate {
                     visible: row.installed
                     height: visible ? implicitHeight : 0
                     text: "Remove…"
-                    icon.name: "edit-delete"
+                    icon.source: root.ico("edit-delete", enabled)
                     enabled: !App.Runner.busy
                     onTriggered: App.Packages.remove(row.name)
                 }

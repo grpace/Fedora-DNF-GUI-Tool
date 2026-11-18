@@ -14,7 +14,7 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 - **Package details beside the list.** Clicking an update or installed package opens its details (the pending update, security status and `dnf info`) next to the list; transaction details open next to History.
 - **Output that follows you.** Running commands show in a bar at the bottom of every page, with the current step and progress parsed from dnf, Cancel, Copy Output and the full log. It stays after the command ends so you can read the result, and opens by itself when something fails. `--page terminal` and notification clicks open it.
 - **Clear states on the Updates page:** checking, updates ready, up to date (with when it last checked) and couldn't check (never shown as up to date).
-- Filter the update list by All, Security, Major or Flatpak.
+- Filter the update list by All, Security, Core or Flatpak.
 - The sidebar collapses to icons on narrower windows, so a list and its details fit side by side on a laptop.
 - After installing its own update, the app offers to restart itself into the new version.
 - Settings → About → Check for App Updates.
@@ -22,7 +22,7 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 ### Changed
 
 - **Native look.** The app follows your Plasma color scheme, accent, fonts and light or dark setting. The in-app light/dark toggle is gone; change it in System Settings.
-- **The Updates page has one main button** (your chosen update mode, with its count) and **Other Ways to Update** for the rest. Updates are grouped into Security Fixes, Major Updates, Other Updates and Flatpak Apps. Each row has one Update button and a menu for Show Details, Treat as Major and Copy Name.
+- **The Updates page has one main button** (your chosen update mode, with its count) and **Other Ways to Update** for the rest. Updates are grouped into Security Fixes, Core Updates, Other Updates and Flatpak Apps. Each row has one Update button and a menu for Show Details, Treat as Core and Copy Name.
 - **Confirmations appear one at a time** and never stack. Destructive ones (remove, force, undo, restart) focus Cancel so Enter can't confirm them by accident, and long package lists scroll.
 - Installed and Flatpak have an instant filter for what's installed and a separate search for new packages (Enter to search, never on every keystroke).
 - Repository switches only change once dnf has actually changed the repository.

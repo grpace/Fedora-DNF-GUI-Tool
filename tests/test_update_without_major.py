@@ -1,4 +1,4 @@
-"""Tests for 'Update without Major' (upgrade with core packages held back)."""
+"""Tests for 'Update Without Core' (upgrade with core packages held back)."""
 
 import gc
 import os
@@ -125,11 +125,11 @@ class TestUpdatesMinorMode(unittest.TestCase):
         shown = answer(self.app, "yes")
         with patch.object(self.app.runner, "run") as run:
             self.app.updates.upgrade_without_major()
-        self.assertIn("Major updates skipped (1): kernel-core.", shown[0].text)
+        self.assertIn("Core updates skipped (1): kernel-core.", shown[0].text)
         run.assert_called_once_with(
             self.app.backend.build_upgrade_without_major_command(
                 list(DEFAULT_HELD_BACK_PATTERNS)),
-            "Update without Major")
+            "Update Without Core")
 
     def test_saving_patterns_updates_rows_and_settings(self):
         from dnf_gui.core import passwordless as pw

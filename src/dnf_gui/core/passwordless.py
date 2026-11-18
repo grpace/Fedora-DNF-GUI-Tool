@@ -12,8 +12,8 @@ Why sudoers instead of a polkit rule?
 
 Scopes:
   * ``updates`` (recommended) — passwordless for the *exact* upgrade
-    command lines this app runs (Upgrade All, Security Only, Update without
-    Major). No wildcards: sudoers ``*`` matches across argument boundaries,
+    command lines this app runs (Upgrade All, Security Only, Update Without
+    Core). No wildcards: sudoers ``*`` matches across argument boundaries,
     so ``dnf upgrade *`` would also allow ``dnf upgrade ./evil.rpm
     --nogpgcheck`` and hand out root. Installs, removals, autoremove,
     distro-sync, repo/COPR changes and firmware updates still ask.
@@ -60,7 +60,7 @@ UPDATE_ARGVS = (
     ("upgrade", "-y", "--refresh"),
     ("upgrade", "-y", "--security"),
 )
-# Update without Major = first argv + one --exclude=<globs> argument.
+# Update Without Core = first argv + one --exclude=<globs> argument.
 _EXCLUDE_PREFIX = "--exclude="
 
 # Characters sudoers treats specially inside command arguments: its own
@@ -178,7 +178,7 @@ def is_covered(argv: list[str], scope: str) -> bool:
         return True
     if args in UPDATE_ARGVS:
         return True
-    # Update without Major. Whether the installed rule lists *these* globs
+    # Update Without Core. Whether the installed rule lists *these* globs
     # is up to sudo; on mismatch the caller falls back to pkexec.
     return (len(args) == 4 and args[:3] == UPDATE_ARGVS[0]
             and args[3].startswith(_EXCLUDE_PREFIX))
@@ -220,7 +220,7 @@ def has_legacy_wildcard_rule(output: str) -> bool:
 
 
 def covers_held_back(output: str, held_back: list[str] | tuple) -> bool:
-    """True if the installed rule lists Update without Major for these globs.
+    """True if the installed rule lists Update Without Core for these globs.
 
     ``sudo -l`` may print the rule with or without its escaping
     backslashes, so compare with them stripped.

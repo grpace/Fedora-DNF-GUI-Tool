@@ -15,13 +15,13 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Add COPR Repository…"
-            icon.name: "list-add"
+            icon.source: root.ico("list-add", enabled)
             enabled: !App.Runner.busy
             onTriggered: coprDialog.open()
         },
         Kirigami.Action {
             text: "Refresh"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             enabled: !page.r.loading
             onTriggered: page.r.refresh()
         }
@@ -81,7 +81,8 @@ Kirigami.ScrollablePage {
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Icon {
-                    source: row.copr ? "user-identity" : "repository"
+                    source: root.ico(row.copr ? "user-identity" : "repository", enabled, color)
+                    color: row.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
                     Layout.preferredWidth: Kirigami.Units.iconSizes.medium
                     Layout.preferredHeight: Layout.preferredWidth
                     opacity: row.model.enabled ? 1 : 0.5
@@ -127,7 +128,7 @@ Kirigami.ScrollablePage {
             anchors.centerIn: parent
             width: parent.width - Kirigami.Units.gridUnit * 4
             visible: list.count === 0 && !page.r.loading
-            icon.name: "repository"
+            icon.source: root.ico("repository", enabled)
             text: page.r.error !== "" ? "Couldn't List Repositories" : "No Matching Repositories"
             explanation: page.r.error
         }
@@ -141,13 +142,13 @@ Kirigami.ScrollablePage {
         customFooterActions: [
             Kirigami.Action {
                 text: "Add Repository"
-                icon.name: "list-add"
+                icon.source: root.ico("list-add", enabled)
                 enabled: coprField.text.trim().indexOf("/") > 0
                 onTriggered: { coprDialog.close(); page.r.addCopr(coprField.text); coprField.clear(); }
             },
             Kirigami.Action {
                 text: "Cancel"
-                icon.name: "dialog-cancel"
+                icon.source: root.ico("dialog-cancel", enabled)
                 onTriggered: coprDialog.close()
             }
         ]

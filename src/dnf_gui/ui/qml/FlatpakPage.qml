@@ -15,19 +15,19 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: App.Updates.flatpakCount > 0 ? "Update All (" + App.Updates.flatpakCount + ")" : "Update All"
-            icon.name: "download"
+            icon.source: root.ico("download", enabled)
             enabled: page.f.available && !App.Runner.busy
             onTriggered: page.f.updateAll()
         },
         Kirigami.Action {
             text: "Refresh"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             enabled: page.f.available && !page.f.loading
             onTriggered: page.f.refresh()
         },
         Kirigami.Action {
             text: "Show Runtimes"
-            icon.name: "view-list-details"
+            icon.source: root.ico("view-list-details", enabled)
             checkable: true
             checked: page.f.showRuntimes
             displayHint: Kirigami.DisplayHint.AlwaysHide
@@ -35,14 +35,14 @@ Kirigami.ScrollablePage {
         },
         Kirigami.Action {
             text: "Remove Unused Runtimes…"
-            icon.name: "edit-clear-all"
+            icon.source: root.ico("edit-clear-all", enabled)
             enabled: page.f.available && !App.Runner.busy
             displayHint: Kirigami.DisplayHint.AlwaysHide
             onTriggered: page.f.removeUnused()
         },
         Kirigami.Action {
             text: "Repair Installation…"
-            icon.name: "tools-wizard"
+            icon.source: root.ico("tools-wizard", enabled)
             enabled: page.f.available && !App.Runner.busy
             displayHint: Kirigami.DisplayHint.AlwaysHide
             onTriggered: page.f.repair()
@@ -88,7 +88,7 @@ Kirigami.ScrollablePage {
             QQC2.Button {
                 visible: page.mode === "find"
                 text: "Search"
-                icon.name: "search"
+                icon.source: root.ico("search", enabled)
                 enabled: search.text.trim().length >= 2 && !page.f.searching
                 onClicked: page.f.search(search.text)
             }
@@ -137,9 +137,10 @@ Kirigami.ScrollablePage {
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
-                Kirigami.Icon {
-                    source: row.appId
-                    fallback: row.runtime ? "application-x-sharedlib" : "application-x-executable"
+                AppIcon {
+                    name: row.name
+                    appId: row.appId
+                    runtime: row.runtime
                     Layout.preferredWidth: Kirigami.Units.iconSizes.medium
                     Layout.preferredHeight: Layout.preferredWidth
                 }
@@ -183,7 +184,7 @@ Kirigami.ScrollablePage {
                 QQC2.ToolButton {
                     visible: page.mode === "find" && !row.installed
                     text: "Install"
-                    icon.name: "list-add"
+                    icon.source: root.ico("list-add", enabled)
                     display: row.narrow ? QQC2.AbstractButton.IconOnly : QQC2.AbstractButton.TextBesideIcon
                     enabled: !App.Runner.busy
                     Accessible.name: "Install " + row.name
@@ -192,7 +193,7 @@ Kirigami.ScrollablePage {
                 QQC2.ToolButton {
                     id: more
                     visible: row.installed
-                    icon.name: "overflow-menu"
+                    icon.source: root.ico("overflow-menu", enabled)
                     text: "More Actions for " + row.name
                     display: QQC2.AbstractButton.IconOnly
                     QQC2.ToolTip.text: "More Actions"
@@ -201,11 +202,11 @@ Kirigami.ScrollablePage {
                     onClicked: menu.popup(more, 0, more.height)
                     QQC2.Menu {
                         id: menu
-                        QQC2.MenuItem { text: "Copy App ID"; icon.name: "edit-copy"; onTriggered: App.copyText(row.appId) }
+                        QQC2.MenuItem { text: "Copy App ID"; icon.source: root.ico("edit-copy", enabled); onTriggered: App.copyText(row.appId) }
                         QQC2.MenuSeparator {}
                         QQC2.MenuItem {
                             text: "Remove…"
-                            icon.name: "edit-delete"
+                            icon.source: root.ico("edit-delete", enabled)
                             enabled: !App.Runner.busy
                             onTriggered: page.f.remove(row.appId)
                         }
@@ -223,7 +224,7 @@ Kirigami.ScrollablePage {
             anchors.centerIn: parent
             width: parent.width - Kirigami.Units.gridUnit * 4
             visible: list.count === 0 && !(page.mode === "installed" ? page.f.loading : page.f.searching)
-            icon.name: !page.f.available ? "dialog-information" : "folder-flatpak"
+            icon.source: root.ico(!page.f.available ? "dialog-information" : "folder-flatpak", enabled)
             text: !page.f.available ? "Flatpak Isn't Installed"
                   : page.mode === "installed" ? (page.f.installed.query !== "" ? "No Apps Match" : "No Flatpak Apps Yet")
                   : page.f.searchError !== "" ? "Couldn't Search Flathub"

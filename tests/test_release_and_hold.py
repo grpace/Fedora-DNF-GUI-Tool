@@ -153,7 +153,7 @@ class TestUpdatesReleaseAndHold(unittest.TestCase):
         app = _scanned(self)
         model = app.updates.model
         firefox = model.find("name", "firefox")
-        self.assertEqual(firefox["majorActionLabel"], "Treat as Major")
+        self.assertEqual(firefox["majorActionLabel"], "Treat as Core")
         self.assertTrue(firefox["canToggleMajor"])
         self.assertFalse(model.find("name", "kernel-core")["canToggleMajor"])  # kernel*
 
@@ -161,8 +161,8 @@ class TestUpdatesReleaseAndHold(unittest.TestCase):
         self.assertIn("firefox", app.settings.held_back_patterns)
         firefox = model.find("name", "firefox")
         self.assertTrue(firefox["major"])
-        self.assertEqual(firefox["majorActionLabel"], "Don't Treat as Major")
-        self.assertIn("You marked this as major", firefox["majorReason"])
+        self.assertEqual(firefox["majorActionLabel"], "Don't Treat as Core")
+        self.assertIn("You marked this as core", firefox["majorReason"])
 
         app.updates.toggleMajor("firefox")
         self.assertNotIn("firefox", app.settings.held_back_patterns)

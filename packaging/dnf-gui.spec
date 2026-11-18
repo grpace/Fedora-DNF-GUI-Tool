@@ -6,7 +6,7 @@ Name:           %{app_name}
 Version:        2.0.0
 Release:        1%{?dist}
 Summary:        Discover alternative for Fedora: updates you can see and control
-License:        GPL-3.0-or-later
+License:        GPL-3.0-or-later AND MIT
 URL:            https://greg.tech
 Vendor:         Greg.Tech <https://greg.tech>
 Source0:        %{app_name}-%{version}.tar.gz
@@ -18,6 +18,7 @@ Requires:       python3-pyqt6
 Requires:       qt6qml(QtQuick)
 Requires:       qt6qml(QtQuick.Controls)
 Requires:       qt6qml(QtQuick.Layouts)
+Requires:       qt6qml(QtQuick.Shapes)
 Requires:       qt6qml(org.kde.kirigami)
 Requires:       qt6qml(org.kde.kirigamiaddons.formcard)
 Requires:       qt6qml(org.kde.desktop)

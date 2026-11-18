@@ -70,18 +70,18 @@ FormCard.FormCardPage {
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextFieldDelegate {
             id: heldBackField
-            label: "Major packages"
+            label: "Core packages"
             text: page.s.heldBack
             placeholderText: "kernel*, *nvidia*, mesa-*"
             onAccepted: page.s.saveHeldBack(text)
         }
         FormCard.FormSectionText {
-            text: "Update Without Major skips packages matching these comma-separated patterns "
+            text: "Update Without Core skips packages matching these comma-separated patterns "
                   + "(* matches anything). " + page.s.heldBackMessage
         }
         FormCard.FormButtonDelegate {
-            text: "Save Major Packages"
-            icon.name: "document-save"
+            text: "Save Core Packages"
+            icon.source: root.ico("document-save", enabled)
             enabled: heldBackField.text !== page.s.heldBack
             onClicked: {
                 page.s.saveHeldBack(heldBackField.text);
@@ -91,7 +91,7 @@ FormCard.FormCardPage {
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
             text: "Reset to Defaults"
-            icon.name: "edit-reset"
+            icon.source: root.ico("edit-reset", enabled)
             onClicked: {
                 page.s.resetHeldBack();
                 heldBackField.text = page.s.heldBack;
@@ -150,7 +150,7 @@ FormCard.FormCardPage {
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
             text: "Send a Test Reminder"
-            icon.name: "notifications"
+            icon.source: root.ico("notifications", enabled)
             onClicked: page.s.testReminder()
         }
     }
@@ -165,9 +165,12 @@ FormCard.FormCardPage {
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Icon {
-                    source: page.s.passwordlessLevel === "positive" ? "security-high"
-                          : page.s.passwordlessLevel === "warning" ? "security-medium"
-                          : "security-low"
+                    source: root.ico(page.s.passwordlessLevel === "positive" ? "security-high"
+                                   : page.s.passwordlessLevel === "warning" ? "security-medium"
+                                   : "security-low", enabled, color)
+                    color: page.s.passwordlessLevel === "positive" ? Kirigami.Theme.positiveTextColor
+                         : page.s.passwordlessLevel === "warning" ? Kirigami.Theme.neutralTextColor
+                         : Kirigami.Theme.textColor
                     implicitWidth: Kirigami.Units.iconSizes.medium
                     implicitHeight: implicitWidth
                 }
@@ -206,7 +209,7 @@ FormCard.FormCardPage {
             text: "Allow without a password"
             description: scopeBox.currentValue === "full"
                          ? "Every dnf command, including installs and removals. Any program running as you could install any package file as root: the same as full administrator access."
-                         : "Only Upgrade All, Security Only and Update Without Major (any program running as you could run those too). Installs, removals and repo changes still ask."
+                         : "Only Upgrade All, Security Only and Update Without Core (any program running as you could run those too). Installs, removals and repo changes still ask."
             model: [{ key: "updates", label: "Updates Only (Recommended)" },
                     { key: "full", label: "All DNF Operations" }]
             textRole: "label"
@@ -217,7 +220,7 @@ FormCard.FormCardPage {
         FormCard.FormButtonDelegate {
             text: page.s.passwordlessLive === "off" ? "Turn On…" : "Turn On Again…"
             description: "Saves a checked permission rule for your account. You authenticate once."
-            icon.name: "security-high"
+            icon.source: root.ico("security-high", enabled)
             enabled: !App.Runner.busy
             onClicked: page.s.enablePasswordless(scopeBox.currentValue)
         }
@@ -225,7 +228,7 @@ FormCard.FormCardPage {
         FormCard.FormButtonDelegate {
             visible: page.s.passwordlessLive !== "off" || page.s.passwordlessScope !== "off"
             text: "Restore Password Prompts…"
-            icon.name: "object-locked"
+            icon.source: root.ico("object-locked", enabled)
             enabled: !App.Runner.busy
             onClicked: page.s.disablePasswordless()
         }
@@ -241,9 +244,11 @@ FormCard.FormCardPage {
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Icon {
-                    source: page.s.discoverLevel === "positive" ? "emblem-success"
-                          : page.s.discoverLevel === "warning" ? "emblem-warning" : "plasmadiscover"
-                    fallback: "dialog-information"
+                    source: root.ico(page.s.discoverLevel === "positive" ? "emblem-success"
+                                   : page.s.discoverLevel === "warning" ? "emblem-warning" : "plasmadiscover", enabled, color)
+                    color: page.s.discoverLevel === "positive" ? Kirigami.Theme.positiveTextColor
+                         : page.s.discoverLevel === "warning" ? Kirigami.Theme.neutralTextColor
+                         : Kirigami.Theme.textColor
                     implicitWidth: Kirigami.Units.iconSizes.medium
                     implicitHeight: implicitWidth
                 }
@@ -268,20 +273,20 @@ FormCard.FormCardPage {
             visible: page.s.discoverInstalled && !page.s.discoverActive
             text: "Use This App for Updates…"
             description: "Turns off Discover's update checks and popups for you. Reversible, no password."
-            icon.name: "system-software-update"
+            icon.source: root.ico("system-software-update", enabled)
             onClicked: page.s.takeOver()
         }
         FormCard.FormButtonDelegate {
             visible: page.s.discoverInstalled && page.s.discoverActive
             text: "Let Discover Check Again"
-            icon.name: "edit-undo"
+            icon.source: root.ico("edit-undo", enabled)
             onClicked: page.s.restoreDiscover()
         }
         FormCard.FormDelegateSeparator { visible: page.s.discoverScheduled }
         FormCard.FormButtonDelegate {
             visible: page.s.discoverScheduled
             text: "Cancel Discover's Restart Update…"
-            icon.name: "dialog-cancel"
+            icon.source: root.ico("dialog-cancel", enabled)
             enabled: !App.Runner.busy
             onClicked: page.s.cancelRestartUpdate()
         }
@@ -297,33 +302,33 @@ FormCard.FormCardPage {
         FormCard.FormButtonDelegate {
             visible: page.showAdvancedDiscover && page.s.discoverInstalled
             text: "Turn Off for All Users…"
-            icon.name: "system-lock-screen"
+            icon.source: root.ico("system-lock-screen", enabled)
             enabled: !App.Runner.busy
             onClicked: page.s.disableDiscoverSystem()
         }
         FormCard.FormButtonDelegate {
             visible: page.showAdvancedDiscover && page.s.discoverInstalled
             text: "Turn Back On for All Users…"
-            icon.name: "edit-undo"
+            icon.source: root.ico("edit-undo", enabled)
             enabled: !App.Runner.busy
             onClicked: page.s.enableDiscoverSystem()
         }
         FormCard.FormButtonDelegate {
             visible: page.showAdvancedDiscover && page.s.discoverInstalled
             text: "Stop the Checker Now"
-            icon.name: "process-stop"
+            icon.source: root.ico("process-stop", enabled)
             onClicked: page.s.stopDiscoverChecker()
         }
         FormCard.FormButtonDelegate {
             visible: page.showAdvancedDiscover && page.s.discoverInstalled
             text: "Uninstall the Update Checker…"
-            icon.name: "edit-delete"
+            icon.source: root.ico("edit-delete", enabled)
             enabled: !App.Runner.busy
             onClicked: page.s.removeDiscoverNotifier()
         }
         FormCard.FormButtonDelegate {
             text: "Refresh Status"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             onClicked: page.s.refreshDiscover()
         }
     }
@@ -348,26 +353,26 @@ FormCard.FormCardPage {
             visible: !!App.appUpdate.canInstall
             text: "Install Version " + (App.appUpdate.version || "") + "…"
             description: "Downloads the release and checks it against GitHub's digest before installing."
-            icon.name: "download"
+            icon.source: root.ico("download", enabled)
             enabled: !App.Runner.busy
             onClicked: App.installAppUpdate()
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
             text: "Check for App Updates"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             onClicked: App.checkAppUpdate()
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
             text: "Release Notes"
-            icon.name: "internet-services"
+            icon.source: root.ico("internet-services", enabled)
             onClicked: App.openReleases()
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
             text: "Report a Problem"
-            icon.name: "tools-report-bug"
+            icon.source: root.ico("tools-report-bug", enabled)
             onClicked: Qt.openUrlExternally("https://github.com/grpace/Fedora-DNF-GUI-Tool/issues")
         }
     }

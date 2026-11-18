@@ -25,28 +25,28 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Check for Updates"
-            icon.name: "view-refresh"
+            icon.source: root.ico("view-refresh", enabled)
             tooltip: "Refresh repository metadata and scan again (Ctrl+R)"
             enabled: u.phase !== "checking"
             onTriggered: u.check()
         },
         Kirigami.Action {
             text: "Clean Up Unneeded Packages…"
-            icon.name: "edit-clear-all"
+            icon.source: root.ico("edit-clear-all", enabled)
             tooltip: "Remove dependencies nothing needs anymore (dnf autoremove)"
             displayHint: Kirigami.DisplayHint.AlwaysHide
             enabled: !page.busy
             onTriggered: u.autoremove()
         },
         Kirigami.Action {
-            text: "Choose Major Packages…"
-            icon.name: "configure"
+            text: "Choose Core Packages…"
+            icon.source: root.ico("configure", enabled)
             displayHint: Kirigami.DisplayHint.AlwaysHide
             onTriggered: App.navigate("settings")
         },
         Kirigami.Action {
             text: "Update History"
-            icon.name: "view-history"
+            icon.source: root.ico("view-history", enabled)
             displayHint: Kirigami.DisplayHint.AlwaysHide
             onTriggered: App.navigate("history")
         }
@@ -114,7 +114,7 @@ Kirigami.ScrollablePage {
             text: section
             QQC2.Label {
                 text: section === "Security Fixes" ? "Included in Security Only"
-                    : section === "Major Updates" ? "Skipped by Update Without Major · kernel, drivers, firmware and bootloader"
+                    : section === "Core Updates" ? "Skipped by Update Without Core · kernel, drivers, firmware and bootloader"
                     : ""
                 visible: text !== "" && !root.compact
                 // Shrinks and elides in a narrow column instead of running
@@ -148,7 +148,7 @@ Kirigami.ScrollablePage {
                       ? "Core system updates were installed. You can keep working; they take effect after you restart."
                       : "The app couldn't check whether the last update needs a restart. Restarting is the safe choice."
                 actions: [
-                    Kirigami.Action { text: "Restart Now…"; icon.name: "system-reboot"; onTriggered: page.u.reboot() },
+                    Kirigami.Action { text: "Restart Now…"; icon.source: root.ico("system-reboot", enabled); onTriggered: page.u.reboot() },
                     Kirigami.Action { text: "Later"; onTriggered: page.u.dismissReboot() }
                 ]
             }
@@ -160,12 +160,12 @@ Kirigami.ScrollablePage {
                 body: "You have version " + App.version + ". The update is checked against GitHub's digest before it installs."
                 actions: [
                     Kirigami.Action {
-                        text: "Install Update"; icon.name: "download"
+                        text: "Install Update"; icon.source: root.ico("download", enabled)
                         visible: !!App.appUpdate.canInstall
                         enabled: !page.busy
                         onTriggered: App.installAppUpdate()
                     },
-                    Kirigami.Action { text: "Release Notes"; icon.name: "internet-services"; onTriggered: App.openReleases() },
+                    Kirigami.Action { text: "Release Notes"; icon.source: root.ico("internet-services", enabled); onTriggered: App.openReleases() },
                     Kirigami.Action { text: "Later"; onTriggered: App.dismissAppUpdate() }
                 ]
             }
@@ -178,12 +178,12 @@ Kirigami.ScrollablePage {
                 actions: [
                     Kirigami.Action {
                         text: page.u.release.primary || ""
-                        icon.name: page.u.release.downloaded ? "system-reboot" : "system-upgrade"
+                        icon.source: root.ico(page.u.release.downloaded ? "system-reboot" : "system-upgrade", enabled)
                         enabled: !page.busy
                         onTriggered: page.u.releasePrimary()
                     },
                     Kirigami.Action {
-                        text: "What's New"; icon.name: "help-about"
+                        text: "What's New"; icon.source: root.ico("help-about", enabled)
                         visible: !page.u.release.downloaded
                         onTriggered: page.u.openReleaseNotes()
                     },
@@ -199,7 +199,7 @@ Kirigami.ScrollablePage {
                 actions: [
                     Kirigami.Action {
                         text: "Details…"
-                        icon.name: "documentinfo"
+                        icon.source: root.ico("documentinfo", enabled)
                         onTriggered: page.u.explainBlocked()
                     }
                 ]
@@ -232,7 +232,7 @@ Kirigami.ScrollablePage {
                     model: [
                         { key: "all", label: "All", count: page.u.total },
                         { key: "security", label: "Security", count: page.u.securityTotal },
-                        { key: "major", label: "Major", count: page.u.majorCount },
+                        { key: "major", label: "Core", count: page.u.majorCount },
                         { key: "flatpak", label: "Flatpak", count: page.u.flatpakCount }
                     ]
                     delegate: QQC2.ToolButton {
@@ -264,12 +264,12 @@ Kirigami.ScrollablePage {
                 anchors.centerIn: parent
                 width: parent.width - Kirigami.Units.gridUnit * 4
                 visible: list.count === 0 && page.u.total > 0
-                icon.name: "edit-find"
+                icon.source: root.ico("edit-find", enabled)
                 text: "No Matching Updates"
                 explanation: "Nothing pending matches this filter."
                 helpfulAction: Kirigami.Action {
                     text: "Show All Updates"
-                    icon.name: "edit-clear"
+                    icon.source: root.ico("edit-clear", enabled)
                     onTriggered: page.showAllUpdates()
                 }
             }

@@ -25,28 +25,28 @@ Kirigami.ScrollablePage {
     actions: [
         Kirigami.Action {
             text: "Update"
-            icon.name: "download"
+            icon.source: root.ico("download", enabled)
             visible: page.hasUpdate && !page.flatpak
             enabled: !App.Runner.busy
             onTriggered: App.Updates.upgradePackage(page.packageName)
         },
         Kirigami.Action {
             text: "Update Flatpak Apps"
-            icon.name: "download"
+            icon.source: root.ico("download", enabled)
             visible: page.flatpak
             enabled: !App.Runner.busy
             onTriggered: App.Flatpak.updateAll()
         },
         Kirigami.Action {
             text: "Install"
-            icon.name: "list-add"
+            icon.source: root.ico("list-add", enabled)
             visible: !page.hasUpdate && !page.loading && !page.info.installed && !page.info.missing
             enabled: !App.Runner.busy
             onTriggered: App.Packages.install(page.packageName)
         },
         Kirigami.Action {
-            text: page.update.majorActionLabel || "Treat as Major"
-            icon.name: "flag"
+            text: page.update.majorActionLabel || "Treat as Core"
+            icon.source: root.ico("flag", enabled)
             visible: page.hasUpdate && !page.flatpak
             enabled: !!page.update.canToggleMajor
             tooltip: page.update.majorTooltip || ""
@@ -55,14 +55,14 @@ Kirigami.ScrollablePage {
         },
         Kirigami.Action {
             text: "Open Homepage"
-            icon.name: "internet-services"
+            icon.source: root.ico("internet-services", enabled)
             visible: !!page.info.url
             displayHint: Kirigami.DisplayHint.AlwaysHide
             onTriggered: Qt.openUrlExternally(page.info.url)
         },
         Kirigami.Action {
             text: "Remove…"
-            icon.name: "edit-delete"
+            icon.source: root.ico("edit-delete", enabled)
             visible: !page.flatpak && !!page.info.installed
             enabled: !App.Runner.busy
             displayHint: Kirigami.DisplayHint.AlwaysHide
@@ -76,9 +76,9 @@ Kirigami.ScrollablePage {
         RowLayout {
             spacing: Kirigami.Units.largeSpacing * 1.5
             Layout.fillWidth: true
-            Kirigami.Icon {
-                source: page.flatpak ? page.update.appId : "package-x-generic"
-                fallback: "package-x-generic"
+            AppIcon {
+                name: page.packageName
+                appId: page.flatpak ? page.update.appId : ""
                 Layout.preferredWidth: Kirigami.Units.iconSizes.large
                 Layout.preferredHeight: Layout.preferredWidth
             }
@@ -106,7 +106,7 @@ Kirigami.ScrollablePage {
             visible: page.hasUpdate && !!page.update.security
             type: page.update.severity === "Critical" || page.update.severity === "Important"
                   ? Kirigami.MessageType.Error : Kirigami.MessageType.Warning
-            icon.name: "security-low"
+            icon.source: root.ico("security-low", enabled)
             text: "<b>" + (page.update.severity || "Security") + " security fix</b><br>"
                   + (page.update.waiting ? "Waiting on another repository. Security Only can't install it yet."
                                          : "Installed by Upgrade All and by Security Only.")
@@ -115,7 +115,7 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             visible: page.hasUpdate && !!page.update.major
             type: Kirigami.MessageType.Information
-            icon.name: "flag"
+            icon.source: root.ico("flag", enabled)
             text: page.update.majorReason || ""
         }
 
@@ -197,7 +197,7 @@ Kirigami.ScrollablePage {
         Kirigami.PlaceholderMessage {
             visible: !page.flatpak && !page.loading && !!page.info.missing
             Layout.fillWidth: true
-            icon.name: "package-x-generic"
+            icon.source: root.ico("package-x-generic", enabled)
             text: "No Details Available"
             explanation: "dnf couldn't find information about this package."
         }

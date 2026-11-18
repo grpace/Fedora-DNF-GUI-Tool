@@ -16,7 +16,7 @@ import time
 from PyQt6.QtCore import (
     QObject, QThread, QTimer, QUrl, pyqtProperty, pyqtSignal, pyqtSlot,
 )
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QColor, QDesktopServices
 
 from dnf_gui import __version__
 from dnf_gui.core.app_settings import AppSettings
@@ -26,7 +26,7 @@ from dnf_gui.core.flatpak_backend import FlatpakBackend
 from dnf_gui.core.notifications import Notification, Notifier, reminder_notification
 from dnf_gui.core.security import parse_blocked_updates, parse_unavailable_updates
 from dnf_gui.core.worker import (
-    AppUpdateDownloadWorker, AppUpdateWorker, ReminderCheckWorker,
+    AppIconsWorker, AppUpdateDownloadWorker, AppUpdateWorker, ReminderCheckWorker,
 )
 from dnf_gui.ui.controllers.base import StateObject, state_property
 from dnf_gui.ui.controllers.pages import (
@@ -37,6 +37,7 @@ from dnf_gui.ui.controllers.prompts import Prompts
 from dnf_gui.ui.controllers.runner import CANCELLED_EXIT_CODES, OperationRunner
 from dnf_gui.ui.controllers.settings import SettingsController
 from dnf_gui.ui.controllers.updates import UpdatesController
+from dnf_gui.ui.iconset import IconSet
 
 RELEASES_URL = "https://github.com/grpace/Fedora-DNF-GUI-Tool/releases"
 
@@ -50,7 +51,7 @@ ACTIVITY = "terminal"
 # dnf upgrades: report skipped packages and recheck the reboot banner after.
 UPGRADE_OPERATIONS = (
     "System Upgrade", "Update Everything (DNF + Flatpak)", "Security Upgrade",
-    "Update without Major", "Forced Security Upgrade",
+    "Update Without Core", "Forced Security Upgrade",
 )
 
 
@@ -70,6 +71,7 @@ class AppController(StateObject):
         "activityVisible": False,
         "appUpdate": {},
         "lastError": "",
+        "appIconsReady": False,
     }
     currentPage = state_property(str, "currentPage", changed)
     updateBadge = state_property(int, "updateBadge", changed)
@@ -77,6 +79,7 @@ class AppController(StateObject):
     activityVisible = state_property(bool, "activityVisible", changed)
     appUpdate = state_property("QVariantMap", "appUpdate", changed)
     lastError = state_property(str, "lastError", changed)
+    appIconsReady = state_property(bool, "appIconsReady", changed)
 
     def __init__(self, initial_page: str = "", parent=None):
         super().__init__(parent)
@@ -94,6 +97,8 @@ class AppController(StateObject):
         self.history = HistoryController(self, self)
         self.system = SystemController(self, self)
         self.settings_controller = SettingsController(self, self)
+        self.icons = IconSet()
+        self._app_icons: dict[str, dict] = {}
 
         self.forced_removals: list[str] = []
         self.pending_release_target: int | None = None
@@ -119,7 +124,8 @@ class AppController(StateObject):
         self._startup_timers = []
         for delay, slot in ((0, self.refreshCurrent), (3000, self._check_app_update),
                             (15000, self._maybe_background_reminder),
-                            (0, self._refresh_background_checker)):
+                            (0, self._refresh_background_checker),
+                            (200, self._load_app_icons)):
             timer = QTimer(self)
             timer.setSingleShot(True)
             timer.timeout.connect(slot)
@@ -176,6 +182,33 @@ class AppController(StateObject):
     @pyqtProperty("QVariantList", constant=True)
     def pageKeys(self) -> list:
         return list(PAGES)
+
+    # ── icons ──────────────────────────────────────────────────
+
+    @pyqtProperty("QVariantList", constant=True)
+    def iconNames(self) -> list:
+        return self.icons.names()
+
+    @pyqtSlot(QColor, result=str)
+    def iconBaseFor(self, color: QColor) -> str:
+        """Directory URL of the app's icons drawn in ``color``."""
+        return self.icons.base_url(color.name())
+
+    def _load_app_icons(self) -> None:
+        worker = AppIconsWorker(parent=self)
+        worker.finished.connect(self._on_app_icons)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_app_icons(self, icons) -> None:
+        self._app_icons = dict(icons or {})
+        self._set(appIconsReady=True)
+
+    @pyqtSlot(str, result="QVariantMap")
+    def appIcon(self, package: str) -> dict:
+        """``{"theme": name, "file": path}`` for a package that is an app,
+        else an empty map (QML then shows a letter tile)."""
+        return dict(self._app_icons.get(package, {}))
 
     # ── window ─────────────────────────────────────────────────
 
@@ -267,6 +300,7 @@ class AppController(StateObject):
         self._reminder_timer.stop()
         self.prompts.cancel_all(run_callbacks=False)
         self.shutdown_threads()
+        self.icons.cleanup()
 
     def shutdown_threads(self, timeout_ms: int = 2000) -> list:
         """Wait briefly for worker threads; detach any still running.

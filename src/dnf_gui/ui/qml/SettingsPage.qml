@@ -14,30 +14,39 @@ FormCard.FormCardPage {
 
     title: "Settings"
 
-    // Text fields and switches lose their bindings once edited; put the
-    // saved values back whenever the settings change (unless mid-edit).
+    // The text field and FormCard's switches drop their bindings (the
+    // switch delegate writes its own `checked`), so put the saved values
+    // back whenever the settings change. Each switch saves only its own
+    // field, so setting it to the saved value never saves anything.
     Connections {
         target: page.s
         function onChanged() {
             if (!heldBackField.activeFocus)
                 heldBackField.text = page.s.heldBack;
-            remindSwitch.checked = page.s.remindersEnabled;
-            securitySwitch.checked = page.s.securityOnly;
-            flatpakSwitch.checked = page.s.notifyFlatpak;
+            if (remindSwitch.checked !== page.s.remindersEnabled)
+                remindSwitch.checked = page.s.remindersEnabled;
+            if (securitySwitch.checked !== page.s.securityOnly)
+                securitySwitch.checked = page.s.securityOnly;
+            if (flatpakSwitch.checked !== page.s.notifyFlatpak)
+                flatpakSwitch.checked = page.s.notifyFlatpak;
         }
     }
 
-    // Saves whenever a switch's state changes, however it changed (mouse,
-    // keyboard, or a screen reader's toggle action, which flips `checked`
-    // without emitting toggled()). Load-time writes match what's saved, so
-    // they do nothing.
-    function saveReminders() {
-        const hours = s.intervals[intervalBox.currentIndex].hours;
-        if (remindSwitch.checked === s.remindersEnabled && securitySwitch.checked === s.securityOnly
-                && flatpakSwitch.checked === s.notifyFlatpak && hours === s.intervalHours)
+    // Each reminder control saves only its own value, taking the others
+    // from what's saved. A switch follows the saved value through its
+    // binding, so a change that already matches (loading the page, one
+    // switch updating before another) saves nothing; any real change does,
+    // however it was made (mouse, keyboard, or a screen reader's toggle
+    // action, which flips `checked` without emitting toggled()).
+    function saveReminder(field, value) {
+        const next = {
+            enabled: s.remindersEnabled, securityOnly: s.securityOnly,
+            notifyFlatpak: s.notifyFlatpak, hours: s.intervalHours
+        };
+        if (next[field] === value)
             return;
-        s.saveReminders(remindSwitch.checked, securitySwitch.checked, flatpakSwitch.checked,
-                        s.intervals[intervalBox.currentIndex].hours);
+        next[field] = value;
+        s.saveReminders(next.enabled, next.securityOnly, next.notifyFlatpak, next.hours);
     }
 
     // ── Updates ──
@@ -98,7 +107,7 @@ FormCard.FormCardPage {
             text: "Remind me about pending updates"
             description: "Checks in the background, even while this app is closed, and sends a notification when updates are waiting."
             checked: page.s.remindersEnabled
-            onCheckedChanged: page.saveReminders()
+            onCheckedChanged: page.saveReminder("enabled", checked)
         }
         FormCard.FormDelegateSeparator { above: remindSwitch; below: securitySwitch }
         FormCard.FormSwitchDelegate {
@@ -107,7 +116,7 @@ FormCard.FormCardPage {
             description: "Stay quiet about routine updates."
             enabled: remindSwitch.checked
             checked: page.s.securityOnly
-            onCheckedChanged: page.saveReminders()
+            onCheckedChanged: page.saveReminder("securityOnly", checked)
         }
         FormCard.FormDelegateSeparator { above: securitySwitch; below: flatpakSwitch }
         FormCard.FormSwitchDelegate {
@@ -115,7 +124,7 @@ FormCard.FormCardPage {
             text: "Include Flatpak updates"
             enabled: remindSwitch.checked
             checked: page.s.notifyFlatpak
-            onCheckedChanged: page.saveReminders()
+            onCheckedChanged: page.saveReminder("notifyFlatpak", checked)
         }
         FormCard.FormDelegateSeparator { above: flatpakSwitch; below: intervalBox }
         FormCard.FormComboBoxDelegate {
@@ -131,7 +140,7 @@ FormCard.FormCardPage {
                         return i;
                 return 1;
             }
-            onActivated: page.saveReminders()
+            onActivated: page.saveReminder("hours", currentValue)
         }
         FormCard.FormDelegateSeparator {}
         FormCard.FormTextDelegate {

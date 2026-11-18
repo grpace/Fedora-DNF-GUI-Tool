@@ -74,3 +74,6 @@ Files are renamed to the freedesktop icon names the QML uses:
   emblem-warning.svg  <-  warning-bold.svg
   plasmadiscover.svg  <-  storefront-bold.svg
   distro-sync.svg  <-  arrows-left-right-bold.svg
+  window-minimize.svg  <-  minus-bold.svg
+  window-maximize.svg  <-  square-bold.svg
+  window-restore.svg  <-  copy-simple-bold.svg

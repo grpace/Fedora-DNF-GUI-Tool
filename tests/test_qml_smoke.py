@@ -350,3 +350,46 @@ def test_opening_details_moves_keyboard_focus_there(ui):
         item = item.parentItem()
     assert "Updates" in titles
     assert _problems(warnings, messages) == []
+
+
+def _press_escape(window) -> None:
+    from PyQt6.QtTest import QTest
+    window.requestActivate()
+    _spin(50)
+    QTest.keyClick(window, Qt.Key.Key_Escape)
+    _spin(150)
+
+
+def test_escape_closes_the_log_or_the_column_by_where_focus_is(ui):
+    """With the log open, Esc closes whatever holds the focus: the details
+    column from the column, the log from any control in the log pane."""
+    controller, window, (warnings, messages) = ui
+    controller.updates._on_checked(_scan())
+    _spin(200)
+    controller.toggleActivity(True)
+    QMetaObject.invokeMethod(window, "openPackageDetails", Qt.ConnectionType.DirectConnection,
+                             Q_ARG("QVariant", "pkg1"))
+    _spin(200)
+    _press_escape(window)  # focus is in the details column
+    assert _titles(window) == "Updates"
+    assert controller.activityExpanded
+
+    QMetaObject.invokeMethod(window, "openPackageDetails", Qt.ConnectionType.DirectConnection,
+                             Q_ARG("QVariant", "pkg1"))
+    _spin(200)
+    controller.runner.append("some output")
+    _spin(100)
+    copy = _find(window, lambda i: i.property("text") == "Copy Output")
+    assert copy
+    copy[0].forceActiveFocus()
+    _spin(50)
+    _press_escape(window)  # focus is on a button in the log pane
+    assert not controller.activityExpanded
+    assert _titles(window) == "Updates | pkg1"
+
+    controller.toggleActivity(True)
+    QMetaObject.invokeMethod(window, "closeColumns", Qt.ConnectionType.DirectConnection)
+    _spin(150)
+    _press_escape(window)  # no column to close: the log closes
+    assert not controller.activityExpanded
+    assert _problems(warnings, messages) == []

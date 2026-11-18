@@ -48,6 +48,12 @@ QQC2.Pane {
                 focusLog.restart();  // after the log opens
         }
     }
+    // Close the log and give focus back to the page you were on.
+    function closeLog() {
+        App.toggleActivity(false);
+        root.pageStack.get(root.pageStack.depth - 1).forceActiveFocus();
+    }
+
     Timer {
         id: focusLog
         interval: 50
@@ -180,8 +186,7 @@ QQC2.Pane {
                         background: null
                         Accessible.name: "Command output"
                         Keys.onEscapePressed: (event) => {
-                            App.toggleActivity(false);
-                            root.pageStack.get(root.pageStack.depth - 1).forceActiveFocus();
+                            bar.closeLog();
                             event.accepted = true;
                         }
                     }

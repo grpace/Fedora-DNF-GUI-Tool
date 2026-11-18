@@ -216,9 +216,11 @@ Kirigami.ScrollablePage {
             icon.name: !page.f.available ? "dialog-information" : "folder-flatpak"
             text: !page.f.available ? "Flatpak Isn't Installed"
                   : page.mode === "installed" ? (page.f.installed.query !== "" ? "No Apps Match" : "No Flatpak Apps Yet")
+                  : page.f.searchError !== "" ? "Couldn't Search Flathub"
                   : (page.f.searchDone ? "Nothing Found on Flathub" : "Find Apps on Flathub")
             explanation: !page.f.available ? "Install the flatpak package to manage Flatpak apps here."
                   : page.mode === "installed" ? (page.f.installed.query !== "" ? "Try another name." : "Apps you install from Flathub show up here.")
+                  : page.f.searchError !== "" ? page.f.searchError
                   : (page.f.searchDone ? "Try a different name." : "Search thousands of desktop apps by name.")
         }
     }

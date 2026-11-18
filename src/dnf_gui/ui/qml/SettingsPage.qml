@@ -27,7 +27,13 @@ FormCard.FormCardPage {
         }
     }
 
+    // Saves on any user change (mouse, keyboard or a screen reader's toggle
+    // action); load-time writes match what's saved, so they do nothing.
     function saveReminders() {
+        const hours = s.intervals[intervalBox.currentIndex].hours;
+        if (remindSwitch.checked === s.remindersEnabled && securitySwitch.checked === s.securityOnly
+                && flatpakSwitch.checked === s.notifyFlatpak && hours === s.intervalHours)
+            return;
         s.saveReminders(remindSwitch.checked, securitySwitch.checked, flatpakSwitch.checked,
                         s.intervals[intervalBox.currentIndex].hours);
     }
@@ -90,7 +96,7 @@ FormCard.FormCardPage {
             text: "Remind me about pending updates"
             description: "Checks in the background, even while this app is closed, and sends a notification when updates are waiting."
             checked: page.s.remindersEnabled
-            onClicked: page.saveReminders()
+            onToggled: page.saveReminders()
         }
         FormCard.FormDelegateSeparator { above: remindSwitch; below: securitySwitch }
         FormCard.FormSwitchDelegate {
@@ -99,7 +105,7 @@ FormCard.FormCardPage {
             description: "Stay quiet about routine updates."
             enabled: remindSwitch.checked
             checked: page.s.securityOnly
-            onClicked: page.saveReminders()
+            onToggled: page.saveReminders()
         }
         FormCard.FormDelegateSeparator { above: securitySwitch; below: flatpakSwitch }
         FormCard.FormSwitchDelegate {
@@ -107,7 +113,7 @@ FormCard.FormCardPage {
             text: "Include Flatpak updates"
             enabled: remindSwitch.checked
             checked: page.s.notifyFlatpak
-            onClicked: page.saveReminders()
+            onToggled: page.saveReminders()
         }
         FormCard.FormDelegateSeparator { above: flatpakSwitch; below: intervalBox }
         FormCard.FormComboBoxDelegate {

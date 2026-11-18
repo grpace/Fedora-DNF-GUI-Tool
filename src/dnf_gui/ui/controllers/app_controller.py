@@ -751,8 +751,9 @@ class AppController(StateObject):
         app keeps working meanwhile.
         """
         busy = [t for t in self.findChildren(QThread) if t.isRunning()]
+        deadline = time.monotonic() + 3  # one wait for all, not per thread
         for thread in busy:
-            thread.wait(3000)
+            thread.wait(max(0, int((deadline - time.monotonic()) * 1000)))
         if self.runner.running() or any(t.isRunning() for t in busy):
             self.prompts.inform(
                 "Restart the App Yourself",

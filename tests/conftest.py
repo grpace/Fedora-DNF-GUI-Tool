@@ -74,7 +74,9 @@ def _hermetic_controller(monkeypatch):
     yield
     for controller in controllers:
         controller._reminder_timer.stop()
-        for thread in controller.findChildren(QThread):
+        for timer in controller._startup_timers:
+            timer.stop()
+        for thread in controller.findChildren(QThread) + controller.detached_threads:
             thread.wait(10000)
     controllers.clear()
     # Collect now: a controller left for later GC could be destroyed while a

@@ -77,12 +77,34 @@ Kirigami.ScrollablePage {
         activeFocusOnTab: true
         Accessible.name: "Pending Updates"
 
-        // The header (summary and banners) grows once a scan arrives; stay
-        // at the top unless the user has scrolled away.
-        property bool pinnedTop: true
-        onMovementEnded: pinnedTop = atYBeginning
-        onOriginYChanged: if (pinnedTop) contentY = originY
-        onContentHeightChanged: if (pinnedTop) contentY = originY
+        // The header (summary and banners) grows over a few frames when a
+        // scan's results arrive: hold the top while it settles, then leave
+        // scrolling alone. Any scrolling or keyboard move ends the hold.
+        property string shownPhase: ""
+        property bool settling: false
+        Connections {
+            target: page.u
+            function onChanged() {
+                const phase = page.u.phase;
+                if (phase !== list.shownPhase) {
+                    list.shownPhase = phase;
+                    if (phase !== "checking" && phase !== "idle") {
+                        list.settling = true;
+                        list.positionViewAtBeginning();
+                        settle.restart();
+                    }
+                }
+            }
+        }
+        Timer {
+            id: settle
+            interval: 600
+            onTriggered: list.settling = false
+        }
+        onOriginYChanged: if (settling) positionViewAtBeginning()
+        onContentHeightChanged: if (settling) positionViewAtBeginning()
+        onMovementStarted: settling = false
+        onCurrentIndexChanged: settling = false
 
         section.property: "section"
         section.delegate: Kirigami.ListSectionHeader {

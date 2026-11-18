@@ -393,3 +393,21 @@ def test_escape_closes_the_log_or_the_column_by_where_focus_is(ui):
     _press_escape(window)  # no column to close: the log closes
     assert not controller.activityExpanded
     assert _problems(warnings, messages) == []
+
+
+def test_banners_give_screen_readers_plain_text(ui):
+    """Kirigami's banner label would expose its HTML document as the
+    accessible name; screen readers must get the sentence instead."""
+    from PyQt6.QtQml import QQmlEngine, QQmlProperty
+    controller, window, (warnings, messages) = ui
+    controller.updates._on_checked(_scan())       # restart needed: a banner shows
+    _spin(300)
+    names = []
+    for item in _find(window, lambda i: i.property("readOnly") is True
+                      and "Restart to finish updating" in str(i.property("text") or "")):
+        prop = QQmlProperty(item, "Accessible.name", QQmlEngine.contextForObject(item))
+        names.append(str(prop.read() or ""))
+    assert names, "the restart banner should be showing"
+    assert not [n for n in names if "<" in n]
+    assert any(n.startswith("Restart to finish updating. Core system") for n in names)
+    assert _problems(warnings, messages) == []

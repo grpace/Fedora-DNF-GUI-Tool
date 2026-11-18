@@ -24,4 +24,24 @@ Kirigami.InlineMessage {
     }
     text: title ? "<b>" + escapeText(title) + "</b>" + (body ? "<br>" + escapeText(body) : "")
                 : escapeText(body)
+
+    // Kirigami shows the text in a SelectableLabel, whose accessible name
+    // would be the whole HTML document: screen readers read the markup.
+    // Give that label the plain sentence instead.
+    readonly property string spokenText: title ? title + ". " + body : body
+    function findLabel(item) {
+        for (const child of item.children) {
+            if (child.selectByMouse !== undefined && child.readOnly === true)
+                return child;
+            const found = findLabel(child);
+            if (found)
+                return found;
+        }
+        return null;
+    }
+    Component.onCompleted: {
+        const label = findLabel(banner);
+        if (label)
+            label.Accessible.name = Qt.binding(() => banner.spokenText);
+    }
 }

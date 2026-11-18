@@ -124,7 +124,7 @@ class TestBackgroundCheckerLifecycle(unittest.TestCase):
         env = patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp.name})
         env.start()
         self.addCleanup(env.stop)
-        which = patch("shutil.which", return_value="/usr/bin/dnf-gui")
+        which = patch("dnf_gui.core.paths.find_system_binary", return_value="/usr/bin/dnf-gui")
         which.start()
         self.addCleanup(which.stop)
         self.unit_dir = self.config / "systemd" / "user"
@@ -201,7 +201,7 @@ class TestBackgroundCheckerLifecycle(unittest.TestCase):
         self.assertIn("TryExec=/usr/bin/dnf-gui\n", entry)
 
     def test_exec_quotes_paths_with_spaces(self):
-        with patch("shutil.which", return_value=None), \
+        with patch("dnf_gui.core.paths.find_system_binary", return_value=None), \
                 patch("sys.executable", "/home/me/My Venv/bin/python3"):
             self._install()
         service = self.service.read_text()
@@ -424,7 +424,7 @@ class TestLaunchApp(unittest.TestCase):
     def test_service_starts_app_in_its_own_unit(self):
         from dnf_gui.core import notifications
         with patch.dict(os.environ, {"INVOCATION_ID": "abc"}), \
-                patch("shutil.which", return_value="/usr/bin/dnf-gui"), \
+                patch("dnf_gui.core.paths.find_system_binary", return_value="/usr/bin/dnf-gui"), \
                 patch("subprocess.run") as run, \
                 patch("subprocess.Popen") as popen:
             run.return_value = MagicMock(returncode=0)
@@ -439,7 +439,7 @@ class TestLaunchApp(unittest.TestCase):
         from dnf_gui.core import notifications
         env = {k: v for k, v in os.environ.items() if k != "INVOCATION_ID"}
         with patch.dict(os.environ, env, clear=True), \
-                patch("shutil.which", return_value="/usr/bin/dnf-gui"), \
+                patch("dnf_gui.core.paths.find_system_binary", return_value="/usr/bin/dnf-gui"), \
                 patch("subprocess.Popen") as popen:
             self.assertTrue(notifications.launch_app("updates"))
         self.assertEqual(popen.call_args.args[0],

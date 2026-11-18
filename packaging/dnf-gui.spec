@@ -57,7 +57,7 @@ cat > %{buildroot}%{_bindir}/%{app_name} << 'EOF'
 export PYTHONPATH="%{install_dir}${PYTHONPATH:+:$PYTHONPATH}"
 # KDE look for the Qt Quick interface (outside Plasma too).
 export QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}"
-exec python3 -P -m %{app_module} "$@"
+exec /usr/bin/python3 -P -m %{app_module} "$@"
 EOF
 chmod 0755 %{buildroot}%{_bindir}/%{app_name}
 

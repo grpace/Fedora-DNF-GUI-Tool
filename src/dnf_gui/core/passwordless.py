@@ -37,12 +37,11 @@ Safety properties:
 
 from __future__ import annotations
 
-import getpass
 import os
 import re
-import shutil
 import subprocess
 import tempfile
+from dnf_gui.core.paths import find_system_binary
 
 SUDOERS_FILE = "/etc/sudoers.d/90-dnf-gui"
 SCOPE_OFF = "off"
@@ -74,16 +73,25 @@ def _sudoers_escape(arg: str) -> str:
     return "".join(f"\\{c}" if c in _SUDOERS_SPECIAL else c for c in arg)
 
 
+# A login name safe to write into a sudoers rule (and the root script that
+# installs it): no whitespace, newlines, quotes or sudoers syntax.
+_USER_RE = re.compile(r"^[a-z_][a-z0-9_.-]{0,31}\$?$")
+
+
 def current_user() -> str:
-    """Best-effort login name for the per-user sudoers rule."""
-    for var in ("SUDO_USER", "LOGNAME", "USER"):
-        val = os.environ.get(var)
-        if val and val != "root":
-            return val
+    """Login name for the per-user sudoers rule ('' if it isn't safe).
+
+    From the passwd entry of the real user ID, never from environment
+    variables, which any program starting the app can set.
+    """
     try:
-        return getpass.getuser()
-    except Exception:
+        import pwd
+        name = pwd.getpwuid(os.getuid()).pw_name
+    except (KeyError, ImportError):
         return ""
+    if name == "root" or not _USER_RE.match(name):
+        return ""
+    return name
 
 
 def _updates_argvs(held_back: list[str] | tuple = ()) -> list[tuple[str, ...]]:
@@ -111,6 +119,8 @@ def _rule_commands(scope: str, held_back: list[str] | tuple = ()) -> list[str]:
 def build_rule_content(user: str, scope: str,
                        held_back: list[str] | tuple = ()) -> str:
     """Build the full sudoers drop-in text (caller must validate+install)."""
+    if not _USER_RE.match(user or "") or user == "root":
+        raise ValueError(f"unsafe user name for a sudoers rule: {user!r}")
     cmds = ", ".join(_rule_commands(scope, held_back))
     return (
         f"# DNF Package Manager — passwordless {scope} (scope={scope})\n"
@@ -122,7 +132,7 @@ def build_rule_content(user: str, scope: str,
 
 def validate_content(content: str) -> tuple[bool, str]:
     """Syntax-check generated content with ``visudo -c`` (no root needed)."""
-    visudo = shutil.which("visudo")
+    visudo = find_system_binary("visudo")
     if not visudo:
         return False, "visudo not found — cannot validate safely, aborting."
     try:
@@ -227,7 +237,7 @@ def covers_held_back(output: str, held_back: list[str] | tuple) -> bool:
 def live_status(held_back: list[str] | tuple = ()) -> tuple[str, bool, bool]:
     """(scope in effect, legacy wildcard rule present, rule covers the
     current held-back list). No root needed."""
-    sudo = shutil.which("sudo")
+    sudo = find_system_binary("sudo")
     if not sudo:
         return SCOPE_OFF, False, True
     try:
@@ -250,12 +260,22 @@ def build_install_commands(content: str) -> list[str]:
     The heredoc uses a quoted delimiter so rule text is never expanded.
     A failed post-install check removes the file again (fail closed).
     """
+    if "DNFGUI_EOF" in content:
+        raise ValueError("rule text contains the heredoc delimiter")
+    # Written under a name sudo ignores (it contains a dot), checked, then
+    # moved into place: a crash midway never leaves a broken rule that
+    # would make sudo refuse every command.
+    tmp = f"{SUDOERS_FILE}.tmp"
     script = (
-        f"cat > {SUDOERS_FILE} <<'DNFGUI_EOF'\n"
+        f"umask 0377\n"
+        f"cat > {tmp} <<'DNFGUI_EOF'\n"
         f"{content}"
         "DNFGUI_EOF\n"
-        f"chmod 0440 {SUDOERS_FILE}\n"
-        f"visudo -c -f {SUDOERS_FILE} || {{ rm -f {SUDOERS_FILE}; "
+        f"chmod 0440 {tmp}\n"
+        f"visudo -c -f {tmp} || {{ rm -f {tmp}; "
+        'echo "visudo check FAILED — nothing was installed"; exit 1; }\n'
+        f"mv -f {tmp} {SUDOERS_FILE}\n"
+        f"visudo -c || {{ rm -f {SUDOERS_FILE}; "
         'echo "visudo check FAILED — rule removed again"; exit 1; }\n'
         'echo "passwordless rule installed and validated"'
     )

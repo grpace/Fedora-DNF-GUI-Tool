@@ -6,7 +6,6 @@ builders, so changing a flag in one place without the other fails here
 instead of silently bringing back the password prompt.
 """
 
-import shutil
 import unittest
 from unittest.mock import patch
 
@@ -23,11 +22,6 @@ def _backend(dnf_path: str) -> DNFBackend:
     backend = DNFBackend.__new__(DNFBackend)
     backend._dnf_path = dnf_path
     return backend
-
-
-def _which_only(dnf_path: str):
-    name = dnf_path.rsplit("/", 1)[-1]
-    return lambda cmd: dnf_path if cmd == name else None
 
 
 def _rule_lines(scope: str, held_back=()) -> list[str]:
@@ -50,7 +44,7 @@ class TestRealBuildersAreCovered(unittest.TestCase):
 
     def test_security_only_is_covered_and_listed(self):
         for path in DNF_BINARIES:
-            with patch.object(shutil, "which", side_effect=_which_only(path)):
+            with patch("dnf_gui.core.security.system_binary", return_value=path):
                 cmd = build_security_update_command()
             self.assertEqual(cmd[1], path)
             self.assertTrue(pw.is_covered(cmd, pw.SCOPE_UPDATES), cmd)

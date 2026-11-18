@@ -52,7 +52,7 @@ These changes survive Discover package updates. PackageKit itself keeps running,
 
 Under **Settings → Reminders**, turn on **Remind me about pending updates** and choose how often to check. A systemd user timer then runs `dnf-gui --check` on that schedule (at 9 AM), even while the app is closed, and sends a desktop notification when updates are waiting. Click the notification, or its **View Updates** button, to open the Updates page with a fresh scan; if the app is already open, its window comes forward. It also takes a quick look at login and checks only if one is due, so a check missed while the PC was off or asleep isn't lost. Nothing polls, and nothing runs before you log in. After sending a reminder, the check stays around (at most until shortly before the next check) only so it can answer a click, then exits. If you're offline, it retries at most three times, 15 minutes apart.
 
-- **Security Updates Only** keeps quiet about routine updates and only notifies you about security fixes.
+- **Only for security updates** keeps quiet about routine updates and only notifies you about security fixes.
 - **Include Flatpak Updates** notifies you about Flatpak updates either way.
 
 Click **Send a Test Reminder** to see what it looks like, and click the notification to check that it opens the Updates page.
@@ -76,7 +76,7 @@ Rows tagged **Major** are the updates Update Without Major skips: by default the
 
 ## 5. Optional: stop the password prompts
 
-**Settings → Passwordless Updates → Turn On…** with **Updates Only** installs a sudoers rule covering exactly three commands: Upgrade All, Security Only and Update without Major. Installs, removals, repository changes and firmware updates still ask for a password. The rule names the exact Update without Major command, so after you change which packages count as major, Settings tells you to click **Enable Passwordless** once more.
+**Settings → Passwordless Updates → Turn On…** with **Updates Only** installs a sudoers rule covering exactly three commands: Upgrade All, Security Only and Update without Major. Installs, removals, repository changes and firmware updates still ask for a password. The rule names the exact Update without Major command, so after you change which packages count as major, Settings tells you to click **Turn On Again…** once more.
 
 ## Optional: reclaim PackageKit's cache
 

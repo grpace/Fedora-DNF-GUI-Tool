@@ -41,6 +41,7 @@
           <li>Package and transaction details open beside the list.</li>
           <li>Command output follows you between pages, with live progress, Cancel and Copy Output.</li>
           <li>Every page is redesigned, with keyboard and screen reader support throughout.</li>
+          <li>Security hardening: privileged commands run programs from system directories only, the app's own updates are checked again as root before installing, and the passwordless rule is validated before it takes effect.</li>
         </ul>
       </description>
     </release>

@@ -170,8 +170,9 @@ DNF_GUI_FORCE_CHECK=1 dnf-gui --check   # ignore the reminder interval
 - **Read-only work runs as you.** Update checks, searches, package details, history and system information need no privileges.
 - **Changes go through polkit.** Installs, removals, upgrades and repository changes run via `pkexec`, which shows the standard desktop password dialog.
 - **No shell interpolation.** Commands run as argument lists. The few fixed shell scripts (the firmware check, the sudoers installer and the Discover takeover) never contain user input.
-- **Passwordless updates are exact-match.** The optional rule in `/etc/sudoers.d/90-dnf-gui` lists only the exact command lines for Upgrade All, Security Only and Update without Major, with no wildcards. It's checked with `visudo` before and after installation. An "All DNF operations" scope exists for single-user machines; it removes every prompt, so any program running as you could change system packages.
-- **Verified self-updates.** App updates download only from GitHub and are checked against the SHA-256 digest GitHub publishes for the release before DNF installs them.
+- **Passwordless updates are exact-match.** The optional rule in `/etc/sudoers.d/90-dnf-gui` lists only the exact command lines for Upgrade All, Security Only and Update without Major, with no wildcards. It's written to a temporary file, checked with `visudo`, and only then moved into place, and your login name comes from your account entry, not the environment. An "All DNF operations" scope exists for single-user machines; it removes every prompt, so any program running as you could change system packages.
+- **System programs only.** Privileged commands run `dnf`, `flatpak`, `sudo` and `visudo` from `/usr/bin` and the other system directories, never from `$PATH` (Fedora puts the user-writable `~/.local/bin` first). The launcher and menu entry use absolute paths too.
+- **Verified self-updates.** App updates download only from GitHub and are offered only when GitHub published a SHA-256 digest for the file. After you approve, a root step copies the download somewhere only root can write, checks that copy against the digest again, and installs exactly that copy, so nothing running as you can swap the file while the password prompt is open.
 
 ---
 

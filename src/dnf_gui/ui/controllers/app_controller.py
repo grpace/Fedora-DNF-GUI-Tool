@@ -40,7 +40,7 @@ from dnf_gui.ui.controllers.updates import UpdatesController
 from dnf_gui.ui.iconset import IconSet
 
 RELEASES_URL = "https://github.com/grpace/Fedora-DNF-GUI-Tool/releases"
-WEBSITE_URL = "https://greg.tech"
+PROJECT_URL = "https://github.com/grpace/Fedora-DNF-GUI-Tool"
 
 # Stable page keys: ``--page``, notification clicks and the single-instance
 # socket use them (app.PAGE_CHOICES). Order = Ctrl+1..9, as in v1.
@@ -203,9 +203,11 @@ class AppController(StateObject):
         return self.icons.base_url(color.name())
 
     def _load_app_icons(self) -> None:
+        # Kept, not deleteLater()'d: its finished signal is emitted from
+        # run(), and deleting a running QThread aborts the app.
         worker = AppIconsWorker(parent=self)
         worker.finished.connect(self._on_app_icons)
-        worker.finished.connect(worker.deleteLater)
+        self._app_icons_worker = worker
         worker.start()
 
     def _on_app_icons(self, icons) -> None:
@@ -743,12 +745,12 @@ class AppController(StateObject):
             "url": update_info.release_url or RELEASES_URL})
 
     @pyqtSlot()
-    def openWebsite(self) -> None:
-        """Greg.Tech, who makes the app (the sidebar and About credit)."""
-        if not QDesktopServices.openUrl(QUrl(WEBSITE_URL)):
+    def openProject(self) -> None:
+        """The project on GitHub (the sidebar and About links)."""
+        if not QDesktopServices.openUrl(QUrl(PROJECT_URL)):
             self.prompts.inform(
-                "Open Website",
-                f"Your web browser couldn't be opened. The website is:\n\n{WEBSITE_URL}")
+                "Open GitHub",
+                f"Your web browser couldn't be opened. The project is at:\n\n{PROJECT_URL}")
 
     @pyqtSlot()
     def openReleases(self) -> None:

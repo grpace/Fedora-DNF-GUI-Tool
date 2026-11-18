@@ -78,3 +78,4 @@ Files are renamed to the freedesktop icon names the QML uses:
   window-restore.svg  <-  copy-simple-bold.svg
   checkmark.svg  <-  check-bold.svg
   view-right-close.svg  <-  arrow-line-right-bold.svg
+  github.svg  <-  github-logo-bold.svg

@@ -14,7 +14,8 @@ Item {
     readonly property bool engaged: hover.hovered || drag.active
     property bool recentlyMoved: false
 
-    width: Kirigami.Units.smallSpacing * 3
+    // Stays inside the page's edge gutter, clear of the rows' buttons.
+    width: Math.max(Kirigami.Units.smallSpacing * 1.5, Math.min(Kirigami.Units.smallSpacing * 3, root.gutter - 2))
     visible: needed
     Accessible.ignored: true  // the list itself scrolls with the keyboard
 
@@ -40,6 +41,9 @@ Item {
     HoverHandler { id: hover }
     // Click above or below the handle: page up or down.
     TapHandler {
+        // Only while the handle shows: an invisible strip mustn't take the
+        // clicks meant for a row's buttons beneath it.
+        enabled: bar.engaged || bar.recentlyMoved
         onTapped: (point) => {
             const step = bar.ratio * 0.9;
             bar.scrollTo(point.position.y < handle.y ? bar.position - step : bar.position + step);

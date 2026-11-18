@@ -50,7 +50,7 @@ class SystemInfo:
     firmware: Optional[str] = None      # "03.05 (2024-08-12)" (BIOS/UEFI version + date)
     desktop: Optional[str] = None       # "KDE Plasma 6.8.2 (Wayland)"
     root_fs: Optional[str] = None       # "btrfs" (the root filesystem's type)
-    last_update: Optional[str] = None   # when the newest dnf transaction ran
+    last_update: Optional[str] = None   # when packages were last upgraded
 
 
 def get_system_info() -> SystemInfo:
@@ -346,16 +346,31 @@ def _get_root_fs(mounts: str = "/proc/mounts") -> Optional[str]:
 
 
 def _get_last_update(run: Callable[[list[str]], Optional[str]] = _run_quick) -> Optional[str]:
-    """When the newest dnf transaction ran, read from ``dnf history list``
-    (parsed by DNFBackend.history, with a short timeout)."""
+    """When packages were last upgraded: the newest upgrade in ``dnf
+    history list`` (installs and removals don't count), parsed by
+    DNFBackend.history with a short timeout."""
     try:
         from dnf_gui.core.dnf_backend import DNFBackend
         backend = DNFBackend()
         backend._run = lambda cmd, allow_nonzero=False: run(cmd)
-        newest = backend.history(limit=1)
-        return (newest[0].get("date") or None) if newest else None
+        for txn in backend.history(limit=50):
+            if _is_upgrade(txn):
+                return txn.get("date") or None
+        return None
     except Exception:
         return None
+
+
+def _is_upgrade(txn: dict) -> bool:
+    """An upgrade transaction: by its command line (dnf upgrade/update,
+    system-upgrade, distro-sync) or its action (dnf4 words, dnf5 letters)."""
+    command = str(txn.get("command") or "").lower()
+    words = command.split()
+    if words and words[0] in ("upgrade", "update", "up", "distro-sync", "system-upgrade", "upgrade-minimal"):
+        return True
+    action = str(txn.get("action") or "")
+    parts = [p.strip() for p in action.replace(";", ",").split(",")]
+    return any(p.lower() in ("upgrade", "update", "upgraded") or p == "U" for p in parts)
 
 
 def _detect_virt_from_cpuinfo() -> Optional[str]:

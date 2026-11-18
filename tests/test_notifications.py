@@ -86,7 +86,10 @@ class TestNotifier:
             assert self.notifier.send(n) == 0
         cmd = notifications.notify_send_command(n)
         assert cmd[0] == "notify-send"
-        assert "--icon=dnf-gui" in cmd
+        # The app's own icon file (what the window shows), not a theme name
+        # that may still point at an older installed icon.
+        assert f"--icon={notifications.APP_ICON}" in cmd
+        assert notifications.APP_ICON.endswith("/dnf_gui/ui/app_icon.svg")
         assert cmd[-3:] == ["--", "Title", "-Body"]  # never read as options
 
 

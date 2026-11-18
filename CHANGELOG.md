@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2026-11-17
 
-A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami). Every page is redesigned; the commands it runs, the passwordless rule, the self-updater's checks and the background reminders are unchanged.
+A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami). Every page is redesigned; the update modes and background reminders work as before, and a security review hardened how privileged commands and the self-update run (see Security).
 
 ### Added
 

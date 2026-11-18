@@ -66,6 +66,9 @@ chmod 0755 %{buildroot}%{_bindir}/%{app_name}
 # Desktop entry (shared with install.sh)
 install -Dm644 assets/dnf-gui.desktop %{buildroot}%{_datadir}/applications/%{app_name}.desktop
 
+# The bundled interface icons' license, also as a license file (rpm -qL)
+cp src/%{app_module}/ui/icons/LICENSE LICENSE-Phosphor-Icons
+
 # Icon
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 cp src/%{app_module}/ui/app_icon.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/%{app_name}.svg
@@ -75,7 +78,7 @@ mkdir -p %{buildroot}%{_metainfodir}
 cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metainfo.xml
 
 %files
-%license LICENSE
+%license LICENSE LICENSE-Phosphor-Icons
 %doc README.md CHANGELOG.md
 %{install_dir}/
 %{_bindir}/%{app_name}
@@ -96,7 +99,7 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 %changelog
 * Tue Nov 17 2026 Greg.Tech <hello@greg.tech> - 2.0.0-1
 - New native KDE Plasma interface (Kirigami): follows your Plasma colors and fonts
-- Updates page: one clear status, one main button, updates grouped by security, major and Flatpak
+- Updates page: one clear status, one main button, updates grouped by security, core and Flatpak
 - Package and transaction details open beside the list
 - Output follows you between pages, with live progress, Cancel and Copy Output
 - Confirmations show one at a time; destructive ones default to No

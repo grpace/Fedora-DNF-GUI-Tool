@@ -77,12 +77,14 @@ Kirigami.ScrollablePage {
                         text: row.title
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
+                        color: row.highlighted ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
                         Layout.fillWidth: true
                     }
                     QQC2.Label {
                         text: row.description
                         wrapMode: Text.Wrap
-                        color: Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
+                        color: row.highlighted ? Kirigami.Theme.highlightedTextColor
+                             : Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.textColor, Kirigami.Theme.backgroundColor, 0.3)
                         font: Kirigami.Theme.smallFont
                         Layout.fillWidth: true
                     }

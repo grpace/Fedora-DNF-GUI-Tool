@@ -439,7 +439,7 @@ class ReminderCheckWorker(QThread):
 class RebootCheckWorker(QThread):
     """Check whether a reboot is needed (fast, no root)."""
 
-    finished = pyqtSignal(bool)
+    finished = pyqtSignal(object)  # True, False, or None (couldn't tell)
     error = pyqtSignal(str)
 
     def __init__(self, dnf_backend, parent=None):
@@ -448,7 +448,7 @@ class RebootCheckWorker(QThread):
 
     def run(self):
         try:
-            self.finished.emit(bool(self._backend.reboot_required()))
+            self.finished.emit(self._backend.check_reboot())
         except Exception as e:
             self.error.emit(str(e))
 

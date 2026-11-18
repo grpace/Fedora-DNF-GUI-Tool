@@ -40,7 +40,7 @@ class TestRealBuildersAreCovered(unittest.TestCase):
             self.assertTrue(pw.is_covered(cmd, pw.SCOPE_UPDATES), cmd)
             self.assertIn(_as_rule_line(cmd), _rule_lines(pw.SCOPE_UPDATES))
             self.assertEqual(pw.maybe_passwordless(cmd, pw.SCOPE_UPDATES),
-                             ["sudo", "-n"] + cmd[1:])
+                             ["/usr/bin/sudo", "-n"] + cmd[1:])
 
     def test_security_only_is_covered_and_listed(self):
         for path in DNF_BINARIES:

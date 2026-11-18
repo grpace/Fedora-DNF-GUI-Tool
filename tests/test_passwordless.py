@@ -63,7 +63,7 @@ class TestRewrite(unittest.TestCase):
     def test_maybe_passwordless_rewrites_covered(self):
         cmd = ["pkexec", "/usr/bin/dnf5", "upgrade", "-y", "--refresh"]
         self.assertEqual(pw.maybe_passwordless(cmd, "updates"),
-                         ["sudo", "-n", "/usr/bin/dnf5", "upgrade", "-y", "--refresh"])
+                         ["/usr/bin/sudo", "-n", "/usr/bin/dnf5", "upgrade", "-y", "--refresh"])
 
     def test_maybe_passwordless_leaves_uncovered(self):
         cmd = ["pkexec", "/usr/bin/dnf5", "install", "-y", "foo"]

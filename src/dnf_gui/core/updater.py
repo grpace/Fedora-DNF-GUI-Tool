@@ -145,3 +145,38 @@ def check_for_update(current_version: str) -> Optional[UpdateInfo]:
         release_notes=body[:500] + "..." if len(body) > 500 else body,
         sha256=sha256,
     )
+
+
+# Run as root by pkexec with argv: <rpm path> <sha256> <dnf path>. It copies
+# the downloaded RPM into a directory only root can write, hashes that copy,
+# and installs exactly that copy, so nothing running as the user can swap
+# the file between the check and the install (e.g. while the password
+# prompt is open). No shell: the arguments are never interpolated.
+VERIFIED_INSTALL_SCRIPT = r"""
+import hashlib, os, shutil, subprocess, sys, tempfile
+src, digest, dnf = sys.argv[1], sys.argv[2].lower(), sys.argv[3]
+if dnf not in ("/usr/bin/dnf5", "/usr/bin/dnf"):
+    print("Refusing: unexpected dnf path"); sys.exit(2)
+if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+    print("Refusing: no valid digest to check against"); sys.exit(2)
+tmp = tempfile.mkdtemp(prefix="dnf-gui-update-")
+try:
+    copy = os.path.join(tmp, "update.rpm")
+    shutil.copyfile(src, copy)
+    h = hashlib.sha256()
+    with open(copy, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    if h.hexdigest() != digest:
+        print("Refusing: the downloaded file changed after it was checked"); sys.exit(3)
+    print("Digest checked again as root; installing")
+    sys.exit(subprocess.run([dnf, "install", "-y", copy]).returncode)
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+"""
+
+
+def build_verified_install_command(rpm_path: str, sha256: str, dnf_path: str) -> list[str]:
+    """pkexec argv that re-checks the digest as root and installs that copy."""
+    return ["pkexec", "/usr/bin/python3", "-I", "-c", VERIFIED_INSTALL_SCRIPT,
+            rpm_path, sha256, dnf_path]

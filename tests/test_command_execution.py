@@ -112,17 +112,17 @@ class TestPasswordlessFallback(unittest.TestCase):
 
     def test_covered_command_uses_sudo_n(self):
         finished = self._run("updates", lambda argv: ([], 0))
-        self.assertEqual(_FakeWorker.started_argvs, [["sudo", "-n"] + self.cmd[1:]])
+        self.assertEqual(_FakeWorker.started_argvs, [["/usr/bin/sudo", "-n"] + self.cmd[1:]])
         self.assertEqual(finished, [(0, "System Upgrade", False)])
 
     def test_sudo_password_prompt_retries_once_with_pkexec(self):
         def script(argv):
-            if argv[0] == "sudo":
+            if argv[0].endswith("/sudo"):
                 return (["sudo: a password is required"], 1)
             return ([], 0)
         finished = self._run("updates", script)
         self.assertEqual(_FakeWorker.started_argvs,
-                         [["sudo", "-n"] + self.cmd[1:], self.cmd])
+                         [["/usr/bin/sudo", "-n"] + self.cmd[1:], self.cmd])
         self.assertEqual(finished, [(0, "System Upgrade", False)])
         self.assertIn("falling back to password prompt", self.app.runner.text())
 
@@ -133,7 +133,7 @@ class TestPasswordlessFallback(unittest.TestCase):
 
     def test_other_sudo_failures_are_not_retried(self):
         finished = self._run("updates", lambda argv: (["Error: no space left"], 1))
-        self.assertEqual(_FakeWorker.started_argvs, [["sudo", "-n"] + self.cmd[1:]])
+        self.assertEqual(_FakeWorker.started_argvs, [["/usr/bin/sudo", "-n"] + self.cmd[1:]])
         self.assertEqual(finished, [(1, "System Upgrade", False)])
 
     def test_uncovered_command_keeps_pkexec(self):

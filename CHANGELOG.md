@@ -47,6 +47,7 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 - The passwordless rule is written to a temporary file, checked with `visudo`, and only then moved into place, so a crash midway can't leave a broken rule that stops `sudo` from working.
 - Confirmations say "No password needed" only when the rule actually installed covers the command, and the passwordless settings explain plainly what each scope allows.
 - Installing the app's own update is offered only when GitHub published a digest to check it against.
+- The app's own update is checked against GitHub's digest a second time as root, on a copy only root can write, and that exact copy is installed, so nothing running as you can swap the file while the password prompt is open.
 
 ### Fixed
 

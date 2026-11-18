@@ -55,7 +55,7 @@ class TestCommand(unittest.TestCase):
 
     def test_covered_by_passwordless_updates_scope(self):
         cmd = _backend().build_upgrade_without_major_command(["kernel*"])
-        self.assertEqual(maybe_passwordless(cmd, SCOPE_UPDATES)[:2], ["sudo", "-n"])
+        self.assertEqual(maybe_passwordless(cmd, SCOPE_UPDATES)[:2], ["/usr/bin/sudo", "-n"])
 
 
 class TestPreviewFiltering(unittest.TestCase):

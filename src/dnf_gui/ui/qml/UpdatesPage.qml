@@ -114,7 +114,7 @@ Kirigami.ScrollablePage {
             text: section
             QQC2.Label {
                 text: section === "Security Fixes" ? "Included in Security Only"
-                    : section === "Major Updates" ? "Kernel, drivers and firmware · Update Without Major skips these"
+                    : section === "Major Updates" ? "Kernel, drivers, firmware and bootloader · Update Without Major skips these"
                     : ""
                 visible: text !== "" && !root.compact
                 font: Kirigami.Theme.smallFont

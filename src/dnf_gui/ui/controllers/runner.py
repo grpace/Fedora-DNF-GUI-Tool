@@ -9,6 +9,7 @@ pkexec once if sudo still wants a password.
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Callable
 
@@ -350,7 +351,8 @@ class OperationRunner(StateObject):
         def on_done(code: int) -> None:
             if self._worker is worker:
                 self._worker = None
-            if (code != 0 and not retried and effective and effective[0] == "sudo"
+            if (code != 0 and not retried and effective
+                    and os.path.basename(effective[0]) == "sudo"
                     and any("password" in line.lower() for line in collected)):
                 self.append("(passwordless rule didn't apply — "
                             "falling back to password prompt)")

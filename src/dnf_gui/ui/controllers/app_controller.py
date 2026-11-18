@@ -421,6 +421,10 @@ class AppController(StateObject):
         self._pw_cache = (now, (live, covered))
         return live, covered
 
+    def forget_passwordless_status(self) -> None:
+        """The rule or the major-package list changed: check again next time."""
+        self._pw_cache = None
+
     def password_note(self, cmd: list[str]) -> str:
         """What the confirmation should say about a password for ``cmd``:
         "no password" only when the rule installed right now covers it."""
@@ -500,6 +504,7 @@ class AppController(StateObject):
             self.updates.invalidate()  # system changed: next visit rescans
         if operation in ("Enabling passwordless updates",
                          "Disabling passwordless updates"):
+            self.forget_passwordless_status()
             self.settings_controller.load_passwordless_status()
         if operation in ("Disabling Discover system-wide",
                          "Re-enabling Discover system-wide",
@@ -737,10 +742,14 @@ class AppController(StateObject):
         worker.start()
 
     def _on_update_downloaded(self, rpm_path: str) -> None:
+        from dnf_gui.core.updater import build_verified_install_command
+        info = self._pending_update_info
         self.runner.finish_external(True, "Downloaded")
         self.runner.append(f"Downloaded to {rpm_path}\nInstalling with DNF...\n")
-        self.runner.run(self.backend.build_install_command(rpm_path),
-                        "Installing app update")
+        self.runner.run(
+            build_verified_install_command(rpm_path, getattr(info, "sha256", ""),
+                                           self.backend.dnf_path),
+            "Installing app update")
 
     def _on_update_download_error(self, error: str) -> None:
         self.runner.finish_external(False, "Download Failed")

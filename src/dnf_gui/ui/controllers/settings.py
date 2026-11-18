@@ -97,6 +97,7 @@ class SettingsController(StateObject):
             message = "Saved. " + _patterns_text(len(valid))
         changed = valid != self.app.settings.held_back_patterns
         self.app.settings.held_back_patterns = valid
+        self.app.forget_passwordless_status()
         self.app.updates.set_held_back_patterns(valid)
         if changed and self.app.settings.passwordless_scope == "updates":
             message += (" Passwordless Updates Only lists the exact command, so "
@@ -120,6 +121,7 @@ class SettingsController(StateObject):
             return
         self.app.settings.held_back_patterns = patterns
         self.app.updates.set_held_back_patterns(patterns)
+        self.app.forget_passwordless_status()
         self._set(heldBack=", ".join(patterns),
                   heldBackMessage=f"Marked {name} as major." if hold
                   else f"{name} no longer counts as major.")

@@ -205,8 +205,9 @@ class TestRestartUpdateSettings(unittest.TestCase):
         self.assertIn("scheduled", settings.discoverTitle.lower())
         self.assertTrue(settings.discoverScheduled)
 
-    def _take_over(self, *choices, scheduled=True):
+    def _take_over(self, *choices, scheduled=True, reminders=True):
         app = self._app()
+        app.settings.reminders_enabled = reminders
         shown = answer(app, *choices)
         manager = app.discover_manager
         with patch.object(manager, "restart_update_scheduled", return_value=scheduled), \
@@ -230,6 +231,11 @@ class TestRestartUpdateSettings(unittest.TestCase):
         self.assertEqual(len(confirms), 2)
         set_enabled.assert_called_once_with(False)
         run.assert_not_called()
+
+    def test_takeover_offers_reminders_when_they_are_off(self):
+        app_confirms, set_enabled, _run = self._take_over("yes", "no", "no", reminders=False)
+        self.assertEqual(app_confirms[-1].title, "Turn On Update Reminders?")
+        set_enabled.assert_called_once_with(False)
 
     def test_takeover_declined_changes_nothing(self):
         confirms, set_enabled, run = self._take_over("no")

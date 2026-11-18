@@ -62,6 +62,11 @@ def _hermetic_controller(monkeypatch):
     # Never enable, start or reload the real user's systemd units.
     from dnf_gui.core import app_settings
     monkeypatch.setattr(app_settings, "_systemctl_user", lambda *a: True)
+    # Never ask the real sudo which rule is installed: treat the saved scope
+    # as the installed one (tests that care patch this).
+    from dnf_gui.ui.controllers import app_controller as _ac
+    monkeypatch.setattr(_ac.AppController, "_live_passwordless",
+                        lambda self: (self.settings.passwordless_scope, True))
 
     controllers = []
     original_init = app_controller.AppController.__init__

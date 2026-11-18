@@ -27,12 +27,26 @@ A new interface, rebuilt from the ground up as a native KDE Plasma app (Kirigami
 - Installed and Flatpak have an instant filter for what's installed and a separate search for new packages (Enter to search, never on every keystroke).
 - Repository switches only change once dnf has actually changed the repository.
 - Settings uses KDE's settings layout; reminder changes apply as you make them.
-- Cancel works even when clicked right after an operation starts.
+- Cancel works even when clicked right after an operation starts, and it goes away once dnf starts changing the system, where stopping midway isn't safe.
+- The main update button defaults to Update Everything, so it installs everything the Updates page counts; when your chosen option has nothing to install, the button runs one that does instead of being disabled.
+- Security updates waiting on another repository show what to do now (nothing); Force Install moved behind Details.
+- Taking over from Discover offers to turn on this app's reminders when they're off, so updates don't go unannounced.
+- Clearer warnings for Distribution Sync, firmware updates, RPM Fusion, undoing transactions and turning off Fedora's own repositories; plainer wording throughout.
+- Screen readers hear when an operation needs a password, finishes or fails; the output can be read with the keyboard; confirmations read their message; keyboard focus follows the details column.
+- The Flatpak page marks apps with updates waiting.
 - `install.sh` installs the KDE packages the interface needs and no longer falls back to pip (pip's PyQt6 can't load Kirigami).
 
 ### Removed
 
 - The Terminal page (replaced by the output bar) and the custom light/dark theme.
+
+### Security
+
+- Privileged commands run `dnf`, `flatpak`, `sudo` and `visudo` from the system directories only, never from `$PATH`: Fedora puts `~/.local/bin` first, so a program planted there could have been run as root after you typed your password. The launchers and the menu entry use absolute paths too.
+- The passwordless rule takes your login name from your user ID's account entry, not from environment variables, and refuses unusual names, so the rule text and the root script that installs it can't be altered.
+- The passwordless rule is written to a temporary file, checked with `visudo`, and only then moved into place, so a crash midway can't leave a broken rule that stops `sudo` from working.
+- Confirmations say "No password needed" only when the rule actually installed covers the command, and the passwordless settings explain plainly what each scope allows.
+- Installing the app's own update is offered only when GitHub published a digest to check it against.
 
 ### Fixed
 

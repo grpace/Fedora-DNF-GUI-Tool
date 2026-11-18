@@ -42,6 +42,8 @@ KDialogs.Dialog {
             if (dialog.hasPrompt) {
                 dialog.open();
                 defaultFocus.start();
+                // Read the question out: focus lands on a button.
+                body.Accessible.announce(dialog.prompt.title + ". " + dialog.prompt.text);
             } else if (dialog.opened) {
                 dialog.close();
             }
@@ -61,6 +63,7 @@ KDialogs.Dialog {
     }
 
     ColumnLayout {
+        id: body
         spacing: Kirigami.Units.largeSpacing
 
         RowLayout {
@@ -91,19 +94,16 @@ KDialogs.Dialog {
                                              detailsList.contentHeight + Kirigami.Units.largeSpacing)
             Kirigami.Theme.colorSet: Kirigami.Theme.View
             background: Rectangle { color: Kirigami.Theme.backgroundColor; radius: Kirigami.Units.cornerRadius }
-            ListView {
+            QQC2.TextArea {
                 id: detailsList
-                model: dialog.hasPrompt ? dialog.prompt.details : []
-                clip: true
+                readOnly: true
+                text: dialog.hasPrompt ? dialog.prompt.details.join("\n") : ""
+                textFormat: TextEdit.PlainText
+                wrapMode: TextEdit.Wrap
+                font.family: "monospace"
+                activeFocusOnTab: true
+                background: null
                 Accessible.name: "Packages"
-                delegate: QQC2.Label {
-                    required property string modelData
-                    text: modelData
-                    leftPadding: Kirigami.Units.largeSpacing
-                    font.family: "monospace"
-                    width: ListView.view.width
-                    elide: Text.ElideRight
-                }
             }
         }
     }

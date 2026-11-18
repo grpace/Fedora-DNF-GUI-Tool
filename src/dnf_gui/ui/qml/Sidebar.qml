@@ -19,7 +19,7 @@ Kirigami.GlobalDrawer {
     readonly property var sections: [
         { title: "Packages", items: [
             { key: "updates", label: "Updates", icon: "system-software-update" },
-            { key: "installed", label: "Installed", icon: "package-x-generic" },
+            { key: "installed", label: "Installed", icon: "package" },
             { key: "flatpak", label: "Flatpak", icon: "flatpak-discover", fallback: "folder-flatpak" } ] },
         { title: "System", items: [
             { key: "sysinfo", label: "System", icon: "computer" },

@@ -244,8 +244,9 @@ class TestUpdatesBlocked(unittest.TestCase):
         banner = updates.blocked
         self.assertTrue(banner["visible"])
         self.assertEqual(banner["title"], "1 security advisory waiting on RPM Fusion")
-        self.assertIn("won't install it until then", banner["text"])
-        self.assertIn("libheif-freeworld", banner["forceTooltip"])
+        # Leads with what to do now; Force is behind Details, not on the banner.
+        self.assertIn("Nothing to do now", banner["text"])
+        self.assertNotIn("forceTooltip", banner)
         self.assertEqual(updates.securityTotal, 1)
         self.assertEqual(updates.securityWaiting, 1)
         self.assertEqual(updates.security_installable, 0)

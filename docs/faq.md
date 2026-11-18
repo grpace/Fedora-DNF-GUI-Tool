@@ -2,7 +2,7 @@
 
 ### Is it safe to install updates while I'm using the computer?
 
-Yes. It's what `sudo dnf upgrade` does, and it's how most Fedora users on the command line update. Running programs keep using the old version until you restart them. A few updates (the kernel, glibc, systemd and similar core pieces) only fully take effect after a reboot. DNF Package Manager checks for that after every upgrade and shows a **Reboot Required** banner when it applies.
+Yes. It's what `sudo dnf upgrade` does, and it's how most Fedora users on the command line update. Running programs keep using the old version until you restart them. A few updates (the kernel, glibc, systemd and similar core pieces) only fully take effect after a reboot. DNF Package Manager checks for that after every upgrade and shows a **Restart to finish updating** banner when it applies.
 
 Discover's offline approach, which installs everything during a restart, is more conservative. If you'd rather never update a running system, Discover is the better fit for you.
 
@@ -34,7 +34,7 @@ Fedora's documented steps:
 
 1. `dnf upgrade --refresh`
 2. `dnf system-upgrade download --releasever=N`
-3. `dnf system-upgrade reboot`, only when you click **Restart & Install**
+3. `dnf system-upgrade reboot`, only when you click **Restart and Install**
 
 If step 2 fails because some packages (often from a COPR or third-party repo) have no build for the new release yet, the app offers to retry with `--allowerasing`. Check the output first to see which packages would be removed. A finished download can be cancelled from the Updates page (`dnf system-upgrade clean`).
 

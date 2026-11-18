@@ -95,6 +95,8 @@ class UpdatesController(StateObject):
         "release": {},
         "blocked": {},
         "majorCount": 0,
+        "mainMode": "everything",
+        "rebootCertain": True,
     }
 
     phase = state_property(str, "phase", changed)
@@ -112,6 +114,8 @@ class UpdatesController(StateObject):
     release = state_property("QVariantMap", "release", changed)
     blocked = state_property("QVariantMap", "blocked", changed)
     majorCount = state_property(int, "majorCount", changed)
+    mainMode = state_property(str, "mainMode", changed)
+    rebootCertain = state_property(bool, "rebootCertain", changed)
 
     def __init__(self, app, parent=None):
         super().__init__(parent)
@@ -368,7 +372,14 @@ class UpdatesController(StateObject):
             modes.append({"key": key, "title": title, "description": description,
                           "detail": detail, "enabled": enabled, "count": count,
                           "favorite": key == self._state["favorite"]})
-        self._set(modes=modes)
+        # The main button runs the favorite, or, when that has nothing to
+        # install (e.g. Upgrade All with only Flatpak updates), the first mode
+        # that does, so it's never disabled while updates are waiting.
+        favorite = self._state["favorite"]
+        main = favorite if state[favorite][0] else next(
+            (k for k in ("everything", "all", "minor", "security") if state[k][0]),
+            favorite)
+        self._set(modes=modes, mainMode=main)
 
     def _refresh_release(self) -> None:
         upgrade = self._release_upgrade
@@ -411,10 +422,11 @@ class UpdatesController(StateObject):
             "package" if count == 1 else "packages")
         title = (f"{count} security {noun} waiting on {blocked.source}"
                  if blocked.source else f"{count} security {noun} can't install yet")
-        tip = ("Install now by removing " + ", ".join(blocked.removals) + "."
-               if blocked.removals else "Try installing them now anyway.")
-        self._set(blocked={"visible": True, "title": title,
-                           "text": self.blocked_summary(), "forceTooltip": tip})
+        text = ("Nothing to do now: your other updates install normally, and this "
+                "one installs by itself once "
+                + (blocked.source or "its repository") + " catches up, usually "
+                "within a few days.")
+        self._set(blocked={"visible": True, "title": title, "text": text})
 
     # ── held-back (major) patterns ─────────────────────────────
 
@@ -490,8 +502,8 @@ class UpdatesController(StateObject):
 
     @pyqtSlot()
     def runFavorite(self) -> None:
-        """Ctrl+U and the main button: run the favorite mode if it can run."""
-        key = self._state["favorite"]
+        """Ctrl+U and the main button: run the main mode if it can run."""
+        key = self._state["mainMode"]
         mode = next((m for m in self._state["modes"] if m["key"] == key), None)
         if mode and mode["enabled"]:
             self.runMode(key)
@@ -553,6 +565,11 @@ class UpdatesController(StateObject):
                 build_security_update_command(), "Security Upgrade"),
             confirm_label="Install Security Updates")
 
+    @pyqtSlot()
+    def explainBlocked(self) -> None:
+        """The blocked-security banner's Details: why, and the Force option."""
+        self.explain_blocked_security()
+
     def explain_blocked_security(self) -> None:
         """Security Only has nothing it can install: say why, offer force."""
         def chosen(choice: str) -> None:
@@ -560,8 +577,10 @@ class UpdatesController(StateObject):
                 self.forceSecurity()
         self.app.prompts.choose(
             "Nothing to Install Yet",
-            "The pending security updates can't be installed yet.\n\n"
-            + self.blocked_summary(),
+            "Some security updates can't be installed yet.\n\n"
+            + self.blocked_summary()
+            + "\n\nWaiting is usually best. Force Install removes the package "
+            "that holds them back.",
             [("force", "Force Install…"), ("ok", "OK")], chosen, default="ok")
 
     @pyqtSlot()
@@ -638,14 +657,16 @@ class UpdatesController(StateObject):
         self._reboot_dismissed = True
         self._set(rebootRequired=False)
 
-    def set_reboot_required(self, required: bool) -> None:
-        self._set(rebootRequired=bool(required) and not self._reboot_dismissed)
+    def set_reboot_required(self, required: bool, certain: bool = True) -> None:
+        self._set(rebootRequired=bool(required) and not self._reboot_dismissed,
+                  rebootCertain=certain)
 
     def recheck_reboot(self) -> None:
         """After a successful upgrade a reboot may be pending (new kernel)."""
         worker = RebootCheckWorker(self.app.backend, parent=self)
         worker.finished.connect(self.set_reboot_required)
-        worker.error.connect(lambda _e: None)
+        # Unknown isn't "no": after an update, say a restart may be needed.
+        worker.error.connect(lambda _e: self.set_reboot_required(True, certain=False))
         self._reboot_worker = worker
         worker.start()
 
@@ -725,7 +746,7 @@ class UpdatesController(StateObject):
                 release_upgrade.build_download_command(
                     self.app.backend.dnf_path, target, allow_erasing=True),
                 self.release_operation(target)),
-            confirm_label="Retry With --allowerasing", destructive=True)
+            confirm_label="Retry and Remove Conflicting Packages", destructive=True)
 
     def on_release_downloaded(self, target: int) -> None:
         current = release_upgrade.current_release() or target - 1

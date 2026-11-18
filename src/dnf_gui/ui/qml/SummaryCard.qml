@@ -55,7 +55,7 @@ Kirigami.AbstractCard {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 text: card.checking
-                      ? "Refreshing repository metadata and security advisories. This can take a minute."
+                      ? "Downloading the latest update lists. This can take a minute."
                       : card.u.summary
             }
             QQC2.Label {
@@ -82,7 +82,9 @@ Kirigami.AbstractCard {
                     enabled: !!card.fav.enabled && !App.Runner.busy
                     icon.name: card.fav.key === "security" ? "security-high" : "download"
                     text: (card.fav.title || "") + (card.fav.count > 0 ? " (" + card.fav.count + ")" : "")
-                    QQC2.ToolTip.text: (card.fav.description || "") + " · " + (card.fav.detail || "") + " · Ctrl+U"
+                    QQC2.ToolTip.text: (card.fav.description || "") + " · " + (card.fav.detail || "")
+                                       + (card.fav.key !== card.u.favorite ? " · Your chosen main option has nothing to install right now" : "")
+                                       + " · Ctrl+U"
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     onClicked: card.u.runFavorite()

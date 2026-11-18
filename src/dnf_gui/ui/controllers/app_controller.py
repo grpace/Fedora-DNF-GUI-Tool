@@ -406,12 +406,30 @@ class AppController(StateObject):
 
     # ── errors ─────────────────────────────────────────────────
 
+    def _live_passwordless(self) -> tuple[str, bool]:
+        """(scope of the rule actually installed, does it cover the current
+        major-package list), checked with ``sudo -n -l`` at most once a minute."""
+        now = time.monotonic()
+        cached = getattr(self, "_pw_cache", None)
+        if cached and now - cached[0] < 60:
+            return cached[1]
+        from dnf_gui.core import passwordless as pw
+        try:
+            live, _legacy, covered = pw.live_status(self.settings.held_back_patterns)
+        except Exception:
+            live, covered = "off", False
+        self._pw_cache = (now, (live, covered))
+        return live, covered
+
     def password_note(self, cmd: list[str]) -> str:
-        """What the confirmation should say about a password for ``cmd``."""
+        """What the confirmation should say about a password for ``cmd``:
+        "no password" only when the rule installed right now covers it."""
         from dnf_gui.core.passwordless import maybe_passwordless
-        if cmd and cmd[0] == "pkexec" and \
-                maybe_passwordless(cmd, self.settings.passwordless_scope) != cmd:
-            return "No password needed: your passwordless updates rule covers this."
+        if cmd and cmd[0] == "pkexec":
+            live, covered = self._live_passwordless()
+            excluded = any(a.startswith("--exclude=") for a in cmd)
+            if maybe_passwordless(cmd, live) != cmd and (covered or not excluded):
+                return "No password needed: your passwordless updates rule covers this."
         return "You'll be asked for your password."
 
     def show_error(self, title: str, text: str) -> None:
@@ -667,7 +685,10 @@ class AppController(StateObject):
         self._pending_update_info = update_info
         self._set(appUpdate={
             "available": True, "version": update_info.latest_version,
-            "canInstall": bool(update_info.download_url),
+            # Only with a digest to check it against (the download refuses
+            # without one).
+            "canInstall": bool(update_info.download_url
+                               and getattr(update_info, "sha256", "")),
             "notes": update_info.release_notes or "",
             "url": update_info.release_url or RELEASES_URL})
 

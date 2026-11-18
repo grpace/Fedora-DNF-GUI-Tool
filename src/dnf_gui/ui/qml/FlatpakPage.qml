@@ -14,7 +14,7 @@ Kirigami.ScrollablePage {
 
     actions: [
         Kirigami.Action {
-            text: "Update All"
+            text: App.Updates.flatpakCount > 0 ? "Update All (" + App.Updates.flatpakCount + ")" : "Update All"
             icon.name: "download"
             enabled: page.f.available && !App.Runner.busy
             onTriggered: page.f.updateAll()
@@ -130,6 +130,9 @@ Kirigami.ScrollablePage {
             Accessible.description: appId + (version ? ", version " + version : "")
             onClicked: ListView.view.currentIndex = index
             Keys.onMenuPressed: if (more.visible) menu.popup(more, 0, more.height)
+            Accessible.onPressAction: clicked()
+            readonly property bool hasUpdate: App.Updates.flatpakCount >= 0
+                                              && App.Updates.updateFor(row.name).kind === "flatpak"
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
@@ -163,6 +166,12 @@ Kirigami.ScrollablePage {
                     text: row.size
                     color: row.dim
                     font: Kirigami.Theme.smallFont
+                }
+                Pill {
+                    visible: page.mode === "installed" && row.hasUpdate
+                    text: "Update"
+                    tone: "info"
+                    selected: row.highlighted
                 }
                 Pill {
                     visible: page.mode === "find" && row.installed

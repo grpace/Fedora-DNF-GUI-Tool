@@ -235,3 +235,101 @@ def test_open_details_reload_after_an_operation():
     with patch.object(c.packages, "loadDetails") as load:
         c._on_operation_finished(0, "Installing htop", False)
     load.assert_called_once_with("htop")
+
+
+# ── hostile-critics security fixes ───────────────────────────────────
+
+def test_privileged_binaries_never_come_from_path(monkeypatch, tmp_path):
+    """A dnf planted earlier in $PATH (e.g. ~/.local/bin) is never used."""
+    fake = tmp_path / "dnf5"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:/usr/bin")
+    from dnf_gui.core.dnf_backend import DNFBackend
+    from dnf_gui.core.flatpak_backend import FlatpakBackend
+    from dnf_gui.core.security import build_security_update_command
+    assert DNFBackend().dnf_path.startswith(("/usr/", "/bin/"))
+    assert build_security_update_command()[1].startswith(("/usr/", "/bin/"))
+    assert FlatpakBackend()._flatpak.startswith(("/usr/", "/bin/"))
+
+
+def test_sudoers_user_comes_from_the_real_uid_and_must_be_safe(monkeypatch):
+    import pwd
+    import pytest
+    from dnf_gui.core import passwordless as pw
+    monkeypatch.setenv("LOGNAME", "attacker\nALL ALL=(ALL) NOPASSWD: ALL")
+    monkeypatch.setenv("USER", "attacker")
+    monkeypatch.setenv("SUDO_USER", "attacker")
+    assert pw.current_user() == pwd.getpwuid(__import__("os").getuid()).pw_name
+    with pytest.raises(ValueError):
+        pw.build_rule_content("me\nALL ALL=(ALL) NOPASSWD: ALL", "updates")
+    with pytest.raises(ValueError):
+        pw.build_rule_content("root", "updates")
+
+
+def test_sudoers_rule_is_checked_before_it_is_moved_into_place():
+    from dnf_gui.core import passwordless as pw
+    script = pw.build_install_commands(pw.build_rule_content("me", "updates"))[3]
+    tmp = pw.SUDOERS_FILE + ".tmp"
+    assert script.index(f"cat > {tmp}") < script.index(f"visudo -c -f {tmp}") \
+        < script.index(f"mv -f {tmp} {pw.SUDOERS_FILE}")
+    assert f"cat > {pw.SUDOERS_FILE} " not in script  # never written in place
+
+
+# ── hostile-critics UX fixes ─────────────────────────────────────────
+
+def test_main_button_falls_back_when_the_favorite_has_nothing_to_do():
+    from dnf_gui.core.flatpak_backend import FlatpakApp
+    c = _controller()
+    c.updates.setFavorite("all")
+    c.updates._on_checked({"dnf": UpdateInfo(), "flatpak": [FlatpakApp("Kdenlive", "org.kde.kdenlive")],
+                           "security": None})
+    assert c.updates.mainMode == "everything"   # only Flatpak updates are waiting
+    with patch.object(c.updates, "runMode") as run:
+        c.updates.runFavorite()
+    run.assert_called_once_with("everything")
+
+
+def test_cancel_goes_away_once_dnf_starts_the_transaction():
+    c = _controller()
+    finished = []
+    c.runner.finished.connect(lambda *a: finished.append(a))
+    assert c.runner.run(["sh", "-c", "echo Running transaction; sleep 1"], "Demo")
+    assert _wait(lambda: c.runner.cancellable is False and c.runner.busy)
+    assert _wait(lambda: finished, 5)
+
+
+def test_password_note_follows_the_rule_actually_installed():
+    c = _controller()
+    cmd = c.backend.build_upgrade_command()
+    c.settings.passwordless_scope = "updates"       # saved setting says yes...
+    with patch.object(type(c), "_live_passwordless", lambda self: ("off", True)):
+        assert "asked for your password" in c.password_note(cmd)   # ...the rule says no
+    minor = c.backend.build_upgrade_without_major_command(["kernel*"])
+    with patch.object(type(c), "_live_passwordless", lambda self: ("updates", False)):
+        assert "asked for your password" in c.password_note(minor)  # stale major list
+        assert "No password needed" in c.password_note(cmd)
+
+
+def test_app_update_install_needs_a_digest():
+    c = _controller()
+    info = type("U", (), {"latest_version": "2.0.1", "download_url": "https://x/y.rpm",
+                          "release_url": "", "release_notes": "", "sha256": ""})()
+    c._on_app_update_checked(info)
+    assert c.appUpdate["available"] and not c.appUpdate["canInstall"]
+    info.sha256 = "ab" * 32
+    c._on_app_update_checked(info)
+    assert c.appUpdate["canInstall"]
+
+
+def test_failed_reboot_check_says_a_restart_may_be_needed():
+    c = _controller()
+    c.updates.set_reboot_required(True, certain=False)
+    assert c.updates.rebootRequired and not c.updates.rebootCertain
+
+
+def test_firmware_update_is_confirmed_as_destructive():
+    c = _controller()
+    shown = answer(c, "no")
+    c.system.runTool("firmware_update")
+    assert shown[-1].destructive and "BIOS/UEFI" in shown[-1].text

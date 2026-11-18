@@ -17,6 +17,10 @@ INTERVALS = [{"hours": 12, "label": "Every 12 Hours"}, {"hours": 24, "label": "D
              {"hours": 72, "label": "Every 3 Days"}, {"hours": 168, "label": "Weekly"}]
 
 
+def _patterns_text(n: int) -> str:
+    return f"{n} pattern{'s' if n != 1 else ''} count as major."
+
+
 class SettingsController(StateObject):
     changed = pyqtSignal()
     _defaults = {
@@ -60,7 +64,7 @@ class SettingsController(StateObject):
         last = settings.get_last_check()
         self._set(
             heldBack=", ".join(settings.held_back_patterns),
-            heldBackMessage=f"{len(settings.held_back_patterns)} pattern(s) count as major.",
+            heldBackMessage=_patterns_text(len(settings.held_back_patterns)),
             remindersEnabled=settings.reminders_enabled,
             securityOnly=settings.security_only,
             notifyFlatpak=settings.notify_flatpak,
@@ -90,7 +94,7 @@ class SettingsController(StateObject):
             valid = list(DEFAULT_HELD_BACK_PATTERNS)
             message = "Reset to the defaults."
         else:
-            message = f"Saved. {len(valid)} pattern(s) count as major."
+            message = "Saved. " + _patterns_text(len(valid))
         changed = valid != self.app.settings.held_back_patterns
         self.app.settings.held_back_patterns = valid
         self.app.updates.set_held_back_patterns(valid)
@@ -239,12 +243,13 @@ class SettingsController(StateObject):
             return
         if scope == "full":
             title = "Passwordless for All DNF Operations?"
-            text = ("This removes every password prompt, including installs, "
-                    "removals and repo changes. Any program running as you could "
-                    "then change system packages without asking.\n\n"
-                    "Only do this on a single-user desktop where you accept the "
-                    "tradeoff. Updates Only is the safer choice.\n\n"
-                    "You'll authenticate once now to install the rule.")
+            text = ("This removes every password prompt for dnf, including "
+                    "installs, removals and repo changes. Any program running as "
+                    "you could then install any package file as root, which is "
+                    "the same as full administrator access.\n\n"
+                    "Only do this on a single-user computer where you accept "
+                    "that. Updates Only is the safer choice.\n\n"
+                    "You'll authenticate once now to save the rule.")
             destructive = True
         else:
             title = "Turn On Passwordless Updates?"
@@ -252,7 +257,10 @@ class SettingsController(StateObject):
                     "without a password\n"
                     "• Installs, removals, repo changes and firmware updates still "
                     "ask\n\n"
-                    "Installs a validated per-user sudoers file "
+                    "Any program running as you can then run those three update "
+                    "commands too. They only install updates from your enabled "
+                    "repositories.\n\n"
+                    "Saves a checked rule for your account "
                     "(/etc/sudoers.d/90-dnf-gui). You'll authenticate once now.")
             destructive = False
 
@@ -343,11 +351,25 @@ class SettingsController(StateObject):
                 subprocess.run(manager.build_kill_notifier_command(), timeout=5)
             except Exception:
                 pass
-            self.app.prompts.inform(
-                "This App Handles Updates",
-                "Discover no longer checks or notifies for your user. Use the "
-                "Updates page and reminders in this app instead. You can restore "
-                "Discover anytime from Settings.")
+            if self.app.settings.reminders_enabled:
+                self.app.prompts.inform(
+                    "This App Handles Updates",
+                    "Discover no longer checks or notifies for your user; this "
+                    "app's reminders tell you when updates are waiting. You can "
+                    "let Discover check again anytime from Settings.")
+            else:
+                # Otherwise nothing would tell the user about updates anymore.
+                settings = self.app.settings
+                self.app.prompts.confirm(
+                    "Turn On Update Reminders?",
+                    "Discover no longer checks or notifies for your user, and this "
+                    "app's reminders are off, so nothing would tell you when "
+                    "updates (including security fixes) are waiting.\n\n"
+                    "Turn on reminders? The app checks once a day in the "
+                    "background and sends a notification when updates are waiting.",
+                    lambda: self.saveReminders(True, settings.security_only,
+                                               settings.notify_flatpak, 24),
+                    confirm_label="Turn On Reminders", cancel_label="Not Now")
             if cancel_scheduled:
                 self.app.runner.run(manager.build_cancel_restart_update_command(),
                                     "Cancelling Discover's restart update")
@@ -370,7 +392,7 @@ class SettingsController(StateObject):
             "Use This App for Updates?",
             "Turn off Discover's automatic update checks for your user?\n\n"
             "• Stops Discover's background checker (no password needed, reversible)\n"
-            "• Silences Discover popups and restart-time updates\n"
+            "• Silences Discover's update notifications\n"
             "• DNF Package Manager becomes your updater\n\n"
             "Discover itself stays installed, and you can still open it.",
             confirmed, confirm_label="Use This App")
@@ -403,7 +425,7 @@ class SettingsController(StateObject):
         manager = self.app.discover_manager
         self.app.prompts.confirm(
             "Turn Off Discover Update Checks for All Users?",
-            "This runs as root (pkexec) and affects every account on this "
+            "This needs administrator permission and affects every account on this "
             "computer:\n\n"
             "• Stops Discover's background update checker for all users\n"
             "• Turns off Discover's update notifications by default\n"

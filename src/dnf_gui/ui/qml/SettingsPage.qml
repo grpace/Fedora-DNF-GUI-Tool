@@ -160,6 +160,8 @@ FormCard.FormCardPage {
     FormCard.FormCard {
         FormCard.AbstractFormDelegate {
             background: null
+            focusPolicy: Qt.NoFocus
+            Accessible.name: "Passwordless updates: " + page.s.passwordlessTitle + ". " + page.s.passwordlessText
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Icon {
@@ -203,8 +205,8 @@ FormCard.FormCardPage {
             id: scopeBox
             text: "Allow without a password"
             description: scopeBox.currentValue === "full"
-                         ? "Every dnf command, including installs and removals. Any program running as you could change system packages."
-                         : "Only Upgrade All, Security Only and Update Without Major. Installs, removals and repo changes still ask."
+                         ? "Every dnf command, including installs and removals. Any program running as you could install any package file as root: the same as full administrator access."
+                         : "Only Upgrade All, Security Only and Update Without Major (any program running as you could run those too). Installs, removals and repo changes still ask."
             model: [{ key: "updates", label: "Updates Only (Recommended)" },
                     { key: "full", label: "All DNF Operations" }]
             textRole: "label"
@@ -214,7 +216,7 @@ FormCard.FormCardPage {
         FormCard.FormDelegateSeparator {}
         FormCard.FormButtonDelegate {
             text: page.s.passwordlessLive === "off" ? "Turn On…" : "Turn On Again…"
-            description: "Installs a checked per-user sudoers rule. You authenticate once."
+            description: "Saves a checked permission rule for your account. You authenticate once."
             icon.name: "security-high"
             enabled: !App.Runner.busy
             onClicked: page.s.enablePasswordless(scopeBox.currentValue)
@@ -234,6 +236,8 @@ FormCard.FormCardPage {
     FormCard.FormCard {
         FormCard.AbstractFormDelegate {
             background: null
+            focusPolicy: Qt.NoFocus
+            Accessible.name: page.s.discoverTitle + ". " + page.s.discoverText
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing
                 Kirigami.Icon {

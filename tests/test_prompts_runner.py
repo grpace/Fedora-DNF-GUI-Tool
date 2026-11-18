@@ -72,9 +72,9 @@ def test_prompt_shown_while_another_is_open_waits_its_turn():
 
 def test_parse_dnf5_and_dnf4_progress_lines():
     assert parse_step("[ 3/12] firefox-0:146.0.1-1.fc45.x86_64   100% |  52.3 MiB/s |  68.2 MiB |  00m01s") \
-        == ("firefox-0:146.0.1-1.fc45.x86_64", 3, 12)
+        == ("firefox 146.0.1-1.fc45", 3, 12)
     assert parse_step("  Upgrading        : kernel-core-7.2.8-300.fc45.x86_64    4/20") \
-        == ("Upgrading kernel-core-7.2.8-300.fc45.x86_64", 4, 20)
+        == ("Upgrading kernel-core 7.2.8-300.fc45", 4, 20)
     assert parse_step("Updating and loading repositories:") is None
     assert parse_step("[0/0]") is None
 

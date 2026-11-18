@@ -9,9 +9,10 @@ Kirigami.ScrollablePage {
     id: page
 
     readonly property var u: App.Updates
+    // The main button's mode: the favorite, or what can run when it can't.
     readonly property var favoriteMode: {
         for (const m of u.modes)
-            if (m.key === u.favorite)
+            if (m.key === u.mainMode)
                 return m;
         return u.modes.length ? u.modes[0] : ({});
     }
@@ -113,7 +114,7 @@ Kirigami.ScrollablePage {
             text: section
             QQC2.Label {
                 text: section === "Security Fixes" ? "Included in Security Only"
-                    : section === "Major Updates" ? "Update Without Major skips these"
+                    : section === "Major Updates" ? "Kernel, drivers and firmware · Update Without Major skips these"
                     : ""
                 visible: text !== "" && !root.compact
                 font: Kirigami.Theme.smallFont
@@ -135,8 +136,10 @@ Kirigami.ScrollablePage {
             Banner {
                 visible: page.u.rebootRequired
                 type: Kirigami.MessageType.Warning
-                title: "Restart to finish updating"
-                body: "A new kernel or core library was installed. It's used after you restart."
+                title: page.u.rebootCertain ? "Restart to finish updating" : "A restart may be needed"
+                body: page.u.rebootCertain
+                      ? "Core system updates were installed. You can keep working; they take effect after you restart."
+                      : "The app couldn't check whether the last update needs a restart. Restarting is the safe choice."
                 actions: [
                     Kirigami.Action { text: "Restart Now…"; icon.name: "system-reboot"; onTriggered: page.u.reboot() },
                     Kirigami.Action { text: "Later"; onTriggered: page.u.dismissReboot() }
@@ -188,10 +191,9 @@ Kirigami.ScrollablePage {
                 body: page.u.blocked.text || ""
                 actions: [
                     Kirigami.Action {
-                        text: "Force Install…"
-                        tooltip: page.u.blocked.forceTooltip || ""
-                        enabled: !page.busy
-                        onTriggered: page.u.forceSecurity()
+                        text: "Details…"
+                        icon.name: "documentinfo"
+                        onTriggered: page.u.explainBlocked()
                     }
                 ]
             }
@@ -235,6 +237,7 @@ Kirigami.ScrollablePage {
                                            : modelData.label + " (" + modelData.count + ")"
                         onClicked: page.u.filtered.category = modelData.key
                         Accessible.role: Accessible.RadioButton
+                        Accessible.name: modelData.label + ", " + modelData.count
                     }
                 }
                 }

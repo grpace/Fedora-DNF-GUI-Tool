@@ -6,12 +6,13 @@ Use this checklist when preparing a new release of DNF Package Manager.
 
 - [ ] Run the tests: `QT_QPA_PLATFORM=offscreen pytest`
 - [ ] Lint: `ruff check src tests scripts`
-- [ ] Contrast check: `PYTHONPATH=src python3 scripts/check_contrast.py`
+- [ ] Contrast check: `python3 scripts/check_contrast.py`
+- [ ] Render every page with no QML warnings: `PYTHONPATH=src python3 scripts/screenshots.py /tmp/shots --demo --strict`
 - [ ] Launch the app (`PYTHONPATH=src python3 -m dnf_gui`) and click through every page in light and dark mode
 - [ ] Update the version in every location below
 - [ ] Move the `CHANGELOG.md` entries under a dated `## [X.Y.Z]` heading
 - [ ] Validate metadata: `appstreamcli validate --no-net packaging/dnf-gui.metainfo.xml` and `desktop-file-validate assets/dnf-gui.desktop`
-- [ ] Refresh `docs/screenshots/` if the UI changed (`updates-dark.png`, `packages-search-light.png`, `settings-discover-dark.png`) and re-read `docs/switching-from-discover.md` against the Settings page
+- [ ] Refresh `docs/screenshots/` if the UI changed (`updates-dark.png`, `updates-details-light.png`, `settings-discover-dark.png`; render them with `scripts/screenshots.py --demo`) and re-read `docs/switching-from-discover.md` against the Settings page
 - [ ] Commit: `Release vX.Y.Z`
 
 ## Version Locations

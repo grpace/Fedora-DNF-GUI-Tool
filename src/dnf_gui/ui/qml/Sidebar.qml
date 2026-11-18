@@ -11,7 +11,7 @@ Kirigami.GlobalDrawer {
     modal: false
     collapsible: true
     showHeaderWhenCollapsed: true
-    width: collapsed ? implicitWidth : Kirigami.Units.gridUnit * 13
+    preferredSize: Kirigami.Units.gridUnit * 13  // expanded width; collapsing animates
     // Keep the nav entries (icons, badge dot, tooltips) as a rail.
     showContentWhenCollapsed: true
     padding: 0

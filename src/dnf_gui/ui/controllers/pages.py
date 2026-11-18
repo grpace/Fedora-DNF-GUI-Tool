@@ -252,7 +252,7 @@ class FlatpakController(_Loader):
         generation = self._search_generation
         if len(query) < 2:
             self._results.set_rows([])
-            self._set(searching=False, searchQuery=query, searchDone=False)
+            self._set(searching=False, searchQuery=query, searchDone=False, searchError="")
             return
         self._set(searching=True, searchQuery=query, searchDone=False, searchError="")
         worker = FlatpakSearchWorker(self.app.flatpak_backend, query, parent=self)
@@ -273,7 +273,7 @@ class FlatpakController(_Loader):
         installed = {r["appId"] for r in self._installed.rows()}
         self._results.set_rows(
             [_flatpak_row(a, a.application_id in installed) for a in apps or []])
-        self._set(searching=False, searchDone=True)
+        self._set(searching=False, searchDone=True, searchError="")
 
     @pyqtSlot(str, str)
     def install(self, app_id: str, remotes: str = "") -> None:

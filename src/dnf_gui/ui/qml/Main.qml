@@ -65,6 +65,7 @@ Kirigami.ApplicationWindow {
     Component {
         id: moveHandle
         Item {
+            objectName: "moveHandle"
             anchors.fill: parent
             z: -1
             DragHandler {
@@ -235,6 +236,7 @@ Kirigami.ApplicationWindow {
     }
 
     globalDrawer: Sidebar {
+        objectName: "sidebar"
         autoCollapsed: root.compact
     }
 
@@ -242,6 +244,7 @@ Kirigami.ApplicationWindow {
     // lays out under the sidebar).
     ActivityBar {
         id: activity
+        objectName: "activityBar"
         parent: root.pageStack.parent
         z: 10  // the open log floats over the page
         visible: App.activityVisible
@@ -263,6 +266,7 @@ Kirigami.ApplicationWindow {
 
         WindowControls {
             id: windowControls
+            objectName: "windowControls"
             z: 1000
             anchors.top: parent.top
             anchors.right: parent.right
@@ -281,6 +285,7 @@ Kirigami.ApplicationWindow {
             ]
             delegate: Item {
                 required property var modelData
+                objectName: "resizeGrip"
                 readonly property int edges: modelData.e
                 readonly property real grip: Kirigami.Units.smallSpacing * 1.5
                 readonly property bool corner: (edges & (Qt.TopEdge | Qt.BottomEdge))
@@ -303,6 +308,7 @@ Kirigami.ApplicationWindow {
 
         // A hairline edge, since there's no system frame or border.
         Rectangle {
+            objectName: "windowEdge"
             z: 999
             anchors.fill: parent
             visible: !windowControls.maximized

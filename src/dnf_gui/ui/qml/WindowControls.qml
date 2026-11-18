@@ -52,16 +52,19 @@ Row {
     }
 
     WindowButton {
+        objectName: "minimizeButton"
         text: "Minimize"
         iconName: "window-minimize"
         onClicked: root.showMinimized()
     }
     WindowButton {
+        objectName: "maximizeButton"
         text: controls.maximized ? "Restore" : "Maximize"
         iconName: controls.maximized ? "window-restore" : "window-maximize"
         onClicked: root.toggleMaximized()
     }
     WindowButton {
+        objectName: "closeButton"
         text: "Close"
         iconName: "window-close"
         danger: true

@@ -13,7 +13,7 @@ Item {
     property string appId          // Flatpak application id
     property bool runtime: false   // Flatpak runtime: a puzzle-piece glyph
 
-    // White text on each passes WCAG AA (scripts/check_contrast.py, TILE_COLORS).
+    // White text on each passes WCAG AA (checked by tests/test_icons.py).
     readonly property var tileColors: ["#2563eb", "#4f46e5", "#7c3aed", "#be185d",
                                        "#c2410c", "#0f766e", "#15803d", "#0e7490"]
     readonly property var info: App.appIconsReady ? App.appIcon(name) : ({})
@@ -41,6 +41,7 @@ Item {
 
     Kirigami.Icon {
         id: image
+        objectName: "appIconImage"
         anchors.fill: parent
         source: tile.runtime ? root.ico("application-x-sharedlib", enabled, color)
               : tile.hasThemeIcon ? tile.themeName
@@ -50,6 +51,7 @@ Item {
     }
 
     Rectangle {
+        objectName: "letterTile"
         anchors.fill: parent
         anchors.margins: parent.width * 0.06
         visible: !image.visible

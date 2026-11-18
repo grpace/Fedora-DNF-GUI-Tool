@@ -1,11 +1,16 @@
-"""Tests for the DNF backend module."""
+"""The DNF backend: parsing dnf5 and dnf4 output, and the argv it builds.
 
-import unittest
+Reboot detection is in test_reboot.py; the upgrade commands the
+passwordless rule lists are in test_sudoers_sync.py.
+"""
+
 import subprocess
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
 
-from dnf_gui.core.package import Package, PackageStatus
 from dnf_gui.core.dnf_backend import DNFBackend
+from dnf_gui.core.package import Package, PackageStatus
+from tests.conftest import make_backend
 
 
 class TestPackageModel(unittest.TestCase):
@@ -46,50 +51,45 @@ class TestPackageModel(unittest.TestCase):
         self.assertEqual(pkg.full_version, "1.0")
 
 
-class TestDNFBackend(unittest.TestCase):
-    """Tests for the DNF backend."""
-
+class TestListInstalled(unittest.TestCase):
     def setUp(self):
-        self.backend = DNFBackend()
+        self.backend = make_backend()
 
     @patch("dnf_gui.core.dnf_backend.subprocess.run")
-    def test_list_installed_parses_output(self, mock_run):
-        """Test that list_installed correctly parses DNF output."""
+    def test_parses_output(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout="firefox.x86_64  125.0-1.fc43  @updates\nbash.x86_64  5.2.26-1.fc43  @anaconda\n"
         )
-        
         packages = self.backend.list_installed()
-        
-        self.assertEqual(len(packages), 2)
-        self.assertEqual(packages[0].name, "firefox")
-        self.assertEqual(packages[1].name, "bash")
+        self.assertEqual([p.name for p in packages], ["firefox", "bash"])
 
     @patch("dnf_gui.core.dnf_backend.subprocess.run")
-    def test_list_installed_handles_error(self, mock_run):
-        """Test that list_installed returns empty list on failure."""
+    def test_failure_is_an_empty_list(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stdout="")
-        
-        packages = self.backend.list_installed()
-        
-        self.assertEqual(packages, [])
+        self.assertEqual(self.backend.list_installed(), [])
 
-    def test_build_upgrade_command(self):
-        """Test upgrade command construction."""
-        cmd = self.backend.build_upgrade_command()
-        self.assertIn("pkexec", cmd)
-        self.assertIn("upgrade", cmd)
-        self.assertIn("-y", cmd)
-        self.assertIn("--refresh", cmd)
 
-    def test_build_remove_command(self):
-        """Test remove command construction."""
-        cmd = self.backend.build_remove_command("firefox")
-        self.assertIn("pkexec", cmd)
-        self.assertIn("remove", cmd)
-        self.assertIn("firefox", cmd)
-        self.assertIn("-y", cmd)
+class TestCommands(unittest.TestCase):
+    def test_package_commands_are_exact_argv(self):
+        backend = make_backend()
+        self.assertEqual(backend.build_install_command("htop"),
+                         ["pkexec", "/usr/bin/dnf5", "install", "-y", "htop"])
+        self.assertEqual(backend.build_remove_command("htop"),
+                         ["pkexec", "/usr/bin/dnf5", "remove", "-y", "htop"])
+        # Upgrading one package uses `upgrade`: `install` may not upgrade.
+        self.assertEqual(backend.build_upgrade_package_command("firefox"),
+                         ["pkexec", "/usr/bin/dnf5", "upgrade", "-y", "firefox"])
+        self.assertEqual(backend.build_autoremove_command(),
+                         ["pkexec", "/usr/bin/dnf5", "autoremove", "-y"])
+
+    def test_firmware_check_treats_no_updates_as_success(self):
+        """fwupdmgr exits 2 for "no updates"; real errors still fail."""
+        script = make_backend().build_firmware_update_check_command()[2]
+        for fw_rc, expected in ((0, 0), (1, 1), (2, 0), (3, 3)):
+            probe = script.replace("fwupdmgr get-updates", f"(exit {fw_rc})")
+            self.assertEqual(subprocess.run(["bash", "-c", probe]).returncode,
+                             expected, fw_rc)
 
 
 # Real output captured from dnf5 5.x on Fedora 45 (`dnf5 -C list --installed -q`).
@@ -212,7 +212,7 @@ Description  : The GNU Hello program produces a familiar, friendly greeting.
 
 class TestPackageListHeaders(unittest.TestCase):
     def setUp(self):
-        self.backend = DNFBackend()
+        self.backend = make_backend()
 
     def test_dnf5_installed_header_skipped(self):
         pkgs = self.backend._parse_package_list(
@@ -239,7 +239,7 @@ class TestPackageListHeaders(unittest.TestCase):
 
 class TestPackageInfoParsing(unittest.TestCase):
     def setUp(self):
-        self.backend = DNFBackend()
+        self.backend = make_backend()
 
     def test_dnf5_installed(self):
         pkg = self.backend._parse_package_info(DNF5_INFO_INSTALLED)
@@ -287,64 +287,9 @@ class TestPackageInfoParsing(unittest.TestCase):
         self.assertIsNone(self.backend._parse_package_info(""))
 
 
-class TestRebootRequiredDnf5(unittest.TestCase):
-    def setUp(self):
-        self.backend = DNFBackend()
-        self.backend._dnf_path = "/usr/bin/dnf5"
-
-    def _run(self, dnf_rc=None, legacy_rc=None, dnf_exc=None):
-        calls = []
-
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            self.assertIsInstance(cmd, list)
-            self.assertNotIn("shell", kwargs)
-            self.assertIn("timeout", kwargs)
-            if cmd[0] == "/usr/bin/dnf5":
-                if dnf_exc:
-                    raise dnf_exc
-                return MagicMock(returncode=dnf_rc)
-            if cmd[0] == "needs-restarting":
-                if legacy_rc is None:
-                    raise FileNotFoundError()
-                return MagicMock(returncode=legacy_rc)
-            if cmd[0] == "rpm":  # kernel check: running kernel is newest
-                return MagicMock(returncode=0, stdout="1 6.18.5-200.fc45.x86_64\n")
-            raise AssertionError(f"unexpected {cmd}")
-
-        with patch("dnf_gui.core.dnf_backend.subprocess.run", side_effect=fake_run), \
-                patch("dnf_gui.core.dnf_backend.os.path.exists", return_value=False), \
-                patch("dnf_gui.core.dnf_backend.platform.release",
-                      return_value="6.18.5-200.fc45.x86_64"):
-            return self.backend.check_reboot() is True, calls
-
-    def test_dnf5_builtin_tried_first(self):
-        result, calls = self._run(dnf_rc=1)
-        self.assertTrue(result)
-        self.assertEqual(calls[0],
-                         ["/usr/bin/dnf5", "-C", "-q", "needs-restarting", "-r"])
-        self.assertEqual(len(calls), 1)
-
-    def test_dnf5_builtin_says_no_reboot(self):
-        result, calls = self._run(dnf_rc=0)
-        self.assertFalse(result)
-        self.assertEqual(len(calls), 1)
-
-    def test_inconclusive_falls_through_to_legacy_binary(self):
-        result, calls = self._run(dnf_rc=2, legacy_rc=1)
-        self.assertTrue(result)
-        self.assertEqual(calls[1], ["needs-restarting", "-r"])
-
-    def test_timeout_falls_through_to_kernel_check(self):
-        result, calls = self._run(
-            dnf_exc=subprocess.TimeoutExpired("dnf5", 60))
-        self.assertFalse(result)
-        self.assertEqual(calls[-1][0], "rpm")
-
-
 class TestHistoryOrder(unittest.TestCase):
     def setUp(self):
-        self.backend = DNFBackend()
+        self.backend = make_backend()
 
     def _history(self, output, **kwargs):
         with patch.object(self.backend, "_run", return_value=output) as run:
@@ -388,7 +333,7 @@ class TestHistoryOrder(unittest.TestCase):
 
 class TestRepoToggleCommands(unittest.TestCase):
     def setUp(self):
-        self.backend = DNFBackend()
+        self.backend = make_backend()
 
     def _with_dnf(self, path, real):
         self.backend._dnf_path = path
@@ -423,5 +368,164 @@ class TestRepoToggleCommands(unittest.TestCase):
                  "rpmfusion-free"])
 
 
-if __name__ == "__main__":
-    unittest.main()
+
+class TestRepoList(unittest.TestCase):
+    def test_parses_ids_names_and_status(self):
+        sample_output = "\n".join([
+            "repo id                                            repo name                                                  status",
+            "brave-browser                                      Brave Browser                                              enabled",
+            "copr:copr.fedorainfracloud.org:avengemedia:dms     Copr repo for dms owned by avengemedia                     disabled",
+            "fedora                                             Fedora 43 - x86_64                                         enabled",
+        ])
+        backend = make_backend()
+        with patch.object(backend, "_run", return_value=sample_output):
+            repos = backend.list_repos(show_all=True)
+        self.assertEqual(len(repos), 3)
+        self.assertEqual((repos[0]["id"], repos[0]["name"], repos[0]["enabled"]),
+                         ("brave-browser", "Brave Browser", True))
+        self.assertEqual(repos[1]["id"], "copr:copr.fedorainfracloud.org:avengemedia:dms")
+        self.assertEqual(repos[1]["name"], "Copr repo for dms owned by avengemedia")
+        self.assertFalse(repos[1]["enabled"])
+
+
+class TestHistoryParsing(unittest.TestCase):
+    def test_packagekit_transactions_have_a_name(self):
+        sample_output = "\n".join([
+            "    ID Command line                         Date and time       Action(s) Altered",
+            "   242 /usr/bin/dnf5 upgrade -y --refresh   2026-09-09 13:03:56               126",
+            "   238                                      2026-09-05 05:51:10                 2",
+        ])
+        backend = make_backend()
+        with patch.object(backend, "_run", return_value=sample_output):
+            txns = backend.history()
+        self.assertEqual([(t["id"], t["altered"]) for t in txns], [("242", "126"), ("238", "2")])
+        self.assertEqual(txns[1]["command"], "System / PackageKit")
+
+
+DNF5_SEARCH = (
+    "Matched fields: name (exact)\n"
+    " htop.x86_64\tInteractive process viewer\n"
+    "Matched fields: name, summary\n"
+    " neohtop-debuginfo.x86_64\tDebug information for package neohtop\n"
+    " neohtop.aarch64\tSystem monitoring on steroids\n"
+    " neohtop.x86_64\tSystem monitoring on steroids\n"
+    " neohtop.i686\tSystem monitoring on steroids\n"
+)
+DNF4_SEARCH = (
+    "=== Name Exactly Matched: htop ===\n"
+    "htop.x86_64 : Interactive process viewer\n"
+    "=== Name & Summary Matched: htop ===\n"
+    "pcp-htop.x86_64 : Performance Co-Pilot htop\n"
+)
+
+
+class TestRepoSearch(unittest.TestCase):
+    def _search(self, output, installed=None):
+        backend = make_backend()
+
+        def fake_run(cmd, allow_nonzero=False):
+            if "repoquery" in cmd:
+                return "neohtop 1.2.0-1.fc44 updates\npcp-htop 6.3-1.fc44 fedora\n"
+            return output
+
+        with patch.object(DNFBackend, "_run", side_effect=fake_run), \
+             patch.object(DNFBackend, "_installed_versions",
+                          return_value=installed or {}), \
+             patch("dnf_gui.core.dnf_backend.platform.machine", return_value="x86_64"):
+            return backend.search("htop")
+
+    def test_dnf5_keeps_order_native_arch_and_skips_debug(self):
+        results = self._search(DNF5_SEARCH, {"htop": "3.4.1-3.fc44"})
+        self.assertEqual([(p.name, p.arch) for p in results],
+                         [("htop", "x86_64"), ("neohtop", "x86_64")])
+        self.assertEqual(results[0].status, PackageStatus.INSTALLED)
+        self.assertEqual(results[0].version, "3.4.1-3.fc44")
+        self.assertEqual(results[1].status, PackageStatus.AVAILABLE)
+        self.assertEqual(results[1].summary, "System monitoring on steroids")
+        self.assertEqual((results[1].version, results[1].repo), ("1.2.0-1.fc44", "updates"))
+
+    def test_dnf4_format(self):
+        results = self._search(DNF4_SEARCH)
+        self.assertEqual([p.name for p in results], ["htop", "pcp-htop"])
+
+    def test_rejects_short_and_option_like_queries(self):
+        backend = make_backend()
+        with patch.object(DNFBackend, "_run") as run:
+            self.assertEqual(backend.search("h"), [])
+            self.assertEqual(backend.search("--help"), [])
+        run.assert_not_called()
+
+
+class TestCheckUpdates(unittest.TestCase):
+    def test_installed_versions_newest_wins_and_missing_ignored(self):
+        out = ("kernel-core 7.2.5-200.fc44\nkernel-core 7.2.6-200.fc44\n"
+               "package nope is not installed\n")
+        with patch("dnf_gui.core.dnf_backend.subprocess.run",
+                   return_value=MagicMock(stdout=out)):
+            versions = make_backend()._installed_versions(["kernel-core", "nope"])
+        self.assertEqual(versions, {"kernel-core": "7.2.6-200.fc44"})
+
+    def test_fills_installed_version(self):
+        proc = MagicMock(returncode=100, stdout="firefox.x86_64 146.0-1.fc44 updates\n")
+        with patch("dnf_gui.core.dnf_backend.subprocess.run", return_value=proc), \
+             patch.object(DNFBackend, "_installed_versions",
+                          return_value={"firefox": "145.0-1.fc44"}):
+            info = make_backend().check_updates()
+        self.assertFalse(info.check_failed)
+        self.assertEqual(info.packages[0].installed_version, "145.0-1.fc44")
+
+    def test_dnf_error_exit_marks_check_failed(self):
+        with patch("dnf_gui.core.dnf_backend.subprocess.run",
+                   return_value=MagicMock(returncode=1, stdout="")):
+            self.assertTrue(make_backend().check_updates().check_failed)
+
+    def test_unneeded_packages_sorted_and_unique(self):
+        with patch.object(DNFBackend, "_run", return_value="b-1-1\na-2-1\nb-1-1\n"):
+            self.assertEqual(make_backend().unneeded_packages(), ["a-2-1", "b-1-1"])
+
+
+# stdout only: dnf5 prints its "Updating and loading repositories" to stderr.
+DNF5_REPOQUERY = (
+    "assimp 6.0.6-1.fc45 x86_64 2652538\n"
+    "criu 4.3.1-1.fc45 x86_64 685489\n"
+    "kernel-core 7.3.4-300.fc45 x86_64 22152541\n")
+
+
+class TestUpgradePreview(unittest.TestCase):
+    def _preview(self, output, **kwargs):
+        backend = make_backend()
+        seen = {}
+
+        def fake_run(cmd, allow_nonzero=False):
+            seen["cmd"] = cmd
+            return output
+        with patch.object(DNFBackend, "_run", side_effect=fake_run):
+            return backend.get_upgrade_preview(**kwargs), seen.get("cmd")
+
+    def test_parses_rows_and_sums_sizes(self):
+        preview, cmd = self._preview(DNF5_REPOQUERY)
+        # dnf5 doesn't end each package with a newline unless asked.
+        self.assertTrue(cmd[cmd.index("--queryformat") + 1].endswith("\n"))
+        self.assertEqual(preview.count, 3)
+        self.assertEqual(preview.total_bytes, 2652538 + 685489 + 22152541)
+        self.assertTrue(preview.sizes_known)
+        self.assertTrue(preview.has_preview)
+
+    def test_security_flag_passes_through(self):
+        _, cmd = self._preview("", security_only=True)
+        self.assertIn("--security", cmd)
+        self.assertIn("--upgrades", cmd)
+
+    def test_tolerates_garbage_and_unknown_sizes(self):
+        preview, _ = self._preview("Last metadata expiration check...\n"
+                                   "firefox 125.0-1.fc44 x86_64 %{downloadsize}\n"
+                                   "broken-line\n"
+                                   "bash 5.2-1.fc44 x86_64 1024\n")
+        self.assertEqual(preview.count, 2)  # firefox + bash counted
+        self.assertEqual(preview.total_bytes, 1024)
+        self.assertTrue(preview.sizes_known)
+
+    def test_empty_on_backend_failure(self):
+        preview, _ = self._preview(None)
+        self.assertFalse(preview.has_preview)
+        self.assertEqual((preview.count, preview.total_bytes), (0, 0))

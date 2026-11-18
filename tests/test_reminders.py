@@ -1,30 +1,25 @@
-"""Tests for update reminder settings, the background checker, and notification triggers."""
+"""Update reminders: what the background check finds and says, the
+systemd timer that runs it (or the login entry without systemd), the
+headless ``dnf-gui --check`` run, and Settings → Reminders.
 
-import gc
+Desktop notifications themselves are in test_notifications.py.
+"""
+
 import os
-import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import pytest
 
-from PyQt6.QtWidgets import QApplication
-
+from dnf_gui.core import security
 from dnf_gui.core.app_settings import (
     AppSettings, ReminderResult, perform_background_check,
 )
-from dnf_gui.core.security import SecuritySummary
 from dnf_gui.core.package import UpdateInfo
-
-_app = None
-
-
-def _ensure_app():
-    global _app
-    if _app is None:
-        _app = QApplication.instance() or QApplication([])
-    return _app
+from dnf_gui.core.security import SecuritySummary
+from tests.conftest import answer
+from tests.test_security import ADVISORY, FORCED, SECURITY_BLOCKED, _summary
 
 
 class TestReminderNotificationTriggers(unittest.TestCase):
@@ -118,12 +113,7 @@ class TestBackgroundCheckerLifecycle(unittest.TestCase):
     """The checker is a systemd timer that follows the reminder interval."""
 
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.config = Path(tmp.name)
-        env = patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp.name})
-        env.start()
-        self.addCleanup(env.stop)
+        self.config = Path(os.environ["XDG_CONFIG_HOME"])  # this test's own
         which = patch("dnf_gui.core.paths.find_system_binary", return_value="/usr/bin/dnf-gui")
         which.start()
         self.addCleanup(which.stop)
@@ -222,7 +212,6 @@ class TestHeadlessCheck(unittest.TestCase):
         AppSettings().set("reminders/enabled", True)
         AppSettings().set("reminders/interval_hours", 24)
         AppSettings().set("reminders/last_check", "")
-        self.addCleanup(AppSettings().set, "reminders/enabled", False)
 
     def _run(self, result=None, delivered=True, server=True, scheduled=False,
              wait=False, clicked=None):
@@ -364,169 +353,6 @@ class TestReminderText(unittest.TestCase):
         self.assertEqual(reminder_wait_seconds(168), 23 * 3600)
 
 
-class TestNotifier(unittest.TestCase):
-    """Clicks are routed to the page the notification names."""
-
-    def setUp(self):
-        _ensure_app()
-        from dnf_gui.core import notifications
-        self.notifications = notifications
-        self.notifier = notifications.Notifier()
-        self.notifier._pages[7] = "updates"
-        self.events = []
-        self.notifier.activated.connect(lambda p, t: self.events.append((p, t)))
-        self.notifier.closed.connect(lambda nid: self.events.append(nid))
-
-    def _signal(self, member, *args):
-        msg = MagicMock()
-        msg.member.return_value = member
-        msg.arguments.return_value = list(args)
-        self.notifier._on_signal(msg)
-
-    def test_body_click_opens_the_notifications_page(self):
-        self._signal("ActivationToken", 7, "token-1")
-        self._signal("ActionInvoked", 7, "default")
-        self.assertEqual(self.events, [("updates", "token-1")])
-
-    def test_button_names_its_page(self):
-        self._signal("ActionInvoked", 7, "terminal")
-        self.assertEqual(self.events, [("terminal", "")])
-
-    def test_ignores_other_apps_notifications(self):
-        self._signal("ActionInvoked", 99, "default")
-        self._signal("NotificationClosed", 99, 2)
-        self.assertEqual(self.events, [])
-
-    def test_closed(self):
-        self._signal("NotificationClosed", 7, 2)
-        self.assertEqual(self.events, [7])
-        self.assertNotIn(7, self.notifier._pages)
-
-    def test_default_action_comes_first(self):
-        n = self.notifications.Notification(
-            "T", actions=[("updates", "View Updates")])
-        self.assertEqual(n.action_list(),
-                         ["default", "Open", "updates", "View Updates"])
-
-    def test_falls_back_to_notify_send(self):
-        n = self.notifications.Notification("Title", "-Body")
-        with patch.object(self.notifications, "_notify_send", return_value=True):
-            self.assertEqual(self.notifier.send(n), self.notifications.UNTRACKED)
-        with patch.object(self.notifications, "_notify_send", return_value=False):
-            self.assertEqual(self.notifier.send(n), 0)
-        cmd = self.notifications.notify_send_command(n)
-        self.assertEqual(cmd[0], "notify-send")
-        self.assertIn("--icon=dnf-gui", cmd)
-        self.assertEqual(cmd[-3:], ["--", "Title", "-Body"])  # never read as options
-
-
-class TestLaunchApp(unittest.TestCase):
-    def test_service_starts_app_in_its_own_unit(self):
-        from dnf_gui.core import notifications
-        with patch.dict(os.environ, {"INVOCATION_ID": "abc"}), \
-                patch("dnf_gui.core.paths.find_system_binary", return_value="/usr/bin/dnf-gui"), \
-                patch("subprocess.run") as run, \
-                patch("subprocess.Popen") as popen:
-            run.return_value = MagicMock(returncode=0)
-            self.assertTrue(notifications.launch_app("updates", "tok"))
-        cmd = run.call_args.args[0]
-        self.assertEqual(cmd[:2], ["systemd-run", "--user"])
-        self.assertIn("--setenv=XDG_ACTIVATION_TOKEN=tok", cmd)
-        self.assertEqual(cmd[-3:], ["/usr/bin/dnf-gui", "--page", "updates"])
-        popen.assert_not_called()
-
-    def test_outside_systemd_spawns_directly(self):
-        from dnf_gui.core import notifications
-        env = {k: v for k, v in os.environ.items() if k != "INVOCATION_ID"}
-        with patch.dict(os.environ, env, clear=True), \
-                patch("dnf_gui.core.paths.find_system_binary", return_value="/usr/bin/dnf-gui"), \
-                patch("subprocess.Popen") as popen:
-            self.assertTrue(notifications.launch_app("updates"))
-        self.assertEqual(popen.call_args.args[0],
-                         ["/usr/bin/dnf-gui", "--page", "updates"])
-        self.assertTrue(popen.call_args.kwargs["start_new_session"])
-
-
-class TestPageArgument(unittest.TestCase):
-    def test_parses_page_and_ignores_qt_options(self):
-        from dnf_gui.app import _parse_args
-        args = _parse_args(["-platform", "offscreen", "--page", "terminal"])
-        self.assertEqual(args.page, "terminal")
-        self.assertFalse(args.check)
-
-    def test_desktop_file_name_has_no_suffix(self):
-        from pathlib import Path
-        from dnf_gui.app import DESKTOP_FILE_NAME
-        self.assertFalse(DESKTOP_FILE_NAME.endswith(".desktop"))
-        root = Path(__file__).resolve().parent.parent
-        self.assertTrue((root / "assets" / f"{DESKTOP_FILE_NAME}.desktop").exists())
-
-    def test_every_page_choice_exists_in_the_window(self):
-        from dnf_gui.app import PAGE_CHOICES
-        from dnf_gui.ui.controllers.app_controller import PAGES
-        self.assertEqual(set(PAGE_CHOICES), set(PAGES))
-
-    def test_activate_request_switches_page_and_rescans_updates(self):
-        from dnf_gui.ui.controllers.app_controller import AppController
-        gc.collect()  # see test_audit_fixes._controller
-        app = AppController(initial_page="terminal")
-        self.assertTrue(app.activityExpanded)  # "terminal" opens the output
-        app.updates._cache = {"dnf": None}
-        with patch.object(app.updates, "check") as check:
-            app.activate("updates", "tok")
-        self.assertEqual(app.currentPage, "updates")
-        check.assert_called_once()  # the cached scan predates the reminder
-        self.assertEqual(os.environ.pop("XDG_ACTIVATION_TOKEN", ""), "tok")
-
-    def test_activate_other_page_switches_to_it(self):
-        from dnf_gui.ui.controllers.app_controller import AppController
-        gc.collect()  # see test_audit_fixes._controller
-        app = AppController()
-        with patch.object(app, "refreshCurrent"):
-            app.activate("settings")
-        self.assertEqual(app.currentPage, "settings")
-        app.activate("terminal")
-        self.assertTrue(app.activityExpanded)
-        self.assertEqual(app.currentPage, "settings")
-
-
-class TestSingleInstance(unittest.TestCase):
-    def test_parse_request_keeps_only_known_strings(self):
-        from dnf_gui.core.single_instance import parse_request
-        self.assertEqual(parse_request(b'{"page": "updates", "token": "t", "x": 1}'),
-                         {"page": "updates", "token": "t"})
-        self.assertIsNone(parse_request(b'{"page": ["rm"]}'))
-        self.assertIsNone(parse_request(b"not json"))
-
-    def test_second_launch_reaches_the_first(self):
-        from PyQt6.QtCore import QCoreApplication, QThread
-        from dnf_gui.core import single_instance
-        gc.collect()  # see test_audit_fixes._controller (this pumps events)
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        with patch.dict(os.environ, {"XDG_RUNTIME_DIR": tmp.name}):
-            self.assertFalse(single_instance.forward_to_running({"page": "x"}, 200))
-            server = single_instance.InstanceServer()
-            self.assertTrue(server.listen())
-            got = []
-            server.request_received.connect(got.append)
-
-            class Client(QThread):
-                ok = None
-
-                def run(self):
-                    self.ok = single_instance.forward_to_running(
-                        {"page": "updates", "token": "t"}, 3000)
-
-            client = Client()
-            client.start()
-            while not client.isFinished():
-                QCoreApplication.processEvents()
-            client.wait()
-        self.assertTrue(client.ok)
-        self.assertEqual(got, [{"page": "updates", "token": "t"}])
-
-
 class TestWaitForDesktop(unittest.TestCase):
     def test_waits_for_notification_server_then_network(self):
         from dnf_gui.core import app_settings
@@ -561,64 +387,56 @@ class TestFailedCheckThrottle(unittest.TestCase):
         self.assertTrue(res.check_failed)
         settings.set_last_check.assert_not_called()
 
-    @patch("subprocess.run")
-    def test_dnf_error_exit_marks_check_failed(self, mock_run):
-        from dnf_gui.core.dnf_backend import DNFBackend
-        mock_run.return_value = MagicMock(returncode=1, stdout="")
-        self.assertTrue(DNFBackend().check_updates().check_failed)
+    @patch("dnf_gui.core.dnf_backend.DNFBackend.check_updates",
+           return_value=UpdateInfo(total_updates=3))
+    @patch("dnf_gui.core.flatpak_backend.FlatpakBackend.available", False)
+    @patch("dnf_gui.core.security.get_security_summary")
+    def test_security_only_reminder_quiet_when_all_are_waiting(self, mock_sec, _dnf):
+        mock_sec.return_value = _summary((ADVISORY, "important", {"libheif"}))
+        settings = AppSettings()
+        settings.security_only = True
+        settings.notify_flatpak = False
+        with patch.object(security, "_dry_run", side_effect=[SECURITY_BLOCKED, FORCED]):
+            res = perform_background_check(settings)
+        self.assertEqual(res.security_total, 0)
+        self.assertFalse(res.security_urgent)
+        self.assertFalse(res.should_notify)
 
 
-class TestReminderSettingsController(unittest.TestCase):
+class TestSettingsReminders:
     """Settings → Reminders writes the settings and schedules the checker."""
 
-    def setUp(self):
-        from dnf_gui.ui.controllers.app_controller import AppController
-        gc.collect()  # see test_audit_fixes._controller
-        self.app = AppController()
-        settings = self.app.settings
-        saved = (settings.reminders_enabled, settings.security_only,
-                 settings.notify_flatpak, settings.check_interval_hours)
-
-        def restore():
-            (settings.reminders_enabled, settings.security_only,
-             settings.notify_flatpak, settings.check_interval_hours) = saved
-        self.addCleanup(restore)
+    @pytest.fixture(autouse=True)
+    def quiet_status(self, app):
         # show() re-reads status; keep it off the real system (sudo -n -l).
-        for p in (patch.object(self.app.settings_controller, "load_passwordless_status"),
-                  patch.object(self.app.settings_controller, "load_discover_status")):
-            p.start()
-            self.addCleanup(p.stop)
+        with patch.object(app.settings_controller, "load_passwordless_status"), \
+                patch.object(app.settings_controller, "load_discover_status"):
+            yield
 
-    def test_save_writes_settings_and_installs_checker(self):
-        with patch.object(AppSettings, "set_checker_installed",
-                          return_value=True) as install:
-            self.app.settings_controller.saveReminders(True, True, False, 72)
-        settings = self.app.settings
-        self.assertTrue(settings.reminders_enabled)
-        self.assertTrue(settings.security_only)
-        self.assertFalse(settings.notify_flatpak)
-        self.assertEqual(settings.check_interval_hours, 72)
+    def test_save_writes_settings_and_installs_checker(self, app):
+        with patch.object(AppSettings, "set_checker_installed", return_value=True) as install:
+            app.settings_controller.saveReminders(True, True, False, 72)
+        settings = app.settings
+        assert (settings.reminders_enabled, settings.security_only,
+                settings.notify_flatpak, settings.check_interval_hours) == (True, True, False, 72)
         install.assert_called_once_with(True, 72)
-        self.assertEqual(self.app.prompts.notices[-1],
-                         "Reminders saved. Background checks are on.")
+        assert app.prompts.notices[-1] == "Reminders saved. Background checks are on."
 
-    def test_unknown_interval_is_ignored(self):
-        self.app.settings.check_interval_hours = 24
+    def test_unknown_interval_is_ignored(self, app):
+        app.settings.check_interval_hours = 24
         with patch.object(AppSettings, "set_checker_installed", return_value=True):
-            self.app.settings_controller.saveReminders(True, False, True, 5)
-        self.assertEqual(self.app.settings.check_interval_hours, 24)
+            app.settings_controller.saveReminders(True, False, True, 5)
+        assert app.settings.check_interval_hours == 24
 
-    def test_turning_off_removes_checker(self):
-        with patch.object(AppSettings, "set_checker_installed",
-                          return_value=True) as install:
-            self.app.settings_controller.saveReminders(False, False, True, 24)
-        self.assertFalse(self.app.settings.reminders_enabled)
+    def test_turning_off_removes_checker(self, app):
+        with patch.object(AppSettings, "set_checker_installed", return_value=True) as install:
+            app.settings_controller.saveReminders(False, False, True, 24)
+        assert not app.settings.reminders_enabled
         install.assert_called_once_with(False, 24)
 
-    def test_no_systemd_warns(self):
-        from tests.conftest import answer
-        shown = answer(self.app)
+    def test_no_systemd_warns(self, app):
+        shown = answer(app)
         with patch.object(AppSettings, "set_checker_installed", return_value=False):
-            self.app.settings_controller.saveReminders(True, False, True, 24)
-        self.assertEqual(shown[-1].title, "Reminders Saved")
-        self.assertEqual(shown[-1].level, "warning")
+            app.settings_controller.saveReminders(True, False, True, 24)
+        assert shown[-1].title == "Reminders Saved"
+        assert shown[-1].level == "warning"

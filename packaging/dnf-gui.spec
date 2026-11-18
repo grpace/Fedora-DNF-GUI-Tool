@@ -101,6 +101,8 @@ cp packaging/dnf-gui.metainfo.xml %{buildroot}%{_metainfodir}/%{app_name}.metain
 - Rebuilt Installed, Flatpak, History, Repositories, System, Tools and Settings pages
 - Keyboard and screen reader support throughout; text meets WCAG AA in Breeze Light and Dark
 - The app restarts itself after installing its own update
+- Security: privileged tools run from system paths only, never $PATH; self-updates are re-verified as root on a root-only copy; the passwordless rule is checked with visudo before it goes live
+
 * Mon Nov 16 2026 Greg.Tech <hello@greg.tech> - 1.5.1-1
 - Pass the desktop entry id to setDesktopFileName (no startup warning from Qt)
 

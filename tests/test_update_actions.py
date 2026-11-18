@@ -180,7 +180,7 @@ class TestFavoriteSetting(unittest.TestCase):
     def test_invalid_saved_value_falls_back(self):
         settings = AppSettings()
         with patch.object(settings, "get", return_value="bogus"):
-            self.assertEqual(settings.update_favorite, "all")
+            self.assertEqual(settings.update_favorite, "everything")
         with patch.object(settings, "get", return_value="minor"):
             self.assertEqual(settings.update_favorite, "minor")
 

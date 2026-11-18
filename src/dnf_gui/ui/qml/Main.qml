@@ -84,8 +84,10 @@ Kirigami.ApplicationWindow {
     function openColumn(file, props) {
         popTo(1);
         const page = createPage(file, props);
-        if (page)
+        if (page) {
             pageStack.push(page);
+            page.forceActiveFocus();  // keyboard and screen readers follow
+        }
     }
 
     // Package details beside the list (Updates and Installed pages).
@@ -104,6 +106,8 @@ Kirigami.ApplicationWindow {
 
     function closeColumns() {
         popTo(1);
+        if (pageStack.depth > 0)
+            pageStack.get(0).forceActiveFocus();  // back to the list
     }
 
     // Window close: the controller decides (an operation may be running).
@@ -117,11 +121,17 @@ Kirigami.ApplicationWindow {
             if (page && page.focusSearch)
                 page.focusSearch();
         }
-        function onErrorRaised(text) { root.showPassiveNotification(text, "long"); }
+        function onErrorRaised(text) {
+            root.showPassiveNotification(text, "long");
+            activity.Accessible.announce(text);
+        }
     }
     Connections {
         target: App.Prompts
-        function onNotice(text) { root.showPassiveNotification(text); }
+        function onNotice(text) {
+            root.showPassiveNotification(text);
+            activity.Accessible.announce(text);
+        }
     }
 
     globalDrawer: Sidebar {

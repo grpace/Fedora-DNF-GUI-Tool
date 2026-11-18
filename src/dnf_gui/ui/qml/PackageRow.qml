@@ -31,6 +31,12 @@ QQC2.ItemDelegate {
     Keys.onReturnPressed: clicked()
     Keys.onEnterPressed: clicked()
     Keys.onMenuPressed: menu.popup(more, 0, more.height)
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)) {
+            menu.popup(more, 0, more.height);
+            event.accepted = true;
+        }
+    }
 
     contentItem: RowLayout {
         spacing: Kirigami.Units.largeSpacing
@@ -75,6 +81,7 @@ QQC2.ItemDelegate {
             icon.name: "list-add"
             display: row.narrow ? QQC2.AbstractButton.IconOnly : QQC2.AbstractButton.TextBesideIcon
             enabled: !App.Runner.busy
+            activeFocusOnTab: false
             Accessible.name: "Install " + row.name
             onClicked: App.Packages.install(row.name)
         }
@@ -83,6 +90,7 @@ QQC2.ItemDelegate {
             icon.name: "overflow-menu"
             text: "More Actions for " + row.name
             display: QQC2.AbstractButton.IconOnly
+            activeFocusOnTab: false
             QQC2.ToolTip.text: "More Actions"
             QQC2.ToolTip.visible: hovered
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay

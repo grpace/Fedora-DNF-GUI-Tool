@@ -109,7 +109,7 @@ Kirigami.ScrollablePage {
             icon.name: "security-low"
             text: "<b>" + (page.update.severity || "Security") + " security fix</b><br>"
                   + (page.update.waiting ? "Waiting on another repository. Security Only can't install it yet."
-                                         : "Included when you choose Security Only.")
+                                         : "Installed by Upgrade All and by Security Only.")
         }
         Kirigami.InlineMessage {
             Layout.fillWidth: true

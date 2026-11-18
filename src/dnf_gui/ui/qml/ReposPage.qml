@@ -14,7 +14,7 @@ Kirigami.ScrollablePage {
 
     actions: [
         Kirigami.Action {
-            text: "Add COPR…"
+            text: "Add COPR Repository…"
             icon.name: "list-add"
             enabled: !App.Runner.busy
             onTriggered: coprDialog.open()

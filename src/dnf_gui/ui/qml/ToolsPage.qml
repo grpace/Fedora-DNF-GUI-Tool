@@ -38,6 +38,7 @@ Kirigami.ScrollablePage {
         delegate: QQC2.ItemDelegate {
             id: row
             required property var model
+            required property int index
             required property string title
             required property string description
             required property bool destructive
@@ -47,7 +48,14 @@ Kirigami.ScrollablePage {
             width: ListView.view.width
             text: title
             Accessible.description: description + (done ? " Already set up." : "")
-            onClicked: if (!(done && isSource) && !App.Runner.busy) page.s.runTool(row.model.id)
+            highlighted: ListView.isCurrentItem
+            onClicked: {
+                ListView.view.currentIndex = index;
+                if (!(done && isSource) && !App.Runner.busy)
+                    page.s.runTool(row.model.id);
+            }
+            Keys.onReturnPressed: clicked()
+            Keys.onEnterPressed: clicked()
             Accessible.onPressAction: clicked()
 
             contentItem: RowLayout {
@@ -86,6 +94,7 @@ Kirigami.ScrollablePage {
                 }
                 QQC2.Button {
                     id: runButton
+                    activeFocusOnTab: false
                     visible: !(row.done && row.isSource)
                     text: row.model.action
                     icon.name: row.destructive ? "dialog-warning" : ""

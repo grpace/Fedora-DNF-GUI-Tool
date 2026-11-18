@@ -30,6 +30,21 @@ _DNF5_STEP = re.compile(r"^\[\s*(\d+)\s*/\s*(\d+)\s*\]\s*(.*)$")
 # dnf4: "  Upgrading        : foo-1.2-3.fc45.x86_64          3/12"
 _DNF4_STEP = re.compile(r"^\s*([A-Z][A-Za-z ]+?)\s*:\s*(\S+)\s+(\d+)/(\d+)\s*$")
 _TRAILING_STATS = re.compile(r"\s+\d+%\s*\|.*$")
+# "kernel-core-0:7.2.8-300.fc45.x86_64" -> "kernel-core 7.2.8-300.fc45"
+_NEVRA = re.compile(r"^(?P<name>.+?)-(?:\d+:)?(?P<vr>[^-]+-[^-]+?)\.(?:x86_64|noarch|i686|aarch64|ppc64le|s390x)$")
+# Once dnf starts changing the system, stopping it midway can leave a
+# half-applied transaction, so Cancel goes away.
+_TRANSACTION_START = ("Running transaction", "Transaction starting")
+
+
+def _friendly(text: str) -> str:
+    """Drop the epoch and architecture from a package NEVRA in a step."""
+    words = text.split()
+    out = []
+    for word in words:
+        match = _NEVRA.match(word)
+        out.append(f"{match['name']} {match['vr']}" if match else word)
+    return " ".join(out)
 
 
 def parse_step(line: str) -> tuple[str, int, int] | None:
@@ -39,14 +54,14 @@ def parse_step(line: str) -> tuple[str, int, int] | None:
         n, total, rest = int(match.group(1)), int(match.group(2)), match.group(3)
         rest = _TRAILING_STATS.sub("", rest).strip()
         if total > 0 and rest:
-            return rest, n, total
+            return _friendly(rest), n, total
         return None
     match = _DNF4_STEP.match(line)
     if match:
         verb, pkg = match.group(1).strip(), match.group(2)
         n, total = int(match.group(3)), int(match.group(4))
         if total > 0:
-            return f"{verb} {pkg}", n, total
+            return _friendly(f"{verb} {pkg}"), n, total
     return None
 
 
@@ -54,6 +69,8 @@ class LogModel(QAbstractListModel):
     """The current operation's output, one row per line, capped."""
 
     countChanged = pyqtSignal()
+    appended = pyqtSignal(str)   # new text (one or more lines)
+    cleared = pyqtSignal()
     LineRole = Qt.ItemDataRole.UserRole + 1
 
     def __init__(self, parent=None):
@@ -89,12 +106,14 @@ class LogModel(QAbstractListModel):
         self._lines.extend(new)
         self.endInsertRows()
         self.countChanged.emit()
+        self.appended.emit("\n".join(new))
 
     def clear(self) -> None:
         self.beginResetModel()
         self._lines = []
         self.endResetModel()
         self.countChanged.emit()
+        self.cleared.emit()
 
     def text(self) -> str:
         return "\n".join(self._lines)
@@ -321,6 +340,8 @@ class OperationRunner(StateObject):
             self.append(line)
             if self._state["status"] == "auth":
                 self._set(status="running")
+            if self._state["cancellable"] and line.strip().startswith(_TRANSACTION_START):
+                self._set(cancellable=False)
             step = parse_step(line)
             if step is not None:
                 text, n, total = step

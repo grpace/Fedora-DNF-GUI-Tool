@@ -369,7 +369,10 @@ class ReposController(_Loader):
             self.app.prompts.confirm(
                 "Disable Repository?",
                 f"Disable {repo_id}?\n\nYou won't get updates from it until "
-                "you turn it back on.",
+                "you turn it back on."
+                + ("\n\nThis is one of Fedora's own repositories: with it off, "
+                   "your system stops getting updates and most installs fail."
+                   if repo_id in ("fedora", "updates") else ""),
                 lambda: self.app.runner.run(
                     self.app.backend.build_disable_repo_command(repo_id),
                     f"Disabling repo: {repo_id}"),
@@ -470,7 +473,10 @@ class HistoryController(_Loader):
         self.app.prompts.confirm(
             "Undo Transaction?",
             f"Undo transaction #{txn_id}?\n\nThis reverses the changes made in "
-            "that transaction. " + self.app.password_note(cmd),
+            "that transaction: what it installed is removed, and what it "
+            "upgraded is downgraded. Undoing an upgrade fails if the older "
+            "versions are no longer in your repositories. "
+            + self.app.password_note(cmd),
             lambda: self.app.runner.run(cmd, f"Undoing transaction #{txn_id}"),
             confirm_label="Undo", destructive=True)
 
@@ -488,15 +494,16 @@ TOOLS = (
     ("firmware_check", "Maintenance", "Check Firmware Updates",
      "Look for BIOS/UEFI and device firmware updates with fwupd.", "Check", False),
     ("firmware_update", "Maintenance", "Apply Firmware Updates",
-     "Install available device firmware updates. May need a restart.",
-     "Update", False),
+     "Install every available firmware update, including BIOS/UEFI. Keep "
+     "laptops plugged in.", "Update", True),
     ("clean_cache", "Maintenance", "Clean DNF Cache",
-     "Remove cached metadata and downloaded packages.", "Clean", True),
+     "Remove cached metadata and downloaded packages. Safe; they download "
+     "again when needed.", "Clean", False),
     ("rebuild_cache", "Maintenance", "Rebuild Metadata Cache",
      "Download fresh repository metadata.", "Rebuild", False),
     ("distro_sync", "Maintenance", "Distribution Sync",
-     "Match every installed package to the versions in your repositories.",
-     "Sync", True),
+     "Advanced recovery: downgrades or removes packages so everything matches "
+     "your repositories.", "Sync", True),
 )
 
 
@@ -557,10 +564,16 @@ class SystemController(_Loader):
         tool_map = {
             "rpmfusion_free": (backend.build_install_rpmfusion_free_command,
                                "Installing RPM Fusion (Free)",
-                               "Enable the RPM Fusion Free repository?"),
+                               "Download and install RPM Fusion's release package "
+                               "(as root)? It adds the RPM Fusion Free repository "
+                               "and its signing key, so later updates can come "
+                               "from RPM Fusion."),
             "rpmfusion_nonfree": (backend.build_install_rpmfusion_nonfree_command,
                                   "Installing RPM Fusion (Non-Free)",
-                                  "Enable the RPM Fusion Non-Free repository?"),
+                                  "Download and install RPM Fusion's release package "
+                                  "(as root)? It adds the RPM Fusion Non-Free "
+                                  "repository and its signing key, so later updates "
+                                  "can come from RPM Fusion."),
             "add_flathub": (lambda: ["flatpak", "remote-add", "--if-not-exists",
                                      "flathub",
                                      "https://dl.flathub.org/repo/flathub.flatpakrepo"],
@@ -571,7 +584,12 @@ class SystemController(_Loader):
                                "Check for available firmware updates?"),
             "firmware_update": (backend.build_firmware_update_apply_command,
                                 "Applying firmware updates",
-                                "Apply firmware updates? This may need a restart."),
+                                "Install every pending firmware update now? This "
+                                "runs fwupdmgr update -y, which can include system "
+                                "firmware (BIOS/UEFI).\n\nKeep laptops plugged "
+                                "in and don't turn the computer off: an interrupted "
+                                "firmware update can leave it unable to start. "
+                                "Some updates finish during the next restart."),
             "clean_cache": (backend.build_clean_cache_command, "Cleaning DNF cache",
                             "Clean all DNF cached data?"),
             "rebuild_cache": (backend.build_makecache_command,

@@ -39,6 +39,9 @@ QQC2.ItemDelegate {
     Accessible.onPressAction: clicked()
     Accessible.description: (severity === "Security" ? "Security update. "
                              : severity ? severity + " security update. " : "")
+                            + (waiting ? "Waiting on another repository. " : "")
+                            + (size ? size + " download. " : "")
+                            + (repo && repo !== "updates" ? "From " + repo + ". " : "")
                             + (major ? "Major update. " : "")
                             + (flatpak ? "Flatpak app. " : "")
                             + (fromVersion ? "From " + fromVersion + " to " + toVersion : toVersion)
@@ -50,6 +53,12 @@ QQC2.ItemDelegate {
     Keys.onReturnPressed: clicked()
     Keys.onEnterPressed: clicked()
     Keys.onMenuPressed: menu.popup(more, 0, more.height)
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)) {
+            menu.popup(more, 0, more.height);
+            event.accepted = true;
+        }
+    }
 
     QQC2.ToolTip.text: tooltip || majorReason
     QQC2.ToolTip.visible: hovered && (tooltip !== "" || majorReason !== "")
@@ -133,6 +142,7 @@ QQC2.ItemDelegate {
             icon.name: "download"
             display: row.narrow ? QQC2.AbstractButton.IconOnly : QQC2.AbstractButton.TextBesideIcon
             enabled: !App.Runner.busy
+            activeFocusOnTab: false  // one Tab stop per row
             Accessible.name: "Update " + row.name
             QQC2.ToolTip.text: "Update only " + row.name
             QQC2.ToolTip.visible: hovered && row.narrow
@@ -144,6 +154,7 @@ QQC2.ItemDelegate {
             icon.name: "overflow-menu"
             text: "More Actions for " + row.name
             display: QQC2.AbstractButton.IconOnly
+            activeFocusOnTab: false
             QQC2.ToolTip.text: "More Actions"
             QQC2.ToolTip.visible: hovered
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay

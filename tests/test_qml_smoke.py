@@ -316,3 +316,37 @@ def test_opening_settings_keeps_non_default_reminder_choices(ui):
     assert (settings.reminders_enabled, settings.security_only,
             settings.notify_flatpak, settings.check_interval_hours) == (True, True, True, 72)
     assert _problems(warnings, messages) == []
+
+
+def test_output_log_is_readable_text(ui):
+    controller, window, (warnings, messages) = ui
+    controller.toggleActivity(True)
+    controller.runner.append("✗ Step failed (exit 1)")
+    _spin(150)
+    areas = _find(window, lambda i: i.property("readOnly") is True
+                  and "Step failed" in str(i.property("text") or ""))
+    assert areas, "the log should be a read-only text area screen readers can move through"
+    assert areas[0].property("activeFocusOnTab") is True
+    assert _problems(warnings, messages) == []
+
+
+def test_opening_details_moves_keyboard_focus_there(ui):
+    controller, window, (warnings, messages) = ui
+    controller.updates._on_checked(_scan())
+    _spin(200)
+    QMetaObject.invokeMethod(window, "openPackageDetails", Qt.ConnectionType.DirectConnection,
+                             Q_ARG("QVariant", "pkg1"))
+    _spin(200)
+    item, titles = window.activeFocusItem(), []
+    while item is not None:
+        titles.append(item.property("title"))
+        item = item.parentItem()
+    assert "pkg1" in titles
+    QMetaObject.invokeMethod(window, "closeColumns", Qt.ConnectionType.DirectConnection)
+    _spin(150)
+    item, titles = window.activeFocusItem(), []
+    while item is not None:
+        titles.append(item.property("title"))
+        item = item.parentItem()
+    assert "Updates" in titles
+    assert _problems(warnings, messages) == []

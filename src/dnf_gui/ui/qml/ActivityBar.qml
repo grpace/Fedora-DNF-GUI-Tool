@@ -24,6 +24,34 @@ QQC2.Pane {
         }
     }
 
+    // Say when an operation needs a password, finishes or fails: a screen
+    // reader user waiting in the window gets no desktop notification.
+    property string spokenStatus: ""
+    Connections {
+        target: bar.runner
+        function onChanged() {
+            const s = bar.runner.status;
+            if (s === bar.spokenStatus)
+                return;
+            bar.spokenStatus = s;
+            const op = bar.runner.operation;
+            const message = s === "auth" ? op + ": waiting for your password"
+                          : s === "succeeded" ? op + ": " + bar.runner.statusText
+                          : s === "failed" ? op + " failed. The output is open."
+                          : s === "cancelled" ? op + " was cancelled."
+                          : "";
+            if (message !== "")
+                bar.Accessible.announce(message);
+            if (s === "failed")
+                focusLog.restart();  // after the log opens
+        }
+    }
+    Timer {
+        id: focusLog
+        interval: 50
+        onTriggered: logArea.forceActiveFocus()
+    }
+
     contentItem: ColumnLayout {
         spacing: Kirigami.Units.smallSpacing
 
@@ -132,38 +160,41 @@ QQC2.Pane {
                     radius: Kirigami.Units.cornerRadius
                 }
 
-                ListView {
-                    id: log
+                // Read-only text, so the keyboard and screen readers can move
+                // through it like any document.
+                QQC2.ScrollView {
+                    id: logScroll
                     anchors.fill: parent
                     anchors.margins: Kirigami.Units.smallSpacing
-                    clip: true
-                    model: bar.runner.log
-                    boundsBehavior: Flickable.StopAtBounds
-                    Accessible.name: "Command Output"
-                    QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
-                    property bool following: true
-                    onMovementEnded: following = atYEnd
-                    onCountChanged: if (following) positionViewAtEnd()
-                    delegate: QQC2.Label {
-                        required property string line
-                        width: ListView.view.width - Kirigami.Units.largeSpacing
-                        text: line
+                    QQC2.TextArea {
+                        id: logArea
+                        readOnly: true
+                        textFormat: TextEdit.PlainText
+                        wrapMode: TextEdit.WrapAnywhere
                         font.family: "monospace"
                         font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        wrapMode: Text.WrapAnywhere
-                        textFormat: Text.PlainText
-                        color: line.indexOf("✗") === 0 || line.indexOf("❌") >= 0
-                               ? Kirigami.Theme.negativeTextColor
-                               : line.indexOf("⚠") >= 0 ? Kirigami.Theme.neutralTextColor
-                               : Kirigami.Theme.textColor
+                        selectByMouse: true
+                        activeFocusOnTab: true
+                        background: null
+                        Accessible.name: "Command output"
+                        Keys.onEscapePressed: App.toggleActivity(false)
                     }
-                    Kirigami.PlaceholderMessage {
-                        anchors.centerIn: parent
-                        width: parent.width - Kirigami.Units.gridUnit * 4
-                        visible: log.count === 0
-                        text: "No Output Yet"
-                        explanation: "Commands you run show their output here."
+                }
+                Connections {
+                    target: bar.runner.log
+                    function onAppended(text) {
+                        logArea.append(text);
+                        if (!logArea.activeFocus)
+                            logArea.cursorPosition = logArea.length;  // follow the end
                     }
+                    function onCleared() { logArea.clear(); }
+                }
+                Kirigami.PlaceholderMessage {
+                    anchors.centerIn: parent
+                    width: parent.width - Kirigami.Units.gridUnit * 4
+                    visible: bar.runner.log.count === 0
+                    text: "No Output Yet"
+                    explanation: "Commands you run show their output here."
                 }
             }
 
@@ -173,13 +204,13 @@ QQC2.Pane {
                 QQC2.Button {
                     text: "Copy Output"
                     icon.name: "edit-copy"
-                    enabled: log.count > 0
+                    enabled: bar.runner.log.count > 0
                     onClicked: bar.runner.copyToClipboard()
                 }
                 QQC2.Button {
                     text: "Clear"
                     icon.name: "edit-clear-history"
-                    enabled: log.count > 0 && !bar.runner.busy
+                    enabled: bar.runner.log.count > 0 && !bar.runner.busy
                     onClicked: bar.runner.clear()
                 }
             }

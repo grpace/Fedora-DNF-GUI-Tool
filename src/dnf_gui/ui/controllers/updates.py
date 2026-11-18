@@ -206,8 +206,13 @@ class UpdatesController(StateObject):
         self.security_preview = result.get("security_preview")
         self._release_upgrade = result.get("release_upgrade")
         dnf_count = len(info.packages) if info and info.packages else 0
-        self._set(rebootRequired=bool(result.get("reboot")) and not self._reboot_dismissed,
-                  dnfCount=dnf_count, flatpakCount=len(self._flatpaks),
+        reboot = result.get("reboot")
+        if reboot is not None:
+            # A scan that can't tell (None) leaves the banner as it was, so
+            # it never clears "a restart may be needed" from the check that
+            # ran after an update.
+            self.set_reboot_required(bool(reboot))
+        self._set(dnfCount=dnf_count, flatpakCount=len(self._flatpaks),
                   total=dnf_count + len(self._flatpaks),
                   securityTotal=self._security.total if self._security else 0,
                   securityWaiting=(len(self._security.blocked_advisories)

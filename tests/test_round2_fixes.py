@@ -412,3 +412,55 @@ def test_flatpak_update_pill_matches_app_id_and_branch():
     assert c.updates.flatpakHasUpdate("org.kde.Platform", "6.9")
     assert not c.updates.flatpakHasUpdate("org.kde.Platform", "6.8")
     assert not c.updates.flatpakHasUpdate("org.kde.Sdk", "6.9")
+
+
+# ── security critic, second follow-up ────────────────────────────────
+
+def test_rescan_that_cannot_tell_keeps_the_may_need_restart_banner():
+    """After an update the reboot check says "maybe"; the rescan the same
+    update starts must not clear it when it can't tell either."""
+    c = _controller()
+    c.updates._on_reboot_checked(None)
+    c.updates._on_checked(_scan(c, reboot=None))
+    assert c.updates.rebootRequired and not c.updates.rebootCertain
+    c.updates._on_checked(_scan(c, reboot=False))   # a conclusive answer wins
+    assert not c.updates.rebootRequired
+    c.updates._on_checked(_scan(c, reboot=True))
+    assert c.updates.rebootRequired and c.updates.rebootCertain
+
+
+def test_combined_scan_reports_an_inconclusive_reboot_check_as_none():
+    import inspect
+    from dnf_gui.core import worker
+    source = inspect.getsource(worker.CombinedUpdateCheckWorker)
+    assert "check_reboot()" in source and "reboot_required()" not in source
+
+
+def test_root_copy_refuses_symlinks_devices_fifos_and_huge_files(tmp_path):
+    import hashlib
+    import os
+    import subprocess
+    import sys
+    from dnf_gui.core.updater import VERIFIED_INSTALL_SCRIPT
+    digest = hashlib.sha256(b"x").hexdigest()
+
+    def run(path):
+        return subprocess.run([sys.executable, "-I", "-c", VERIFIED_INSTALL_SCRIPT,
+                               str(path), digest, "/usr/bin/dnf5"],
+                              capture_output=True, text=True, timeout=20)
+
+    real = tmp_path / "real.rpm"
+    real.write_bytes(b"x")
+    link = tmp_path / "link.rpm"
+    link.symlink_to(real)                       # even to a matching file
+    dev = tmp_path / "zero.rpm"
+    dev.symlink_to("/dev/zero")
+    fifo = tmp_path / "fifo.rpm"
+    os.mkfifo(fifo)
+    huge = tmp_path / "huge.rpm"
+    with open(huge, "wb") as f:
+        f.truncate(101 * 1024 * 1024)           # sparse: costs no disk
+    for path in (link, dev, fifo, huge, tmp_path / "missing.rpm"):
+        result = run(path)
+        assert result.returncode == 3, (path, result.stdout, result.stderr)
+        assert "Refusing" in result.stdout

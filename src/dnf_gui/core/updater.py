@@ -151,25 +151,38 @@ def check_for_update(current_version: str) -> Optional[UpdateInfo]:
 # the downloaded RPM into a directory only root can write, hashes that copy,
 # and installs exactly that copy, so nothing running as the user can swap
 # the file between the check and the install (e.g. while the password
-# prompt is open). No shell: the arguments are never interpolated.
+# prompt is open). The download must be a regular file (no symlinks,
+# devices or FIFOs) within the downloader's 100 MiB cap. No shell: the
+# arguments are never interpolated.
 VERIFIED_INSTALL_SCRIPT = r"""
-import hashlib, os, shutil, subprocess, sys, tempfile
+import hashlib, os, shutil, stat, subprocess, sys, tempfile
+MAX_BYTES = 100 * 1024 * 1024
 src, digest, dnf = sys.argv[1], sys.argv[2].lower(), sys.argv[3]
 if dnf not in ("/usr/bin/dnf5", "/usr/bin/dnf"):
     print("Refusing: unexpected dnf path"); sys.exit(2)
 if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
     print("Refusing: no valid digest to check against"); sys.exit(2)
-tmp = tempfile.mkdtemp(prefix="dnf-gui-update-")
+try:
+    fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+except OSError as e:
+    print("Refusing: can't open the download (%s)" % e.strerror); sys.exit(3)
+info = os.fstat(fd)
+if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_BYTES:
+    print("Refusing: the download isn't a regular file of a sane size"); sys.exit(3)
+tmp = tempfile.mkdtemp(prefix="dnf-gui-update-", dir="/var/tmp")
 try:
     copy = os.path.join(tmp, "update.rpm")
-    shutil.copyfile(src, copy)
-    h = hashlib.sha256()
-    with open(copy, "rb") as f:
+    h, total = hashlib.sha256(), 0
+    with os.fdopen(fd, "rb") as f, open(copy, "xb") as out:
         for chunk in iter(lambda: f.read(1 << 20), b""):
+            total += len(chunk)
+            if total > MAX_BYTES:
+                print("Refusing: the download grew while being copied"); sys.exit(3)
             h.update(chunk)
+            out.write(chunk)
     if h.hexdigest() != digest:
         print("Refusing: the downloaded file changed after it was checked"); sys.exit(3)
-    print("Digest checked again as root; installing")
+    print("Digest checked again as root; installing", flush=True)
     sys.exit(subprocess.run([dnf, "install", "-y", copy]).returncode)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)

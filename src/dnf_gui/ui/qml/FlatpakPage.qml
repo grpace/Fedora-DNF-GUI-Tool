@@ -131,8 +131,9 @@ Kirigami.ScrollablePage {
             onClicked: ListView.view.currentIndex = index
             Keys.onMenuPressed: if (more.visible) menu.popup(more, 0, more.height)
             Accessible.onPressAction: clicked()
+            // Re-evaluated after every scan (flatpakCount changes).
             readonly property bool hasUpdate: App.Updates.flatpakCount >= 0
-                                              && App.Updates.updateFor(row.name).kind === "flatpak"
+                                              && App.Updates.flatpakHasUpdate(row.appId, row.branch)
 
             contentItem: RowLayout {
                 spacing: Kirigami.Units.largeSpacing

@@ -31,9 +31,11 @@ QQC2.Pane {
         target: bar.runner
         function onChanged() {
             const s = bar.runner.status;
-            if (s === bar.spokenStatus)
+            // A finished run's text can change after it ends ("… Skipped").
+            const key = s + ":" + (s === "succeeded" ? bar.runner.statusText : "");
+            if (key === bar.spokenStatus)
                 return;
-            bar.spokenStatus = s;
+            bar.spokenStatus = key;
             const op = bar.runner.operation;
             const message = s === "auth" ? op + ": waiting for your password"
                           : s === "succeeded" ? op + ": " + bar.runner.statusText
@@ -177,7 +179,11 @@ QQC2.Pane {
                         activeFocusOnTab: true
                         background: null
                         Accessible.name: "Command output"
-                        Keys.onEscapePressed: App.toggleActivity(false)
+                        Keys.onEscapePressed: (event) => {
+                            App.toggleActivity(false);
+                            root.pageStack.get(root.pageStack.depth - 1).forceActiveFocus();
+                            event.accepted = true;
+                        }
                     }
                 }
                 Connections {

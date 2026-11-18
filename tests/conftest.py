@@ -53,6 +53,9 @@ def _hermetic_controller(monkeypatch):
     monkeypatch.setattr(worker.AppUpdateWorker, "run",
                         lambda self: self.finished.emit(None))
     monkeypatch.setattr(worker.ReminderCheckWorker, "run", lambda self: None)
+    # Never run the real `dnf needs-restarting` after a simulated upgrade.
+    monkeypatch.setattr(worker.RebootCheckWorker, "run",
+                        lambda self: self.finished.emit(False))
     # Never show real desktop notifications; tests patch send to inspect them.
     from dnf_gui.core import notifications
     monkeypatch.setattr(notifications.Notifier, "_dbus_notify",

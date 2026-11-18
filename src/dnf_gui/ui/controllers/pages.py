@@ -565,13 +565,13 @@ class SystemController(_Loader):
             "rpmfusion_free": (backend.build_install_rpmfusion_free_command,
                                "Installing RPM Fusion (Free)",
                                "Download and install RPM Fusion's release package "
-                               "(as root)? It adds the RPM Fusion Free repository "
+                               "(with administrator, root, permission)? It adds the RPM Fusion Free repository "
                                "and its signing key, so later updates can come "
                                "from RPM Fusion."),
             "rpmfusion_nonfree": (backend.build_install_rpmfusion_nonfree_command,
                                   "Installing RPM Fusion (Non-Free)",
                                   "Download and install RPM Fusion's release package "
-                                  "(as root)? It adds the RPM Fusion Non-Free "
+                                  "(with administrator, root, permission)? It adds the RPM Fusion Non-Free "
                                   "repository and its signing key, so later updates "
                                   "can come from RPM Fusion."),
             "add_flathub": (lambda: ["flatpak", "remote-add", "--if-not-exists",

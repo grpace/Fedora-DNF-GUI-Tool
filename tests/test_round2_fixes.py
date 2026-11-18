@@ -333,3 +333,82 @@ def test_firmware_update_is_confirmed_as_destructive():
     shown = answer(c, "no")
     c.system.runTool("firmware_update")
     assert shown[-1].destructive and "BIOS/UEFI" in shown[-1].text
+
+
+# ── hostile-critics follow-up ────────────────────────────────────────
+
+def _run_verified_script(tmp_path, content: bytes, digest: str, dnf: str = "/usr/bin/dnf5"):
+    """Run the root-side install script as this user, without pkexec; the
+    refusal paths exit before dnf would run."""
+    import subprocess
+    import sys
+    from dnf_gui.core.updater import VERIFIED_INSTALL_SCRIPT
+    rpm = tmp_path / "update.rpm"
+    rpm.write_bytes(content)
+    return subprocess.run([sys.executable, "-I", "-c", VERIFIED_INSTALL_SCRIPT,
+                           str(rpm), digest, dnf], capture_output=True, text=True)
+
+
+def test_self_update_is_rechecked_as_root_and_refuses_a_swapped_file(tmp_path):
+    import hashlib
+    from dnf_gui.core.updater import build_verified_install_command
+    good = hashlib.sha256(b"the real rpm").hexdigest()
+    argv = build_verified_install_command("/tmp/x.rpm", good, "/usr/bin/dnf5")
+    assert argv[:4] == ["pkexec", "/usr/bin/python3", "-I", "-c"]
+    assert argv[-3:] == ["/tmp/x.rpm", good, "/usr/bin/dnf5"]   # data, never shell text
+    swapped = _run_verified_script(tmp_path, b"something else", good)
+    assert swapped.returncode == 3 and "changed after it was checked" in swapped.stdout
+    assert _run_verified_script(tmp_path, b"x", "", "/usr/bin/dnf5").returncode == 2
+    assert _run_verified_script(tmp_path, b"x", good, "/home/me/.local/bin/dnf").returncode == 2
+
+
+def test_inconclusive_reboot_check_says_a_restart_may_be_needed():
+    from dnf_gui.core.dnf_backend import DNFBackend
+    backend = DNFBackend.__new__(DNFBackend)
+    backend._dnf_path = "/usr/bin/dnf5"
+    with patch("subprocess.run", side_effect=FileNotFoundError), \
+            patch("os.path.exists", return_value=False):
+        assert backend.check_reboot() is None
+        assert backend.reboot_required() is False   # old callers unchanged
+    c = _controller()
+    c.updates._on_reboot_checked(None)
+    assert c.updates.rebootRequired and not c.updates.rebootCertain
+
+
+def test_update_everything_defaults_to_cancel():
+    c = _controller()
+    shown = answer(c, "no")
+    c.updates.update_everything()
+    assert shown[-1].default == "no"
+
+
+def test_passwordless_uses_the_system_sudo_or_stays_on_pkexec():
+    from dnf_gui.core import passwordless as pw
+    cmd = ["pkexec", "/usr/bin/dnf5", "upgrade", "-y", "--refresh"]
+    with patch("dnf_gui.core.passwordless.find_system_binary", return_value="/usr/bin/sudo"):
+        assert pw.maybe_passwordless(cmd, "updates")[0] == "/usr/bin/sudo"
+    with patch("dnf_gui.core.passwordless.find_system_binary", return_value=None):
+        assert pw.maybe_passwordless(cmd, "updates") == cmd
+
+
+def test_failed_move_fails_the_sudoers_install():
+    from dnf_gui.core import passwordless as pw
+    script = pw.build_install_commands(pw.build_rule_content("me", "updates"))[3]
+    assert f"mv -f {pw.SUDOERS_FILE}.tmp {pw.SUDOERS_FILE} || {{" in script
+
+
+def test_live_rule_is_checked_again_after_it_changes():
+    c = _controller()
+    c._pw_cache = (1e18, ("full", True))
+    c.settings_controller.toggle_hold("htop", True)
+    assert c._pw_cache is None
+
+
+def test_flatpak_update_pill_matches_app_id_and_branch():
+    from dnf_gui.core.flatpak_backend import FlatpakApp
+    c = _controller()
+    c.updates._on_checked({"dnf": UpdateInfo(), "security": None, "flatpak": [
+        FlatpakApp("KDE Application Platform", "org.kde.Platform", "", "6.9")]})
+    assert c.updates.flatpakHasUpdate("org.kde.Platform", "6.9")
+    assert not c.updates.flatpakHasUpdate("org.kde.Platform", "6.8")
+    assert not c.updates.flatpakHasUpdate("org.kde.Sdk", "6.9")

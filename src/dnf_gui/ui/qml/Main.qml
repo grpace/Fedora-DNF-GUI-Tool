@@ -123,14 +123,14 @@ Kirigami.ApplicationWindow {
         }
         function onErrorRaised(text) {
             root.showPassiveNotification(text, "long");
-            activity.Accessible.announce(text);
+            root.pageStack.Accessible.announce(text);
         }
     }
     Connections {
         target: App.Prompts
         function onNotice(text) {
             root.showPassiveNotification(text);
-            activity.Accessible.announce(text);
+            root.pageStack.Accessible.announce(text);
         }
     }
 
@@ -159,7 +159,8 @@ Kirigami.ApplicationWindow {
     Shortcut { sequences: [StandardKey.Find]; onActivated: App.focusSearch() }
     Shortcut { sequence: "Ctrl+U"; onActivated: App.runFavoriteUpdate() }
     Shortcut { sequence: "Ctrl+T"; onActivated: App.toggleActivity(!App.activityExpanded) }
-    Shortcut { sequence: "Esc"; enabled: root.pageStack.depth > 1; onActivated: root.closeColumns() }
+    // Esc closes a details column, unless the output log has the focus.
+    Shortcut { sequence: "Esc"; enabled: root.pageStack.depth > 1 && !App.activityExpanded; onActivated: root.closeColumns() }
     Repeater {
         model: 9
         delegate: Item {

@@ -187,7 +187,9 @@ def is_covered(argv: list[str], scope: str) -> bool:
 def maybe_passwordless(cmd: list[str], scope: str) -> list[str]:
     """Rewrite ``pkexec ...`` to ``sudo -n ...`` when covered by the rule."""
     if cmd and cmd[0] == "pkexec" and is_covered(cmd, scope):
-        return ["sudo", "-n"] + cmd[1:]
+        sudo = find_system_binary("sudo")
+        if sudo:  # never a $PATH lookup (core.paths); otherwise stay on pkexec
+            return [sudo, "-n"] + cmd[1:]
     return cmd
 
 
@@ -274,7 +276,8 @@ def build_install_commands(content: str) -> list[str]:
         f"chmod 0440 {tmp}\n"
         f"visudo -c -f {tmp} || {{ rm -f {tmp}; "
         'echo "visudo check FAILED — nothing was installed"; exit 1; }\n'
-        f"mv -f {tmp} {SUDOERS_FILE}\n"
+        f"mv -f {tmp} {SUDOERS_FILE} || {{ rm -f {tmp}; "
+        'echo "could not install the rule"; exit 1; }\n'
         f"visudo -c || {{ rm -f {SUDOERS_FILE}; "
         'echo "visudo check FAILED — rule removed again"; exit 1; }\n'
         'echo "passwordless rule installed and validated"'

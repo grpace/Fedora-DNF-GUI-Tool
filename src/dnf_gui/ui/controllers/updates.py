@@ -36,7 +36,7 @@ GROUPS = {  # key: (rank, section title)
 ROLES = ("name", "kind", "group", "section", "fromVersion", "toVersion", "arch",
          "repo", "size", "severity", "security", "waiting", "major",
          "majorReason", "canToggleMajor", "majorActionLabel", "majorTooltip",
-         "appId", "iconName", "tooltip")
+         "appId", "branch", "iconName", "tooltip")
 
 
 def _format_day(iso_day: str) -> str:
@@ -143,6 +143,13 @@ class UpdatesController(StateObject):
     @pyqtProperty(QObject, constant=True)
     def filtered(self) -> FilterModel:
         return self._filtered
+
+    @pyqtSlot(str, str, result=bool)
+    def flatpakHasUpdate(self, app_id: str, branch: str) -> bool:
+        """Whether this installed Flatpak (app id + branch) has an update."""
+        return any(r["kind"] == "flatpak" and r["appId"] == app_id
+                   and (not r["branch"] or not branch or r["branch"] == branch)
+                   for r in self._model._rows)
 
     @pyqtSlot(str, result="QVariantMap")
     def updateFor(self, name: str) -> dict:
@@ -255,7 +262,7 @@ class UpdatesController(StateObject):
                 "security": is_security, "waiting": waiting, "major": major,
                 "majorReason": self._major_reason(pkg.name) if major else "",
                 "canToggleMajor": can_toggle, "majorActionLabel": label,
-                "majorTooltip": tip, "appId": "", "iconName": "package-x-generic",
+                "majorTooltip": tip, "appId": "", "branch": "", "iconName": "package-x-generic",
                 "tooltip": tooltip,
             })
         rows.sort(key=lambda r: (GROUPS[r["group"]][0], r["name"].lower()))
@@ -269,7 +276,8 @@ class UpdatesController(StateObject):
                 "severity": "", "security": False, "waiting": False,
                 "major": False, "majorReason": "", "canToggleMajor": False,
                 "majorActionLabel": "", "majorTooltip": "",
-                "appId": app.application_id, "iconName": app.application_id,
+                "appId": app.application_id, "branch": app.branch or "",
+                "iconName": app.application_id,
                 "tooltip": app.application_id,
             })
         flatpak_rows.sort(key=lambda r: r["name"].lower())
@@ -538,13 +546,14 @@ class UpdatesController(StateObject):
             "1. dnf upgrade --refresh (system packages"
             f"{f' — {dnf_preview}' if dnf_preview else ''})\n"
             "2. flatpak update -y (all Flatpak apps)\n\n"
-            "System packages need your password unless passwordless updates "
-            "are on in Settings.",
+            "dnf may also replace or remove packages when an update needs it; "
+            "the output lists everything it changes. "
+            + self.app.password_note(self.app.backend.build_upgrade_command()),
             lambda: self.app.runner.run_chain(
                 [self.app.backend.build_upgrade_command(),
                  self.app.flatpak_backend.build_update_all_command()],
                 "Update Everything (DNF + Flatpak)"),
-            confirm_label="Update Everything")
+            confirm_label="Update Everything", default_yes=False)
 
     def security_upgrade(self) -> None:
         if self.security_blocked and not self.security_installable:
@@ -661,12 +670,23 @@ class UpdatesController(StateObject):
         self._set(rebootRequired=bool(required) and not self._reboot_dismissed,
                   rebootCertain=certain)
 
+    def _on_reboot_checked(self, needed) -> None:
+        # Unknown isn't "no": after an update, say a restart may be needed.
+        if needed is None:
+            self.set_reboot_required(True, certain=False)
+        else:
+            self.set_reboot_required(bool(needed))
+
+    def _on_reboot_check_failed(self, _error: str) -> None:
+        self.set_reboot_required(True, certain=False)
+
     def recheck_reboot(self) -> None:
         """After a successful upgrade a reboot may be pending (new kernel)."""
         worker = RebootCheckWorker(self.app.backend, parent=self)
-        worker.finished.connect(self.set_reboot_required)
-        # Unknown isn't "no": after an update, say a restart may be needed.
-        worker.error.connect(lambda _e: self.set_reboot_required(True, certain=False))
+        # Bound methods, not lambdas: PyQt drops these connections when this
+        # controller goes away, so a late result can't reach a dead object.
+        worker.finished.connect(self._on_reboot_checked)
+        worker.error.connect(self._on_reboot_check_failed)
         self._reboot_worker = worker
         worker.start()
 

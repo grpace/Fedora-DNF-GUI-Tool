@@ -254,7 +254,12 @@ class DNFBackend:
         return preview
 
     def reboot_required(self) -> bool:
-        """True if the system should be rebooted to finish updates.
+        """True if a reboot is needed (False when it can't tell). Never raises."""
+        return self.check_reboot() is True
+
+    def check_reboot(self) -> bool | None:
+        """True/False if the system should be rebooted to finish updates,
+        None when every check was inconclusive.
 
         Checks, in order: ``dnf needs-restarting -r`` (built into dnf5;
         Fedora 41+ ships no standalone binary), the legacy
@@ -311,7 +316,7 @@ class DNFBackend:
             pass
         except Exception:
             pass
-        return False
+        return None
 
     # ─── Privileged Operations (root via pkexec) ────────────────────
 
